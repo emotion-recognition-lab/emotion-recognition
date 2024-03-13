@@ -1,0 +1,11 @@
+__pycache__/
+outputs/
+datasets/features/
+preprocess_data/
+checkpoints/
+logs/
+
+*.pdf
+
+Justfile
+main.sh
