@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer
 
-from recognize.dataset import MELDDataset
+from recognize.dataset import MELDDataset, MELDDatasetLabelType, MELDDatasetSplit
 from recognize.model import MultimodalInput, MultimodalModel
 from recognize.utils import calculate_accuracy, calculate_class_weights, calculate_f1_score, train_and_eval
 
@@ -17,22 +17,22 @@ if __name__ == "__main__":
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         feature_extracor,
-        split="train",
-        label_type="emotion",
+        split=MELDDatasetSplit.TRAIN,
+        label_type=MELDDatasetLabelType.EMOTION,
     )
     dev_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         feature_extracor,
-        split="dev",
-        label_type="emotion",
+        split=MELDDatasetSplit.DEV,
+        label_type=MELDDatasetLabelType.EMOTION,
     )
     test_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         feature_extracor,
-        split="test",
-        label_type="emotion",
+        split=MELDDatasetSplit.TEST,
+        label_type=MELDDatasetLabelType.EMOTION,
     )
     train_data_loader = DataLoader(
         train_dataset,
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     dev_data_loader = DataLoader(
         dev_dataset,
         num_workers=4,
-        batch_size=32,
+        batch_size=16,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     test_data_loader = DataLoader(
         test_dataset,
         num_workers=4,
-        batch_size=32,
+        batch_size=16,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,

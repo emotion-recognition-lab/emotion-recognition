@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+import os
 import pickle
 from copy import deepcopy
+from pathlib import Path
 
 import torch
 from cachetools import Cache, cached
 from loguru import logger
 from rich.progress import Progress
 from torch.utils.data import DataLoader
-from pathlib import Path
-import os
 
 from .model import ClassifierModel
 
@@ -120,7 +120,7 @@ def train_and_eval(
     test_data_loader: DataLoader,
     checkpoint_label: str | None = None,
 ):
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.1, amsgrad=True)
 
     if checkpoint_label is None:
         checkpoint_label = f"{model.__class__.__name__}-{id(model)}"
@@ -128,8 +128,10 @@ def train_and_eval(
     checkpoint_dir = Path(f"./checkpoints/{checkpoint_label}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     model_list = os.listdir(checkpoint_dir)
+    epoch_start = 0
     if model_list:
         model_list.sort(key=lambda x: int(x))
+        epoch_start = int(model_list[-1])
         model.load_state_dict(torch.load(checkpoint_dir / model_list[-1] / "model.pt"))
         optimizer.load_state_dict(torch.load(checkpoint_dir / model_list[-1] / "optimizer.pt"))
 
@@ -144,8 +146,9 @@ def train_and_eval(
             loss=float("inf"),
             accuracy=0,
             f1_score=0,
+            completed=epoch_start,
         )
-        for epoch in range(num_epochs):
+        for epoch in range(epoch_start, num_epochs):
             loss_value = float("inf")
             loss_value_list = []
             for batch in train_data_loader:

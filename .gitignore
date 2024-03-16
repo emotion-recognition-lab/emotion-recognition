@@ -9,3 +9,4 @@ logs/
 
 Justfile
 main.sh
+.pdm-python

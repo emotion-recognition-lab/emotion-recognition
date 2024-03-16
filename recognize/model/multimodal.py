@@ -10,10 +10,13 @@ from .base import Backbone, ClassifierModel, ClassifierOutput, ModelInput
 
 class MultimodalInput(ModelInput):
     text_input_ids: torch.Tensor
-    audio_input_values: torch.Tensor | None = None
-
     text_attention_mask: torch.Tensor | None = None
+
+    audio_input_values: torch.Tensor | None = None
     audio_attention_mask: torch.Tensor | None = None
+
+    video_input_values: torch.Tensor | None = None
+    video_attention_mask: torch.Tensor | None = None
 
     labels: torch.Tensor | None = None
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from enum import Enum
 
 import pandas as pd
 import soundfile as sf
@@ -8,6 +9,17 @@ import torch
 from torch.utils.data import Dataset
 
 from ..model import MultimodalInput
+
+
+class MELDDatasetSplit(Enum):
+    TRAIN = "train"
+    DEV = "dev"
+    TEST = "test"
+
+
+class MELDDatasetLabelType(Enum):
+    EMOTION = "emotion"
+    SENTIMENT = "sentiment"
 
 
 class MELDDataset(Dataset):
@@ -23,16 +35,25 @@ class MELDDataset(Dataset):
         str2int = {"neutral": 0, "positive": 1, "negative": 2}
         return str2int[sentiment]
 
-    def __init__(self, meta_path, tokenizer, feature_extractor, *, split="train", label_type="emotion"):
+    def __init__(
+        self,
+        meta_path,
+        tokenizer,
+        feature_extractor=None,
+        *,
+        split: MELDDatasetSplit,
+        label_type: MELDDatasetLabelType,
+    ):
+        self.split = split.value
+        self.label_type = label_type.value
         self.meta_path = meta_path
-        self.meta = pd.read_csv(f"{meta_path}/{split}_sent_emo.csv", sep=",", index_col=0, header=0)
-        self.split = split
+        self.meta = pd.read_csv(f"{meta_path}/{self.split}_sent_emo.csv", sep=",", index_col=0, header=0)
         self.tokenizer = tokenizer
         self.feature_extractor = feature_extractor
-        if label_type == "emotion":
+        if label_type == MELDDatasetLabelType.EMOTION:
             self.label2int = self.emotion2int
             self.num_classes = 7
-        elif label_type == "sentiment":
+        elif label_type == MELDDatasetLabelType.SENTIMENT:
             self.label2int = self.sentiment2int
             self.num_classes = 3
         else:
@@ -49,7 +70,7 @@ class MELDDataset(Dataset):
         utt_id = item["Utterance_ID"]
         dia_id = item["Dialogue_ID"]
         audio_path = f"{self.meta_path}/{self.split}/dia{dia_id}_utt{utt_id}.flac"
-        if os.path.exists(audio_path):
+        if self.feature_extractor is not None and os.path.exists(audio_path):
             raw_speech, sampling_rate = sf.read(audio_path)
             audio_inputs = self.feature_extractor(
                 raw_speech.mean(1), sampling_rate=sampling_rate, return_attention_mask=True, return_tensors="pt"

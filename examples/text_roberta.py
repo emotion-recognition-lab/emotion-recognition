@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import torch
 from torch.utils.data import DataLoader
-from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer
 
-from recognize.dataset import MELDDataset
+from recognize.dataset import MELDDataset, MELDDatasetLabelType, MELDDatasetSplit
 from recognize.model import MultimodalInput, TextModel
 from recognize.utils import (
     calculate_class_weights,
@@ -27,28 +27,24 @@ from recognize.utils import (
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
 
-    tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-mpnet-base-v2")
-    feature_extracor = AutoFeatureExtractor.from_pretrained("facebook/wav2vec2-base-960h")
+    tokenizer = AutoTokenizer.from_pretrained("FacebookAI/roberta-base")
     train_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
-        feature_extracor,
-        split="train",
-        label_type="emotion",
+        split=MELDDatasetSplit.TRAIN,
+        label_type=MELDDatasetLabelType.EMOTION,
     )
     dev_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
-        feature_extracor,
-        split="dev",
-        label_type="emotion",
+        split=MELDDatasetSplit.DEV,
+        label_type=MELDDatasetLabelType.EMOTION,
     )
     test_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
-        feature_extracor,
-        split="test",
-        label_type="emotion",
+        split=MELDDatasetSplit.TEST,
+        label_type=MELDDatasetLabelType.EMOTION,
     )
     train_data_loader = DataLoader(
         train_dataset,
@@ -76,13 +72,9 @@ if __name__ == "__main__":
     )
 
     model = TextModel(
-        AutoModel.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
+        AutoModel.from_pretrained("FacebookAI/roberta-base"),
         num_classes=7,
         class_weights=1 / torch.tensor(calculate_class_weights(train_data_loader, num_classes=7)).cuda(),
     ).cuda()
-    train_and_eval(model, 30, train_data_loader, test_data_loader)
-    # print(dataset[0])
-    # for batch in data_loader:
-    #     print(batch)
-    #     print(model(batch))
-    # break
+    train_and_eval(model, 100, train_data_loader, test_data_loader, checkpoint_label="text--roberta-base")
+    # f1: 0.37
