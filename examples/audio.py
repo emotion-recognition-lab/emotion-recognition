@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import torch
 from torch.utils.data import DataLoader
-from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer, VivitImageProcessor
+from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer
 
 from recognize.dataset import MELDDataset, MELDDatasetLabelType, MELDDatasetSplit
 from recognize.model import MultimodalInput, MultimodalModel
@@ -13,12 +13,10 @@ if __name__ == "__main__":
 
     tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-mpnet-base-v2")
     feature_extracor = AutoFeatureExtractor.from_pretrained("facebook/wav2vec2-base-960h")
-    image_processor = VivitImageProcessor.from_pretrained("google/vivit-b-16x2-kinetics400")
     train_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         feature_extracor,
-        image_processor,
         split=MELDDatasetSplit.TRAIN,
         label_type=MELDDatasetLabelType.EMOTION,
     )
@@ -26,7 +24,6 @@ if __name__ == "__main__":
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         feature_extracor,
-        image_processor,
         split=MELDDatasetSplit.DEV,
         label_type=MELDDatasetLabelType.EMOTION,
     )
@@ -34,7 +31,6 @@ if __name__ == "__main__":
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         feature_extracor,
-        image_processor,
         split=MELDDatasetSplit.TEST,
         label_type=MELDDatasetLabelType.EMOTION,
     )

@@ -8,9 +8,13 @@ requires-python = ">=3.11"
 readme = "README.md"
 license = { text = "MIT" }
 
+[project.urls]
+Homepage = "https://pypi.org/project/emotion-recognition"
+Repository = "https://github.com/zrr1999/emotion-recognition.git"
+
 [tool.ruff]
 line-length = 120
-target-version = "py39"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["F", "I", "B", "C4", "PGH", "RUF", "W", "YTT"]

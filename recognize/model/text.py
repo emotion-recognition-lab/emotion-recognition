@@ -23,7 +23,10 @@ class TextBackbone(Backbone):
         text_embs = text_outputs.last_hidden_state
         if inputs.audio_attention_mask is not None:
             text_pooled_embs = torch.stack(
-                [sent_embs[atn_mask].mean(dim=0) for sent_embs, atn_mask in zip(text_embs, inputs.audio_attention_mask)]
+                [
+                    sent_embs[atn_mask].mean(dim=0)
+                    for sent_embs, atn_mask in zip(text_embs, inputs.audio_attention_mask, strict=False)
+                ]
             )
         else:
             text_pooled_embs = text_embs.mean(dim=1)

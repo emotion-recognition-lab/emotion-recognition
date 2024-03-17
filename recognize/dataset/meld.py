@@ -9,6 +9,7 @@ import torch
 from torch.utils.data import Dataset
 
 from ..model import MultimodalInput
+from .utils import read_videos
 
 
 class MELDDatasetSplit(Enum):
@@ -40,16 +41,21 @@ class MELDDataset(Dataset):
         meta_path,
         tokenizer,
         feature_extractor=None,
+        image_processor=None,
         *,
         split: MELDDatasetSplit,
         label_type: MELDDatasetLabelType,
     ):
         self.split = split.value
         self.label_type = label_type.value
+
         self.meta_path = meta_path
         self.meta = pd.read_csv(f"{meta_path}/{self.split}_sent_emo.csv", sep=",", index_col=0, header=0)
+
         self.tokenizer = tokenizer
         self.feature_extractor = feature_extractor
+        self.image_processor = image_processor
+
         if label_type == MELDDatasetLabelType.EMOTION:
             self.label2int = self.emotion2int
             self.num_classes = 7
@@ -69,7 +75,8 @@ class MELDDataset(Dataset):
 
         utt_id = item["Utterance_ID"]
         dia_id = item["Dialogue_ID"]
-        audio_path = f"{self.meta_path}/{self.split}/dia{dia_id}_utt{utt_id}.flac"
+        audio_path = f"{self.meta_path}/audios/{self.split}/dia{dia_id}_utt{utt_id}.flac"
+        video_path = f"{self.meta_path}/videos/{self.split}/dia{dia_id}_utt{utt_id}.mp4"
         if self.feature_extractor is not None and os.path.exists(audio_path):
             raw_speech, sampling_rate = sf.read(audio_path)
             audio_inputs = self.feature_extractor(
@@ -90,11 +97,19 @@ class MELDDataset(Dataset):
             audio_input_values = None
             audio_attention_mask = None
 
+        if self.image_processor is not None and os.path.exists(video_path):
+            videos = read_videos(video_path)
+            video_inputs = self.image_processor(list(videos), return_tensors="pt")
+            video_pixel_values = video_inputs["pixel_values"][0]
+        else:
+            video_pixel_values = None
+
         return MultimodalInput(
             text_input_ids=text_input_ids,
             text_attention_mask=text_attention_mask,
             audio_input_values=audio_input_values,
             audio_attention_mask=audio_attention_mask,
+            video_pixel_values=video_pixel_values,
             labels=torch.tensor(label, dtype=torch.int64),
         )
 
