@@ -6,7 +6,7 @@ from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer
 
 from recognize.dataset import MELDDataset, MELDDatasetLabelType, MELDDatasetSplit
 from recognize.model import MultimodalInput, MultimodalModel
-from recognize.utils import calculate_accuracy, calculate_class_weights, calculate_f1_score, train_and_eval
+from recognize.model.utils import calculate_accuracy, calculate_class_weights, calculate_f1_score, train_and_eval
 
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")

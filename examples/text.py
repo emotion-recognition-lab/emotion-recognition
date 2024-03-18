@@ -6,8 +6,10 @@ from transformers import AutoModel, AutoTokenizer
 
 from recognize.dataset import MELDDataset, MELDDatasetLabelType, MELDDatasetSplit
 from recognize.model import MultimodalInput, TextModel
-from recognize.utils import (
+from recognize.model.utils import (
+    calculate_accuracy,
     calculate_class_weights,
+    calculate_f1_score,
     train_and_eval,
 )
 
@@ -76,5 +78,9 @@ if __name__ == "__main__":
         num_classes=7,
         class_weights=1 / torch.tensor(calculate_class_weights(train_data_loader, num_classes=7)).cuda(),
     ).cuda()
-    train_and_eval(model, 100, train_data_loader, test_data_loader, checkpoint_label="text--all-mpnet-base-v2")
+    train_and_eval(model, 200, train_data_loader, test_data_loader, checkpoint_label="text--all-mpnet-base-v2")
+
+    test_accuracy = calculate_accuracy(model, test_data_loader)
+    test_f1_score = calculate_f1_score(model, test_data_loader)
+    print(test_accuracy, test_f1_score)
     # f1: 0.53

@@ -38,7 +38,7 @@ class MELDDataset(Dataset):
 
     def __init__(
         self,
-        meta_path,
+        dataset_path,
         tokenizer,
         feature_extractor=None,
         image_processor=None,
@@ -49,8 +49,8 @@ class MELDDataset(Dataset):
         self.split = split.value
         self.label_type = label_type.value
 
-        self.meta_path = meta_path
-        self.meta = pd.read_csv(f"{meta_path}/{self.split}_sent_emo.csv", sep=",", index_col=0, header=0)
+        self.dataset_path = dataset_path
+        self.meta = pd.read_csv(f"{dataset_path}/{self.split}_sent_emo.csv", sep=",", index_col=0, header=0)
 
         self.tokenizer = tokenizer
         self.feature_extractor = feature_extractor
@@ -65,18 +65,7 @@ class MELDDataset(Dataset):
         else:
             raise ValueError(f"Unsupported label type {label_type}")
 
-    def __getitem__(self, index: int) -> MultimodalInput:
-        item = self.meta.iloc[index]
-        label = self.label2int(item)
-
-        text_inputs = self.tokenizer(item["Utterance"], return_attention_mask=True, return_tensors="pt")
-        text_input_ids = text_inputs["input_ids"][0]
-        text_attention_mask = text_inputs["attention_mask"][0]
-
-        utt_id = item["Utterance_ID"]
-        dia_id = item["Dialogue_ID"]
-        audio_path = f"{self.meta_path}/audios/{self.split}/dia{dia_id}_utt{utt_id}.flac"
-        video_path = f"{self.meta_path}/videos/{self.split}/dia{dia_id}_utt{utt_id}.mp4"
+    def load_audio(self, audio_path):
         if self.feature_extractor is not None and os.path.exists(audio_path):
             raw_speech, sampling_rate = sf.read(audio_path)
             audio_inputs = self.feature_extractor(
@@ -96,13 +85,33 @@ class MELDDataset(Dataset):
         else:
             audio_input_values = None
             audio_attention_mask = None
+        return audio_input_values, audio_attention_mask
 
+    def load_video(self, video_path):
         if self.image_processor is not None and os.path.exists(video_path):
             videos = read_videos(video_path)
             video_inputs = self.image_processor(list(videos), return_tensors="pt")
             video_pixel_values = video_inputs["pixel_values"][0]
         else:
             video_pixel_values = None
+        return video_pixel_values
+
+    def __getitem__(self, index: int) -> MultimodalInput:
+        item = self.meta.iloc[index]
+        label = self.label2int(item)
+
+        text_inputs = self.tokenizer(item["Utterance"], return_attention_mask=True, return_tensors="pt")
+        text_input_ids = text_inputs["input_ids"][0]
+        text_attention_mask = text_inputs["attention_mask"][0]
+
+        utt_id = item["Utterance_ID"]
+        dia_id = item["Dialogue_ID"]
+        audio_path = f"{self.dataset_path}/audios/{self.split}/dia{dia_id}_utt{utt_id}.flac"
+        video_path = f"{self.dataset_path}/videos/{self.split}/dia{dia_id}_utt{utt_id}.mp4"
+
+        audio_input_values, audio_attention_mask = self.load_audio(audio_path)
+        # video_pixel_values = self.load_video(video_path)
+        video_pixel_values = None
 
         return MultimodalInput(
             text_input_ids=text_input_ids,

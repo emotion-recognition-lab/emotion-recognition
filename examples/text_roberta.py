@@ -6,7 +6,7 @@ from transformers import AutoModel, AutoTokenizer
 
 from recognize.dataset import MELDDataset, MELDDatasetLabelType, MELDDatasetSplit
 from recognize.model import MultimodalInput, TextModel
-from recognize.utils import (
+from recognize.model.utils import (
     calculate_class_weights,
     train_and_eval,
 )

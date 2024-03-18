@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import pickle
 from copy import deepcopy
 from pathlib import Path
 
@@ -9,16 +8,11 @@ import torch
 from cachetools import Cache, cached
 from loguru import logger
 from rich.progress import Progress
+from safetensors.torch import load_file, save_file
+from torch import nn
 from torch.utils.data import DataLoader
 
-from .model import ClassifierModel
-
-
-def load_features(features_path: str, name: str):
-    file_path = f"{features_path}/{name}.pkl"
-    with open(file_path, "rb") as file:
-        data = pickle.load(file)
-    return data
+from .base import ClassifierModel
 
 
 def calculate_accuracy(model: ClassifierModel, data_loader: DataLoader):
@@ -38,7 +32,7 @@ def calculate_accuracy(model: ClassifierModel, data_loader: DataLoader):
 
 
 @cached(cache=Cache(maxsize=10))
-def calculate_class_weights(data_loader: DataLoader, num_classes: int = 130):
+def calculate_class_weights(data_loader: DataLoader, num_classes: int = 30):
     class_counts = [0] * num_classes
 
     with torch.no_grad():
@@ -113,6 +107,23 @@ class EarlyStopper:
         return False
 
 
+def save_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer, epoch_checkpoint_dir: Path):
+    epoch_checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    save_file(model.state_dict(), epoch_checkpoint_dir / "model.safetensors")
+    torch.save(optimizer.state_dict(), epoch_checkpoint_dir / "optimizer.pt")
+
+
+def load_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer, checkpoint_dir: Path) -> int:
+    model_list = os.listdir(checkpoint_dir)
+    epoch_start = 0
+    if model_list:
+        model_list.sort(key=lambda x: int(x))
+        epoch_start = int(model_list[-1])
+        model.load_state_dict(load_file(checkpoint_dir / model_list[-1] / "model.safetensors"))
+        optimizer.load_state_dict(torch.load(checkpoint_dir / model_list[-1] / "optimizer.pt"))
+    return epoch_start
+
+
 def train_and_eval(
     model: ClassifierModel,
     num_epochs: int,
@@ -127,19 +138,12 @@ def train_and_eval(
 
     checkpoint_dir = Path(f"./checkpoints/{checkpoint_label}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    model_list = os.listdir(checkpoint_dir)
-    epoch_start = 0
-    if model_list:
-        model_list.sort(key=lambda x: int(x))
-        epoch_start = int(model_list[-1])
-        model.load_state_dict(torch.load(checkpoint_dir / model_list[-1] / "model.pt"))
-        optimizer.load_state_dict(torch.load(checkpoint_dir / model_list[-1] / "optimizer.pt"))
+    epoch_start = load_checkpoint(model, optimizer, checkpoint_dir)
 
     model.train()
-    best_model = deepcopy(model)
+    stopper = EarlyStopper(20)
+    best_model = stopper.best_model
     with Progress("[red](Loss: {task.fields[loss]:.8f})", *Progress.get_default_columns()) as progress:
-        stopper = EarlyStopper(20)
-
         task = progress.add_task(
             "[green]Training model",
             total=num_epochs,
@@ -155,7 +159,6 @@ def train_and_eval(
                 optimizer.zero_grad()
                 output = model(batch)
                 loss = output.loss
-                # print(output.logits, batch.labels)
                 assert loss is not None
                 loss.backward()
                 optimizer.step()
@@ -163,21 +166,21 @@ def train_and_eval(
                 loss_value = sum(loss_value_list) / len(loss_value_list)
                 progress.update(task, loss=loss_value)
             if epoch % 5 == 0:
-                epoch_checkpoint_dir = Path(f"./checkpoints/{checkpoint_label}/{epoch}")
-                epoch_checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
-                torch.save(model.state_dict(), epoch_checkpoint_dir / "model.pt")
-                torch.save(optimizer.state_dict(), epoch_checkpoint_dir / "optimizer.pt")
+                save_checkpoint(model, optimizer, checkpoint_dir / str(epoch))
 
                 test_accuracy = calculate_accuracy(model, test_data_loader)
                 test_f1_score = calculate_f1_score(model, test_data_loader)
                 if stopper.update(loss=-loss_value, f1=test_f1_score):
                     break
                 progress.update(task, f1_score=test_f1_score, accuracy=test_accuracy)
-            if epoch > 50:
+            if epoch > 100:
                 model.unfreeze_backbone()
             progress.update(task, advance=1)
-    best_model = stopper.best_model
+
+            if stopper.best_model != best_model:
+                best_model = stopper.best_model
+                print(f"Best model found at epoch {epoch}!")
+
     train_accuracy = calculate_accuracy(model, train_data_loader)
     test_accuracy = calculate_accuracy(model, test_data_loader)
 

@@ -63,7 +63,6 @@ class ModelInput(BaseModel):
             elif attr is not None:
                 attr = pad_sequence(attr, batch_first=True)
             field_dict[field] = attr
-
         return cls(**field_dict)
 
 
