@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import cached_property
 from typing import Callable, TypeVar
 
 import torch
@@ -66,6 +67,21 @@ class ModelInput(BaseModel):
         return cls(**field_dict)
 
 
+class Pooler(nn.Module):
+    def __init__(self, hidden_size):
+        super().__init__()
+        self.dense = nn.Linear(hidden_size, hidden_size)
+        self.activation = nn.Tanh()
+
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        # We "pool" the model by simply taking the hidden state corresponding
+        # to the first token.
+        first_token_tensor = hidden_states[:, 0]
+        pooled_output = self.dense(first_token_tensor)
+        pooled_output = self.activation(pooled_output)
+        return pooled_output
+
+
 class Backbone(nn.Module):
     def __init__(self, hidden_size: int, is_frozen: bool = True):
         super().__init__()
@@ -109,11 +125,15 @@ class ClassifierModel(nn.Module):
     def unfreeze_backbone(self):
         self.backbone.unfreeze()
 
+    @cached_property
+    def sample_weights(self):
+        return 1 / self.class_weights if self.class_weights is not None else None
+
     @torch.compile()
     def classify(self, features: torch.Tensor, labels: torch.Tensor | None) -> ClassifierOutput:
         logits = self.classifier(features)
         loss = None
         if labels is not None:
-            loss_fct = CrossEntropyLoss(weight=self.class_weights)
+            loss_fct = CrossEntropyLoss(weight=self.sample_weights)
             loss = loss_fct(logits, labels)
         return ClassifierOutput(logits=logits, loss=loss)

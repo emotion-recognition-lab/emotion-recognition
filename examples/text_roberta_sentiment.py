@@ -18,19 +18,19 @@ if __name__ == "__main__":
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         split=MELDDatasetSplit.TRAIN,
-        label_type=MELDDatasetLabelType.EMOTION,
+        label_type=MELDDatasetLabelType.SENTIMENT,
     )
     dev_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         split=MELDDatasetSplit.DEV,
-        label_type=MELDDatasetLabelType.EMOTION,
+        label_type=MELDDatasetLabelType.SENTIMENT,
     )
     test_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         split=MELDDatasetSplit.TEST,
-        label_type=MELDDatasetLabelType.EMOTION,
+        label_type=MELDDatasetLabelType.SENTIMENT,
     )
     train_data_loader = DataLoader(
         train_dataset,
@@ -63,8 +63,8 @@ if __name__ == "__main__":
         class_weights=torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda(),
     ).cuda()
     best_model, train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
-        model, train_data_loader, test_data_loader, num_epochs=100, checkpoint_label="text--roberta-base"
+        model, train_data_loader, test_data_loader, num_epochs=100, checkpoint_label="text--roberta-base--sentiment"
     )
 
     print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)
-    # 96.74642106316949 60.076628352490424 94.66320491342928 57.99658146397007
+    # 97.63740114125538 67.24137931034483 97.34414747521095 66.37389599086532

@@ -5,7 +5,7 @@ from typing import Callable
 import torch
 from torch import nn
 
-from .base import Backbone, ClassifierModel, ClassifierOutput, ModelInput
+from .base import Backbone, ClassifierModel, ClassifierOutput, ModelInput, Pooler
 
 
 class MultimodalInput(ModelInput):
@@ -33,33 +33,28 @@ class MultimodalBackbone(Backbone):
         ), "Hidden size of text and audio backbones must be the same"
 
         super().__init__(text_backbone.config.hidden_size)
-        self.projector = nn.Linear(self.hidden_size, self.hidden_size)
         self.text_backbone = text_backbone
         self.audio_backbone = audio_backbone
         self.video_backbone = video_backbone
 
+        self.text_pooler = Pooler(self.hidden_size)
+        self.audio_pooler = Pooler(self.hidden_size)
+        self.video_pooler = Pooler(self.hidden_size)
+
     def compute_pooled_embs(self, inputs: MultimodalInput):
         text_outputs = self.text_backbone(inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
         text_embs = text_outputs.last_hidden_state
-        if inputs.audio_attention_mask is not None:
-            text_pooled_embs = torch.stack(
-                [
-                    sent_embs[atn_mask].mean(dim=0)
-                    for sent_embs, atn_mask in zip(text_embs, inputs.audio_attention_mask, strict=False)
-                ]
-            )
-        else:
-            text_pooled_embs = text_embs.mean(dim=1)
+        text_pooled_embs = self.text_pooler(text_embs)
 
         if inputs.audio_input_values is not None:
             audio_outputs = self.audio_backbone(inputs.audio_input_values, attention_mask=inputs.audio_attention_mask)
-            audio_pooled_embs = audio_outputs.last_hidden_state.mean(dim=1)
+            audio_pooled_embs = self.audio_pooler(audio_outputs.last_hidden_state)
         else:
             audio_pooled_embs = None
 
         if inputs.video_pixel_values is not None and self.video_backbone is not None:
             video_outputs = self.video_backbone(inputs.video_pixel_values)
-            video_pooled_embs = video_outputs.last_hidden_state.mean(dim=1)
+            video_pooled_embs = self.video_pooler(video_outputs.last_hidden_state)
         else:
             video_pooled_embs = None
 
@@ -87,6 +82,7 @@ class MultimodalModel(ClassifierModel):
         self,
         text_backbone: nn.Module,
         audio_backbone: nn.Module,
+        # video_backbone: nn.Module,
         num_classes: int,
         class_weights: torch.Tensor | None = None,
     ):
@@ -96,6 +92,7 @@ class MultimodalModel(ClassifierModel):
             class_weights=class_weights,
         )
 
+    @torch.compile()
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
         features = self.backbone(inputs)
         return self.classify(features, inputs.labels)

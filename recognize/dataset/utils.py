@@ -4,23 +4,6 @@ from collections import Counter
 
 import av
 import numpy as np
-import torch
-from torch.utils.data import Dataset
-
-
-def calculate_class_weights(dataset: Dataset, num_classes: int = 130):
-    class_counts = [0] * num_classes
-
-    with torch.no_grad():
-        for data in dataset:
-            for i in range(num_classes):
-                labels = data.labels
-                class_counts[i] += (labels == i).sum().item()
-
-    total_samples = sum(class_counts)
-    class_weights = []
-    for i in range(num_classes):
-        class_weights.append(class_counts[i] / total_samples)
 
 
 def read_video_pyav(container, indices):  # 解码视频

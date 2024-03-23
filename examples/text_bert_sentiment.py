@@ -2,46 +2,38 @@ from __future__ import annotations
 
 import torch
 from torch.utils.data import DataLoader
-from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer, VivitImageProcessor
+from transformers import AutoModel, AutoTokenizer
 
 from recognize.dataset import MELDDataset, MELDDatasetLabelType, MELDDatasetSplit
-from recognize.model import MultimodalInput, MultimodalModel
+from recognize.model import MultimodalInput, TextModel
 from recognize.utils import train_and_eval
 
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
 
-    tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-mpnet-base-v2")
-    feature_extracor = AutoFeatureExtractor.from_pretrained("facebook/wav2vec2-base-960h")
-    image_processor = VivitImageProcessor.from_pretrained("google/vivit-b-16x2-kinetics400")
+    tokenizer = AutoTokenizer.from_pretrained("google-bert/bert-base-uncased")
     train_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
-        feature_extracor,
-        image_processor,
         split=MELDDatasetSplit.TRAIN,
-        label_type=MELDDatasetLabelType.EMOTION,
+        label_type=MELDDatasetLabelType.SENTIMENT,
     )
     dev_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
-        feature_extracor,
-        image_processor,
         split=MELDDatasetSplit.DEV,
-        label_type=MELDDatasetLabelType.EMOTION,
+        label_type=MELDDatasetLabelType.SENTIMENT,
     )
     test_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
-        feature_extracor,
-        image_processor,
         split=MELDDatasetSplit.TEST,
-        label_type=MELDDatasetLabelType.EMOTION,
+        label_type=MELDDatasetLabelType.SENTIMENT,
     )
     train_data_loader = DataLoader(
         train_dataset,
         num_workers=4,
-        batch_size=16,
+        batch_size=64,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
@@ -49,7 +41,7 @@ if __name__ == "__main__":
     dev_data_loader = DataLoader(
         dev_dataset,
         num_workers=4,
-        batch_size=16,
+        batch_size=64,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
@@ -57,24 +49,23 @@ if __name__ == "__main__":
     test_data_loader = DataLoader(
         test_dataset,
         num_workers=4,
-        batch_size=16,
+        batch_size=64,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
     )
-    class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
-    model = MultimodalModel(
-        AutoModel.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
-        AutoModel.from_pretrained("facebook/wav2vec2-base-960h"),
+
+    model = TextModel(
+        AutoModel.from_pretrained("google-bert/bert-base-uncased"),
         num_classes=train_dataset.num_classes,
-        class_weights=class_weights,
+        class_weights=torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda(),
     ).cuda()
-    model.freeze_backbone()
-    # optimizer = torch.optim.AdamW(model.parameters(), lr=1e-8)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
-
-    _, train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
-        model, train_data_loader, dev_data_loader, optimizer=optimizer, num_epochs=100, checkpoint_label="multimodal"
+    best_model, train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
+        model,
+        train_data_loader,
+        test_data_loader,
+        num_epochs=100,
+        checkpoint_label="text--bert-base-uncased--sentiment",
     )
-
     print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)
+    # 97.91770948042847 66.32183908045977 97.63280429731202 65.31860700135238

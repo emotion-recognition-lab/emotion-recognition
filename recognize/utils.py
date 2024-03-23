@@ -12,7 +12,7 @@ from safetensors.torch import load_file, save_file
 from torch import nn
 from torch.utils.data import DataLoader
 
-from .base import ClassifierModel
+from .model.base import ClassifierModel
 
 
 def calculate_accuracy(model: ClassifierModel, data_loader: DataLoader):
@@ -49,7 +49,8 @@ def calculate_class_weights(data_loader: DataLoader, num_classes: int = 30):
     return class_weights
 
 
-def calculate_f1_score(model: ClassifierModel, data_loader: DataLoader, *, num_classes: int = 30):
+def calculate_f1_score(model: ClassifierModel, data_loader: DataLoader):
+    num_classes = model.num_classes
     class_weights = calculate_class_weights(data_loader, num_classes)
     class_f1_scores = [0] * num_classes
     class_counts = [0] * num_classes
@@ -79,7 +80,6 @@ def calculate_f1_score(model: ClassifierModel, data_loader: DataLoader, *, num_c
         class_weight = class_weights[i]
         class_f1 = class_f1_scores[i] / class_counts[i]
         weighted_f1_score += class_weight * class_f1
-    print(class_f1_scores, weighted_f1_score)
     return 100 * weighted_f1_score
 
 
@@ -107,10 +107,10 @@ class EarlyStopper:
         return False
 
 
-def save_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer, epoch_checkpoint_dir: Path):
-    epoch_checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    save_file(model.state_dict(), epoch_checkpoint_dir / "model.safetensors")
-    torch.save(optimizer.state_dict(), epoch_checkpoint_dir / "optimizer.pt")
+def save_checkpoint(checkpoint_dir: Path, model: nn.Module, optimizer: torch.optim.Optimizer, stopper: EarlyStopper):
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    save_file(model.state_dict(), checkpoint_dir / "model.safetensors")
+    torch.save(optimizer.state_dict(), checkpoint_dir / "optimizer.pt")
 
 
 def load_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer, checkpoint_dir: Path) -> int:
@@ -126,12 +126,16 @@ def load_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer, checkpoi
 
 def train_and_eval(
     model: ClassifierModel,
-    num_epochs: int,
     train_data_loader: DataLoader,
     test_data_loader: DataLoader,
+    *,
+    optimizer: torch.optim.Optimizer | None = None,
+    num_epochs: int = 100,
     checkpoint_label: str | None = None,
 ):
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.1, amsgrad=True)
+    if optimizer is None:
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
+        # optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.1, amsgrad=True)
 
     if checkpoint_label is None:
         checkpoint_label = f"{model.__class__.__name__}-{id(model)}"
@@ -141,12 +145,15 @@ def train_and_eval(
     epoch_start = load_checkpoint(model, optimizer, checkpoint_dir)
 
     model.train()
-    stopper = EarlyStopper(20)
+    stopper = EarlyStopper(model, patience=20)
     best_model = stopper.best_model
-    with Progress("[red](Loss: {task.fields[loss]:.8f})", *Progress.get_default_columns()) as progress:
+    with Progress(
+        "[red](Loss: {task.fields[loss]:.8f}, Accuracy: {task.fields[accuracy]:.2f}%, F1 Score: {task.fields[f1_score]:.2f}%)",
+        *Progress.get_default_columns(),
+    ) as progress:
         task = progress.add_task(
             "[green]Training model",
-            total=num_epochs,
+            total=num_epochs * len(train_data_loader),
             loss=float("inf"),
             accuracy=0,
             f1_score=0,
@@ -164,26 +171,27 @@ def train_and_eval(
                 optimizer.step()
                 loss_value_list.append(loss.item())
                 loss_value = sum(loss_value_list) / len(loss_value_list)
-                progress.update(task, loss=loss_value)
-            if epoch % 5 == 0:
-                save_checkpoint(model, optimizer, checkpoint_dir / str(epoch))
+                progress.update(task, loss=loss_value, advance=1)
+
+            if (epoch + 1) % 5 == 0:
+                save_checkpoint(checkpoint_dir / str(epoch), model, optimizer, stopper)
 
                 test_accuracy = calculate_accuracy(model, test_data_loader)
                 test_f1_score = calculate_f1_score(model, test_data_loader)
-                if stopper.update(loss=-loss_value, f1=test_f1_score):
+                if stopper.update(f1=test_f1_score):
                     break
                 progress.update(task, f1_score=test_f1_score, accuracy=test_accuracy)
-            if epoch > 100:
-                model.unfreeze_backbone()
-            progress.update(task, advance=1)
 
-            if stopper.best_model != best_model:
-                best_model = stopper.best_model
-                print(f"Best model found at epoch {epoch}!")
+                if stopper.best_model != best_model:
+                    best_model = stopper.best_model
+                    print(f"Best model found at epoch {epoch} (Accuracy: {test_accuracy}, F1 Score: {test_f1_score})!")
 
-    train_accuracy = calculate_accuracy(model, train_data_loader)
-    test_accuracy = calculate_accuracy(model, test_data_loader)
+            # if epoch > 100:
+            #     model.unfreeze_backbone()
 
-    train_f1_score = calculate_f1_score(model, train_data_loader)
-    test_f1_score = calculate_f1_score(model, test_data_loader)
+    train_accuracy = calculate_accuracy(best_model, train_data_loader)
+    test_accuracy = calculate_accuracy(best_model, test_data_loader)
+
+    train_f1_score = calculate_f1_score(best_model, train_data_loader)
+    test_f1_score = calculate_f1_score(best_model, test_data_loader)
     return best_model, train_accuracy, test_accuracy, train_f1_score, test_f1_score

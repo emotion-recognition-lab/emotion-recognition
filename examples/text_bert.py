@@ -6,30 +6,14 @@ from transformers import AutoModel, AutoTokenizer
 
 from recognize.dataset import MELDDataset, MELDDatasetLabelType, MELDDatasetSplit
 from recognize.model import MultimodalInput, TextModel
-from recognize.model.utils import (
-    calculate_accuracy,
-    calculate_class_weights,
-    calculate_f1_score,
+from recognize.utils import (
     train_and_eval,
 )
-
-# class ModelConfig(BaseModel):
-#     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-# class TextModelConfig(ModelConfig):
-#     num_classes: int
-
-# class DatasetMeta(BaseModel):
-#     emotions: list[str]
-
-# class TextDatasetMeta(DatasetMeta):
-#     text: list[str]
-
 
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
 
-    tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-mpnet-base-v2")
+    tokenizer = AutoTokenizer.from_pretrained("google-bert/bert-base-uncased")
     train_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
@@ -59,7 +43,7 @@ if __name__ == "__main__":
     dev_data_loader = DataLoader(
         dev_dataset,
         num_workers=4,
-        batch_size=32,
+        batch_size=64,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
@@ -67,20 +51,19 @@ if __name__ == "__main__":
     test_data_loader = DataLoader(
         test_dataset,
         num_workers=4,
-        batch_size=32,
+        batch_size=64,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
     )
 
     model = TextModel(
-        AutoModel.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
-        num_classes=7,
-        class_weights=1 / torch.tensor(calculate_class_weights(train_data_loader, num_classes=7)).cuda(),
+        AutoModel.from_pretrained("google-bert/bert-base-uncased"),
+        num_classes=train_dataset.num_classes,
+        class_weights=torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda(),
     ).cuda()
-    train_and_eval(model, 200, train_data_loader, test_data_loader, checkpoint_label="text--all-mpnet-base-v2")
-
-    test_accuracy = calculate_accuracy(model, test_data_loader)
-    test_f1_score = calculate_f1_score(model, test_data_loader)
-    print(test_accuracy, test_f1_score)
-    # f1: 0.53
+    best_model, train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
+        model, train_data_loader, test_data_loader, num_epochs=100, checkpoint_label="text--bert-base-uncased"
+    )
+    print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)
+    # 96.90659725698268 55.40229885057471 f1: 94.81948590188496 53.05107259105979

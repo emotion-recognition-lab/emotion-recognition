@@ -5,7 +5,7 @@ from typing import Callable
 import torch
 from torch import nn
 
-from .base import Backbone, ClassifierModel, ClassifierOutput
+from .base import Backbone, ClassifierModel, ClassifierOutput, Pooler
 from .multimodal import MultimodalInput
 
 
@@ -15,21 +15,13 @@ class TextBackbone(Backbone):
         text_backbone: nn.Module,
     ):
         super().__init__(text_backbone.config.hidden_size)
-        self.projector = nn.Linear(self.hidden_size, self.hidden_size)
         self.text_backbone = text_backbone
+        self.pooler = Pooler(self.hidden_size)
 
     def forward(self, inputs: MultimodalInput):
         text_outputs = self.text_backbone(inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
         text_embs = text_outputs.last_hidden_state
-        if inputs.audio_attention_mask is not None:
-            text_pooled_embs = torch.stack(
-                [
-                    sent_embs[atn_mask].mean(dim=0)
-                    for sent_embs, atn_mask in zip(text_embs, inputs.audio_attention_mask, strict=False)
-                ]
-            )
-        else:
-            text_pooled_embs = text_embs.mean(dim=1)
+        text_pooled_embs = self.pooler(text_embs)
 
         return text_pooled_embs
 
