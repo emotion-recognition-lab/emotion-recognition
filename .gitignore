@@ -4,9 +4,10 @@ datasets/features/
 preprocess_data/
 checkpoints/
 logs/
+cache/
+
+.pdm-python
 
 *.pdf
 
 Justfile
-main.sh
-.pdm-python
