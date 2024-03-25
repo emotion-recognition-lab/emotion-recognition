@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from copy import deepcopy
 from pathlib import Path
 
 import torch
@@ -94,16 +93,16 @@ class EarlyStopper:
         self.patience = patience
         self.best_scores = {}
         self.model = model
-        self.best_model = deepcopy(model)
+        self.best_epoch = -1
 
-    def update(self, **kwargs: float):
+    def update(self, epoch: int, **kwargs: float):
         for key, value in kwargs.items():
             if key not in self.best_scores:
                 self.best_scores[key] = (float("-inf"), 0)
             if value > self.best_scores[key][0]:
                 repeat_times = self.best_scores[key][1]
                 self.best_scores[key] = (value, repeat_times)
-                self.best_model = deepcopy(self.model)
+                self.best_epoch = epoch
             else:
                 repeat_times = self.best_scores[key][1]
                 self.best_scores[key] = (self.best_scores[key][0], repeat_times + 1)
@@ -154,7 +153,7 @@ def train_and_eval(
 
     model.train()
     stopper = EarlyStopper(model, patience=20)
-    best_model = stopper.best_model
+    best_epoch = stopper.best_epoch
     batch_num = len(train_data_loader)
     with Progress(
         "[red](Loss: {task.fields[loss]:.8f}, Accuracy: {task.fields[accuracy]:.2f}%, F1 Score: {task.fields[f1_score]:.2f}%)",
@@ -192,12 +191,12 @@ def train_and_eval(
 
                 test_accuracy = calculate_accuracy(model, test_data_loader)
                 test_f1_score = calculate_f1_score(model, test_data_loader)
-                if stopper.update(f1=test_f1_score):
+                if stopper.update(epoch=epoch, f1=test_f1_score):
                     break
                 progress.update(task, f1_score=test_f1_score, accuracy=test_accuracy)
 
-                if stopper.best_model != best_model:
-                    best_model = stopper.best_model
+                if stopper.best_epoch != best_epoch:
+                    best_epoch = stopper.best_epoch
                     print(
                         f"Epoch {epoch}: Best model found (Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%)"
                     )
@@ -206,9 +205,11 @@ def train_and_eval(
             # if epoch > 100:
             #     model.unfreeze_backbone()
 
-    train_accuracy = calculate_accuracy(best_model, train_data_loader)
-    test_accuracy = calculate_accuracy(best_model, test_data_loader)
+    model.load_state_dict(load_file(checkpoint_dir / f"{best_epoch}/model.safetensors"))
 
-    train_f1_score = calculate_f1_score(best_model, train_data_loader)
-    test_f1_score = calculate_f1_score(best_model, test_data_loader)
-    return best_model, train_accuracy, test_accuracy, train_f1_score, test_f1_score
+    train_accuracy = calculate_accuracy(model, train_data_loader)
+    test_accuracy = calculate_accuracy(model, test_data_loader)
+
+    train_f1_score = calculate_f1_score(model, train_data_loader)
+    test_f1_score = calculate_f1_score(model, test_data_loader)
+    return model, train_accuracy, test_accuracy, train_f1_score, test_f1_score

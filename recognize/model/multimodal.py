@@ -20,6 +20,7 @@ class MultimodalInput(ModelInput):
     video_head_mask: torch.Tensor | None = None
 
     labels: torch.Tensor | None = None
+    unique_hash: int | list[int] = 0
 
 
 def compute_fusion_tensor(zl: torch.Tensor, zv: torch.Tensor | None, za: torch.Tensor | None):
@@ -34,7 +35,7 @@ def compute_fusion_tensor(zl: torch.Tensor, zv: torch.Tensor | None, za: torch.T
     return fusion_tensor
 
 
-class FusionTensorNet(nn.Module):
+class TensorFusionLayer(nn.Module):
     def __init__(self, text_size: int, audio_size: int, video_size: int):
         super().__init__()
         self.text_size = text_size
@@ -59,7 +60,9 @@ class FusionTensorNet(nn.Module):
         assert augmentation_za.size(1) == self.audio_size + 1
         assert augmentation_zv.size(1) == self.video_size + 1
 
-        fusion_tensor = torch.einsum("bi,bj,bk->bijk", zl, zv, za).view(zl.size(0), -1)
+        fusion_tensor = torch.einsum("bi,bj,bk->bijk", augmentation_zl, augmentation_za, augmentation_zv).view(
+            zl.size(0), -1
+        )
         return fusion_tensor
 
 
@@ -75,18 +78,18 @@ class MultimodalBackbone(Backbone):
         ), "Hidden size of text, audio and video backbones must be the same"
         self.backbone_hidden_size = text_backbone.config.hidden_size
         hidden_size = 128 + 1
-        if audio_backbone is not None:
-            hidden_size *= 1 + 1
-        if video_backbone is not None:
-            hidden_size *= 1 + 1
-        super().__init__(768)
+        hidden_size *= 1 + 1
+        hidden_size *= 1 + 1
+        super().__init__(hidden_size)
         self.text_backbone = self.pretrained_module(text_backbone)
         self.audio_backbone = self.pretrained_module(audio_backbone)
         self.video_backbone = self.pretrained_module(video_backbone)
 
-        self.text_pooler = Pooler(self.backbone_hidden_size, 768)
-        self.audio_pooler = Pooler(self.backbone_hidden_size, 1)
-        self.video_pooler = Pooler(self.backbone_hidden_size, 1)
+        self.tensor_fusion_layer = TensorFusionLayer(128, 1, 1)
+
+        self.text_pooler = Pooler(self.backbone_hidden_size, self.tensor_fusion_layer.text_size)
+        self.audio_pooler = Pooler(self.backbone_hidden_size, self.tensor_fusion_layer.audio_size)
+        self.video_pooler = Pooler(self.backbone_hidden_size, self.tensor_fusion_layer.video_size)
 
     def compute_pooled_embs(self, inputs: MultimodalInput):
         text_outputs = self.text_backbone(inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
@@ -111,14 +114,14 @@ class MultimodalBackbone(Backbone):
         filtered_embs_list = [emb for emb in embs_list if emb is not None]
         return sum(filtered_embs_list) / len(filtered_embs_list)
 
-    def forward(self, inputs: MultimodalInput):
-        text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.compute_pooled_embs(inputs)
-        return self.mean_embs([text_pooled_embs, audio_pooled_embs, video_pooled_embs])
-
     # def forward(self, inputs: MultimodalInput):
     #     text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.compute_pooled_embs(inputs)
-    #     fusion_tensor = compute_fusion_tensor(text_pooled_embs, audio_pooled_embs, video_pooled_embs)
-    #     return fusion_tensor
+    #     return self.mean_embs([text_pooled_embs, audio_pooled_embs, video_pooled_embs])
+
+    def forward(self, inputs: MultimodalInput):
+        text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.compute_pooled_embs(inputs)
+        fusion_tensor = self.tensor_fusion_layer(text_pooled_embs, audio_pooled_embs, video_pooled_embs)
+        return fusion_tensor
 
     def compute_loss(self, inputs: MultimodalInput):
         text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.compute_pooled_embs(inputs)

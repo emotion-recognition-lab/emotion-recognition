@@ -122,6 +122,7 @@ class MELDDataset(Dataset):
         video_pixel_values = self.load_video(video_path)
 
         return MultimodalInput(
+            unique_hash=hash(f"{self.split}_{index}"),
             text_input_ids=text_input_ids,
             text_attention_mask=text_attention_mask,
             audio_input_values=audio_input_values,

@@ -8,7 +8,6 @@ from pydantic import BaseModel, ConfigDict
 from torch import nn
 from torch.nn import CrossEntropyLoss
 from torch.nn.utils.rnn import pad_sequence
-from transformers import AutoModel
 
 ModelInputT = TypeVar("ModelInputT", bound="ModelInput")
 ClassifierModelT = TypeVar("ClassifierModelT", bound="ClassifierModel")
@@ -58,11 +57,15 @@ class ModelInput(BaseModel):
                 attr = [getattr(item, field) for item in batch]
             elif field_info.annotation == torch.Tensor | None:
                 attr = cls.merge(batch, field)
+            elif field_info.annotation == int | list[int]:
+                attr = [getattr(item, field) for item in batch]
             else:
                 raise NotImplementedError(f"Field {field} has unsupported type {field_info.annotation}")
             if field == "labels":
                 attr = torch.tensor(attr, dtype=torch.int64)
-            elif attr is not None:
+            elif isinstance(attr, torch.Tensor):
+                attr = pad_sequence(attr, batch_first=True)
+            elif isinstance(attr, list) and isinstance(attr[0], torch.Tensor):
                 attr = pad_sequence(attr, batch_first=True)
             field_dict[field] = attr
         return cls(**field_dict)
@@ -116,29 +119,6 @@ class Backbone(nn.Module):
         return module
 
 
-class __Backbone(nn.Module):
-    def __init__(self, pretrained_model: nn.Module, hidden_size: int, *, is_frozen: bool = True):
-        super().__init__()
-        self.pretrained_model = pretrained_model
-        self.hidden_size = hidden_size
-        self.is_frozen = is_frozen
-
-    def freeze(self):
-        self.is_frozen = True
-
-    def unfreeze(self):
-        self.is_frozen = False
-
-    @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path: str, *, is_frozen: bool = True):
-        model = AutoModel.from_pretrained(pretrained_model_name_or_path)
-        return cls(
-            model,
-            model.config.hidden_size,
-            is_frozen=is_frozen,
-        )
-
-
 class ClassifierModel(nn.Module):
     __call__: Callable[..., ClassifierOutput]
 
@@ -150,9 +130,6 @@ class ClassifierModel(nn.Module):
         self.hidden_size = backbone.hidden_size
         self.classifier = nn.Sequential(
             nn.Dropout(0.1),
-            # nn.Linear(self.hidden_size, self.hidden_size),
-            # nn.Tanh(),
-            # nn.Dropout(0.1),
             nn.Linear(self.hidden_size, num_classes),
         )
 

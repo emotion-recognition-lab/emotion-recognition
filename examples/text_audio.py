@@ -41,7 +41,7 @@ if __name__ == "__main__":
     train_data_loader = DataLoader(
         train_dataset,
         num_workers=4,
-        batch_size=32,
+        batch_size=4,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     dev_data_loader = DataLoader(
         dev_dataset,
         num_workers=4,
-        batch_size=32,
+        batch_size=2,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     test_data_loader = DataLoader(
         test_dataset,
         num_workers=4,
-        batch_size=32,
+        batch_size=2,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
