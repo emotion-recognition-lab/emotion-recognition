@@ -17,18 +17,21 @@ if __name__ == "__main__":
         tokenizer,
         split=MELDDatasetSplit.TRAIN,
         label_type=MELDDatasetLabelType.EMOTION,
+        custom_unique_id="T",
     )
     dev_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         split=MELDDatasetSplit.DEV,
         label_type=MELDDatasetLabelType.EMOTION,
+        custom_unique_id="T",
     )
     test_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         split=MELDDatasetSplit.TEST,
         label_type=MELDDatasetLabelType.EMOTION,
+        custom_unique_id="T",
     )
     train_data_loader = DataLoader(
         train_dataset,
@@ -60,9 +63,16 @@ if __name__ == "__main__":
         num_classes=train_dataset.num_classes,
         class_weights=class_weights,
     ).cuda()
-    best_model, train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
-        model, train_data_loader, test_data_loader, num_epochs=200, model_label="text--all-mpnet-base-v2"
+    _, train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
+        model, train_data_loader, test_data_loader, num_epochs=200, model_label="text--all-mpnet-base-v2(freezed)"
     )
 
     print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)
     # 96.69636600260286 59.46360153256705 94.61830442314921 57.29641334713633
+
+    model.unfreeze_backbone()
+    _, train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
+        model, train_data_loader, test_data_loader, num_epochs=200, model_label="text--all-mpnet-base-v2"
+    )
+
+    print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)

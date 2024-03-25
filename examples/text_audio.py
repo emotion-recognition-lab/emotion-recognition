@@ -21,6 +21,7 @@ if __name__ == "__main__":
         # image_processor,
         split=MELDDatasetSplit.TRAIN,
         label_type=MELDDatasetLabelType.EMOTION,
+        custom_unique_id="T+A",
     )
     dev_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
@@ -29,6 +30,7 @@ if __name__ == "__main__":
         # image_processor,
         split=MELDDatasetSplit.DEV,
         label_type=MELDDatasetLabelType.EMOTION,
+        custom_unique_id="T+A",
     )
     test_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
@@ -37,11 +39,12 @@ if __name__ == "__main__":
         # image_processor,
         split=MELDDatasetSplit.TEST,
         label_type=MELDDatasetLabelType.EMOTION,
+        custom_unique_id="T+A",
     )
     train_data_loader = DataLoader(
         train_dataset,
         num_workers=4,
-        batch_size=4,
+        batch_size=8,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
@@ -49,7 +52,7 @@ if __name__ == "__main__":
     dev_data_loader = DataLoader(
         dev_dataset,
         num_workers=4,
-        batch_size=2,
+        batch_size=4,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
@@ -57,7 +60,7 @@ if __name__ == "__main__":
     test_data_loader = DataLoader(
         test_dataset,
         num_workers=4,
-        batch_size=2,
+        batch_size=4,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,

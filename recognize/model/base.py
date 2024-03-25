@@ -57,7 +57,7 @@ class ModelInput(BaseModel):
                 attr = [getattr(item, field) for item in batch]
             elif field_info.annotation == torch.Tensor | None:
                 attr = cls.merge(batch, field)
-            elif field_info.annotation == int | list[int]:
+            elif field_info.annotation == str | list[str]:
                 attr = [getattr(item, field) for item in batch]
             else:
                 raise NotImplementedError(f"Field {field} has unsupported type {field_info.annotation}")
@@ -107,15 +107,16 @@ class Backbone(nn.Module):
     def pretrained_module(self, module: nn.Module | None) -> nn.Module | None:
         if module is None:
             return None
+        module_forward = module.forward
 
-        def call(*args, **kwargs):
+        def forward(*args, **kwargs):
             if self.is_frozen:
                 with torch.no_grad():
-                    return module.forward(*args, **kwargs)
+                    return module_forward(*args, **kwargs)
             else:
-                return module.forward(*args, **kwargs)
+                return module_forward(*args, **kwargs)
 
-        module.__call__ = call
+        module.forward = forward
         return module
 
 

@@ -20,22 +20,6 @@ from torch.utils.data import DataLoader
 from .model.base import ClassifierModel
 
 
-def calculate_accuracy(model: ClassifierModel, data_loader: DataLoader):
-    model.eval()
-    correct: int = 0
-    total: int = 0
-
-    with torch.no_grad():
-        for batch in data_loader:
-            outputs = model(batch)
-            _, predicted = torch.max(outputs.logits, 1)
-            total += batch.labels.size(0)
-            correct += (predicted == batch.labels).sum().item()
-
-    accuracy = 100 * correct / total
-    return accuracy
-
-
 @cached(cache=Cache(maxsize=10))
 def calculate_class_weights(data_loader: DataLoader, num_classes: int = 30):
     class_counts = [0] * num_classes
@@ -52,6 +36,22 @@ def calculate_class_weights(data_loader: DataLoader, num_classes: int = 30):
         class_weights.append(class_counts[i] / total_samples)
 
     return class_weights
+
+
+def calculate_accuracy(model: ClassifierModel, data_loader: DataLoader):
+    correct: int = 0
+    total: int = 0
+
+    with torch.no_grad():
+        model.eval()
+        for batch in data_loader:
+            outputs = model(batch)
+            _, predicted = torch.max(outputs.logits.detach(), 1)
+            total += batch.labels.size(0)
+            correct += (predicted == batch.labels).sum().item()
+
+    accuracy = 100 * correct / total
+    return accuracy
 
 
 def calculate_f1_score(model: ClassifierModel, data_loader: DataLoader):
@@ -86,6 +86,55 @@ def calculate_f1_score(model: ClassifierModel, data_loader: DataLoader):
         class_f1 = class_f1_scores[i] / class_counts[i]
         weighted_f1_score += class_weight * class_f1
     return 100 * weighted_f1_score
+
+
+def calculate_accuracy_and_f1_score(model: ClassifierModel, data_loader: DataLoader):
+    model.eval()
+
+    # accuracy
+    correct: int = 0
+    total: int = 0
+
+    # f1 score
+    num_classes = model.num_classes
+    class_weights = calculate_class_weights(data_loader, num_classes)
+    class_f1_scores = [0] * num_classes
+    class_counts = [0] * num_classes
+
+    with torch.no_grad():
+        for batch in data_loader:
+            outputs = model(batch)
+            _, predicted = torch.max(outputs.logits, 1)
+            labels = batch.labels
+
+            # accuracy
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+            # f1 score
+            for i in range(num_classes):
+                true_positives = ((predicted == i) & (labels == i)).sum().item()
+                false_positives = ((predicted == i) & (labels != i)).sum().item()
+                false_negatives = ((predicted != i) & (labels == i)).sum().item()
+
+                precision = true_positives / (true_positives + false_positives + 1e-10)
+                recall = true_positives / (true_positives + false_negatives + 1e-10)
+
+                f1_score = 2 * (precision * recall) / (precision + recall + 1e-10)
+
+                class_f1_scores[i] += f1_score
+                class_counts[i] += 1
+
+    # accuracy
+    accuracy = 100 * correct / total
+
+    # f1 score
+    weighted_f1_score = 0
+    for i in range(num_classes):
+        class_weight = class_weights[i]
+        class_f1 = class_f1_scores[i] / class_counts[i]
+        weighted_f1_score += class_weight * class_f1
+    return accuracy, 100 * weighted_f1_score
 
 
 class EarlyStopper:
@@ -163,19 +212,20 @@ def train_and_eval(
         TaskProgressColumn(f"[progress.percentage]({{task.fields[batch_index]}}/{batch_num})"),
         TimeRemainingColumn(),
     ) as progress:
+        loss_value = float("inf")
         task = progress.add_task(
             "[green]Training model",
             total=num_epochs,
-            loss=float("inf"),
+            loss=loss_value,
             accuracy=0,
             f1_score=0,
             completed=epoch_start,
             batch_index=0,
         )
         for epoch in range(epoch_start, num_epochs):
-            loss_value = float("inf")
             loss_value_list = []
             for batch_index, batch in enumerate(train_data_loader):
+                progress.update(task, loss=loss_value, batch_index=batch_index)
                 optimizer.zero_grad()
                 output = model(batch)
                 loss = output.loss
@@ -184,13 +234,10 @@ def train_and_eval(
                 optimizer.step()
                 loss_value_list.append(loss.item())
                 loss_value = sum(loss_value_list) / len(loss_value_list)
-                progress.update(task, loss=loss_value, batch_index=batch_index)
 
             if (epoch + 1) % 5 == 0:
                 save_checkpoint(checkpoint_dir / str(epoch), model, optimizer, stopper)
-
-                test_accuracy = calculate_accuracy(model, test_data_loader)
-                test_f1_score = calculate_f1_score(model, test_data_loader)
+                test_accuracy, test_f1_score = calculate_accuracy_and_f1_score(model, test_data_loader)
                 if stopper.update(epoch=epoch, f1=test_f1_score):
                     break
                 progress.update(task, f1_score=test_f1_score, accuracy=test_accuracy)
@@ -207,9 +254,8 @@ def train_and_eval(
 
     model.load_state_dict(load_file(checkpoint_dir / f"{best_epoch}/model.safetensors"))
 
-    train_accuracy = calculate_accuracy(model, train_data_loader)
-    test_accuracy = calculate_accuracy(model, test_data_loader)
+    train_accuracy, train_f1_score = calculate_accuracy_and_f1_score(model, train_data_loader)
+    test_accuracy, test_f1_score = calculate_accuracy_and_f1_score(model, test_data_loader)
 
     train_f1_score = calculate_f1_score(model, train_data_loader)
-    test_f1_score = calculate_f1_score(model, test_data_loader)
     return model, train_accuracy, test_accuracy, train_f1_score, test_f1_score

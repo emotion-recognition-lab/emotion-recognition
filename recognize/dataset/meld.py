@@ -44,8 +44,9 @@ class MELDDataset(Dataset):
         feature_extractor=None,
         image_processor=None,
         *,
-        split: MELDDatasetSplit,
-        label_type: MELDDatasetLabelType,
+        split: MELDDatasetSplit = MELDDatasetSplit.TRAIN,
+        label_type: MELDDatasetLabelType = MELDDatasetLabelType.EMOTION,
+        custom_unique_id: str = "",
     ):
         self.split = split.value
         self.label_type = label_type.value
@@ -66,6 +67,8 @@ class MELDDataset(Dataset):
         else:
             raise ValueError(f"Unsupported label type {label_type}")
 
+        self.custom_unique_id = custom_unique_id
+
     def load_audio(self, audio_path):
         if self.feature_extractor is not None and os.path.exists(audio_path):
             raw_speech, sampling_rate = sf.read(audio_path)
@@ -83,6 +86,9 @@ class MELDDataset(Dataset):
                     ],
                     dim=0,
                 )
+            # TODO: better way to reduce langth
+            audio_input_values = audio_input_values[:200000]
+            audio_attention_mask = audio_attention_mask[:200000]
         else:
             audio_input_values = None
             audio_attention_mask = None
@@ -120,9 +126,8 @@ class MELDDataset(Dataset):
 
         audio_input_values, audio_attention_mask = self.load_audio(audio_path)
         video_pixel_values = self.load_video(video_path)
-
         return MultimodalInput(
-            unique_hash=hash(f"{self.split}_{index}"),
+            unique_id=f"{self.custom_unique_id}--{self.split}_{index}",
             text_input_ids=text_input_ids,
             text_attention_mask=text_attention_mask,
             audio_input_values=audio_input_values,
