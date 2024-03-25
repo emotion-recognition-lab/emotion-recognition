@@ -119,8 +119,7 @@ class MELDDataset(Dataset):
         video_path = f"{self.dataset_path}/videos/{self.split}/dia{dia_id}_utt{utt_id}.mp4"
 
         audio_input_values, audio_attention_mask = self.load_audio(audio_path)
-        # video_pixel_values = self.load_video(video_path)
-        video_pixel_values = None
+        video_pixel_values = self.load_video(video_path)
 
         return MultimodalInput(
             text_input_ids=text_input_ids,

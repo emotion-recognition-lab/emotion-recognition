@@ -63,7 +63,7 @@ if __name__ == "__main__":
         class_weights=torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda(),
     ).cuda()
     best_model, train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
-        model, train_data_loader, test_data_loader, num_epochs=100, checkpoint_label="text--roberta-base--sentiment"
+        model, train_data_loader, test_data_loader, num_epochs=100, model_label="text--roberta-base--sentiment"
     )
 
     print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)

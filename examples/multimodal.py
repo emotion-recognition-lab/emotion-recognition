@@ -18,7 +18,7 @@ if __name__ == "__main__":
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         feature_extracor,
-        image_processor,
+        # image_processor,
         split=MELDDatasetSplit.TRAIN,
         label_type=MELDDatasetLabelType.EMOTION,
     )
@@ -26,7 +26,7 @@ if __name__ == "__main__":
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         feature_extracor,
-        image_processor,
+        # image_processor,
         split=MELDDatasetSplit.DEV,
         label_type=MELDDatasetLabelType.EMOTION,
     )
@@ -34,7 +34,7 @@ if __name__ == "__main__":
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         feature_extracor,
-        image_processor,
+        # image_processor,
         split=MELDDatasetSplit.TEST,
         label_type=MELDDatasetLabelType.EMOTION,
     )
@@ -66,15 +66,13 @@ if __name__ == "__main__":
     model = MultimodalModel(
         AutoModel.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
         AutoModel.from_pretrained("facebook/wav2vec2-base-960h"),
+        AutoModel.from_pretrained("google/vivit-b-16x2-kinetics400"),
         num_classes=train_dataset.num_classes,
         class_weights=class_weights,
     ).cuda()
-    model.freeze_backbone()
-    # optimizer = torch.optim.AdamW(model.parameters(), lr=1e-8)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
 
-    _, train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
-        model, train_data_loader, dev_data_loader, optimizer=optimizer, num_epochs=100, checkpoint_label="multimodal"
+    best_model, train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
+        model, train_data_loader, test_data_loader, num_epochs=200, model_label="multimodal"
     )
 
     print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)

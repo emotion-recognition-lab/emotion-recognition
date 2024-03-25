@@ -65,7 +65,7 @@ if __name__ == "__main__":
         train_data_loader,
         test_data_loader,
         num_epochs=100,
-        checkpoint_label="text--bert-base-uncased--sentiment",
+        model_label="text--bert-base-uncased--sentiment",
     )
     print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)
     # 97.91770948042847 66.32183908045977 97.63280429731202 65.31860700135238

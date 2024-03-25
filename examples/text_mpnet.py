@@ -5,23 +5,8 @@ from torch.utils.data import DataLoader
 from transformers import AutoModel, AutoTokenizer
 
 from recognize.dataset import MELDDataset, MELDDatasetLabelType, MELDDatasetSplit
-from recognize.model import MultimodalInput, TextModel
-from recognize.utils import (
-    train_and_eval,
-)
-
-# class ModelConfig(BaseModel):
-#     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-# class TextModelConfig(ModelConfig):
-#     num_classes: int
-
-# class DatasetMeta(BaseModel):
-#     emotions: list[str]
-
-# class TextDatasetMeta(DatasetMeta):
-#     text: list[str]
-
+from recognize.model import MultimodalInput, MultimodalModel
+from recognize.utils import train_and_eval
 
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
@@ -69,14 +54,14 @@ if __name__ == "__main__":
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
     )
-
-    model = TextModel(
+    class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
+    model = MultimodalModel(
         AutoModel.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
         num_classes=train_dataset.num_classes,
-        class_weights=torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda(),
+        class_weights=class_weights,
     ).cuda()
     best_model, train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
-        model, train_data_loader, test_data_loader, num_epochs=200, checkpoint_label="text--all-mpnet-base-v2"
+        model, train_data_loader, test_data_loader, num_epochs=200, model_label="text--all-mpnet-base-v2"
     )
 
     print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)

@@ -7,7 +7,13 @@ from pathlib import Path
 import torch
 from cachetools import Cache, cached
 from loguru import logger
-from rich.progress import Progress
+from rich.progress import (
+    BarColumn,
+    Progress,
+    TaskProgressColumn,
+    TextColumn,
+    TimeRemainingColumn,
+)
 from safetensors.torch import load_file, save_file
 from torch import nn
 from torch.utils.data import DataLoader
@@ -131,38 +137,46 @@ def train_and_eval(
     *,
     optimizer: torch.optim.Optimizer | None = None,
     num_epochs: int = 100,
-    checkpoint_label: str | None = None,
+    model_label: str | None = None,
 ):
     if optimizer is None:
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
         # optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.1, amsgrad=True)
 
-    if checkpoint_label is None:
-        checkpoint_label = f"{model.__class__.__name__}-{id(model)}"
-
-    checkpoint_dir = Path(f"./checkpoints/{checkpoint_label}")
+    if model_label is None:
+        model_label = f"{model.__class__.__name__}-{id(model)}"
+    checkpoint_dir = Path(f"./checkpoints/{model_label}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    logger.add(f"./logs/{model_label}.txt")
+    logger.info(f"Train model `{model_label}`.")
+
     epoch_start = load_checkpoint(model, optimizer, checkpoint_dir)
 
     model.train()
     stopper = EarlyStopper(model, patience=20)
     best_model = stopper.best_model
+    batch_num = len(train_data_loader)
     with Progress(
         "[red](Loss: {task.fields[loss]:.8f}, Accuracy: {task.fields[accuracy]:.2f}%, F1 Score: {task.fields[f1_score]:.2f}%)",
-        *Progress.get_default_columns(),
+        TextColumn("[progress.description]{task.description}"),
+        TaskProgressColumn("[progress.percentage](Epoch {task.completed}/{task.total})"),
+        BarColumn(bar_width=40),
+        TaskProgressColumn(f"[progress.percentage]({{task.fields[batch_index]}}/{batch_num})"),
+        TimeRemainingColumn(),
     ) as progress:
         task = progress.add_task(
             "[green]Training model",
-            total=num_epochs * len(train_data_loader),
+            total=num_epochs,
             loss=float("inf"),
             accuracy=0,
             f1_score=0,
             completed=epoch_start,
+            batch_index=0,
         )
         for epoch in range(epoch_start, num_epochs):
             loss_value = float("inf")
             loss_value_list = []
-            for batch in train_data_loader:
+            for batch_index, batch in enumerate(train_data_loader):
                 optimizer.zero_grad()
                 output = model(batch)
                 loss = output.loss
@@ -171,7 +185,7 @@ def train_and_eval(
                 optimizer.step()
                 loss_value_list.append(loss.item())
                 loss_value = sum(loss_value_list) / len(loss_value_list)
-                progress.update(task, loss=loss_value, advance=1)
+                progress.update(task, loss=loss_value, batch_index=batch_index)
 
             if (epoch + 1) % 5 == 0:
                 save_checkpoint(checkpoint_dir / str(epoch), model, optimizer, stopper)
@@ -184,7 +198,10 @@ def train_and_eval(
 
                 if stopper.best_model != best_model:
                     best_model = stopper.best_model
-                    print(f"Best model found at epoch {epoch} (Accuracy: {test_accuracy}, F1 Score: {test_f1_score})!")
+                    print(
+                        f"Epoch {epoch}: Best model found (Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%)"
+                    )
+            progress.update(task, advance=1)
 
             # if epoch > 100:
             #     model.unfreeze_backbone()

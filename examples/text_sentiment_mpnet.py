@@ -80,7 +80,7 @@ if __name__ == "__main__":
         train_data_loader,
         test_data_loader,
         num_epochs=200,
-        checkpoint_label="text--all-mpnet-base-v2--sentiment",
+        model_label="text--all-mpnet-base-v2--sentiment",
     )
 
     print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)

@@ -15,7 +15,7 @@ class TextBackbone(Backbone):
         text_backbone: nn.Module,
     ):
         super().__init__(text_backbone.config.hidden_size)
-        self.text_backbone = text_backbone
+        self.text_backbone = self.pretrained_module(text_backbone)
         self.pooler = Pooler(self.hidden_size)
 
     def forward(self, inputs: MultimodalInput):
@@ -39,7 +39,7 @@ class TextModel(ClassifierModel):
             class_weights=class_weights,
         )
 
-    @torch.compile()
+    # @torch.compile()
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
         features = self.backbone(inputs)
         return self.classify(features, inputs.labels)
