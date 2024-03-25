@@ -104,24 +104,16 @@ class Backbone(nn.Module):
     def pretrained_module(self, module: nn.Module | None) -> nn.Module | None:
         if module is None:
             return None
-        old_forward = module.forward
 
-        def new_forward(*args, **kwargs):
+        def call(*args, **kwargs):
             if self.is_frozen:
                 with torch.no_grad():
-                    return old_forward(*args, **kwargs)
+                    return module.forward(*args, **kwargs)
             else:
-                return old_forward(*args, **kwargs)
+                return module.forward(*args, **kwargs)
 
-        module.forward = new_forward
+        module.__call__ = call
         return module
-
-    def __call__(self, inputs: ModelInput) -> torch.Tensor:
-        if self.is_frozen:
-            with torch.no_grad():
-                return super().__call__(inputs)
-        else:
-            return super().__call__(inputs)
 
 
 class __Backbone(nn.Module):

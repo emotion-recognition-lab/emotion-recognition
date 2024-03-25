@@ -112,12 +112,8 @@ class MultimodalBackbone(Backbone):
         return sum(filtered_embs_list) / len(filtered_embs_list)
 
     def forward(self, inputs: MultimodalInput):
-        # text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.compute_pooled_embs(inputs)
-        # return self.mean_embs([text_pooled_embs, audio_pooled_embs, video_pooled_embs])
-        text_outputs = self.text_backbone(inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
-        text_embs = text_outputs.last_hidden_state
-        text_pooled_embs = self.text_pooler(text_embs)
-        return text_pooled_embs
+        text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.compute_pooled_embs(inputs)
+        return self.mean_embs([text_pooled_embs, audio_pooled_embs, video_pooled_embs])
 
     # def forward(self, inputs: MultimodalInput):
     #     text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.compute_pooled_embs(inputs)

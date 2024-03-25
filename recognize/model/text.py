@@ -39,7 +39,7 @@ class TextModel(ClassifierModel):
             class_weights=class_weights,
         )
 
-    # @torch.compile()
+    @torch.compile()
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
         features = self.backbone(inputs)
         return self.classify(features, inputs.labels)
