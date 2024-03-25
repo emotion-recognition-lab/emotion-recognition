@@ -93,18 +93,18 @@ class MultimodalBackbone(Backbone):
 
     def compute_pooled_embs(self, inputs: MultimodalInput):
         text_outputs = self.text_backbone(inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
-        text_embs = text_outputs.last_hidden_state
+        text_embs = text_outputs.last_hidden_state[:, 0]
         text_pooled_embs = self.text_pooler(text_embs)
 
         if inputs.audio_input_values is not None and self.audio_backbone is not None:
             audio_outputs = self.audio_backbone(inputs.audio_input_values, attention_mask=inputs.audio_attention_mask)
-            audio_pooled_embs = self.audio_pooler(audio_outputs.last_hidden_state)
+            audio_pooled_embs = self.audio_pooler(audio_outputs.last_hidden_state[:, 0])
         else:
             audio_pooled_embs = None
 
         if inputs.video_pixel_values is not None and self.video_backbone is not None:
             video_outputs = self.video_backbone(inputs.video_pixel_values)
-            video_pooled_embs = self.video_pooler(video_outputs.last_hidden_state)
+            video_pooled_embs = self.video_pooler(video_outputs.last_hidden_state[:, 0])
         else:
             video_pooled_embs = None
 

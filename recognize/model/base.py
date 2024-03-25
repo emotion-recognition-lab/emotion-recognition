@@ -80,7 +80,7 @@ class Pooler(nn.Module):
         self.activation = nn.Tanh()
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        first_token_tensor = hidden_states[:, 0]
+        first_token_tensor = hidden_states
         pooled_output = self.dense(first_token_tensor)
         pooled_output = self.activation(pooled_output)
         return pooled_output
