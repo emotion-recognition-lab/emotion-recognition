@@ -138,11 +138,20 @@ def calculate_accuracy_and_f1_score(model: ClassifierModel, data_loader: DataLoa
 
 
 class EarlyStopper:
-    def __init__(self, model, patience: int = 10):
+    def __init__(self, patience: int = 10):
         self.patience = patience
         self.best_scores = {}
-        self.model = model
         self.best_epoch = -1
+
+    def state_dict(self):
+        return {
+            "best_scores": self.best_scores,
+            "best_epoch": self.best_epoch,
+        }
+
+    def load_state_dict(self, state_dict):
+        self.best_scores = state_dict["best_scores"]
+        self.best_epoch = state_dict["best_epoch"]
 
     def update(self, epoch: int, **kwargs: float):
         for key, value in kwargs.items():
@@ -165,16 +174,25 @@ def save_checkpoint(checkpoint_dir: Path, model: nn.Module, optimizer: torch.opt
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     save_file(model.state_dict(), checkpoint_dir / "model.safetensors")
     torch.save(optimizer.state_dict(), checkpoint_dir / "optimizer.pt")
+    torch.save(stopper.state_dict(), checkpoint_dir / "stopper.pt")
 
 
-def load_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer, checkpoint_dir: Path) -> int:
+def load_checkpoint(
+    checkpoint_dir: Path | str,
+    model: nn.Module,
+    optimizer: torch.optim.Optimizer | None = None,
+    stopper: EarlyStopper | None = None,
+) -> int:
     model_list = os.listdir(checkpoint_dir)
     epoch_start = 0
     if model_list:
         model_list.sort(key=lambda x: int(x))
         epoch_start = int(model_list[-1])
-        model.load_state_dict(load_file(checkpoint_dir / model_list[-1] / "model.safetensors"))
-        optimizer.load_state_dict(torch.load(checkpoint_dir / model_list[-1] / "optimizer.pt"))
+        model.load_state_dict(load_file(f"{checkpoint_dir}/{model_list[-1]}/model.safetensors"))
+        if optimizer is not None:
+            optimizer.load_state_dict(torch.load(f"{checkpoint_dir}/{model_list[-1]}/optimizer.pt"))
+        if stopper is not None:
+            stopper.load_state_dict(torch.load(f"{checkpoint_dir}/{model_list[-1]}/stopper.pt"))
     return epoch_start
 
 
@@ -185,6 +203,7 @@ def train_and_eval(
     test_data_loader: DataLoader | None = None,
     *,
     optimizer: torch.optim.Optimizer | None = None,
+    stopper: EarlyStopper | None = None,
     num_epochs: int = 100,
     model_label: str | None = None,
     eval_interval: int = 1,
@@ -192,6 +211,8 @@ def train_and_eval(
     if optimizer is None:
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
         # optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.1, amsgrad=True)
+    if stopper is None:
+        stopper = EarlyStopper(patience=10)
     if test_data_loader is None:
         test_data_loader = dev_data_loader
     if model_label is None:
@@ -201,10 +222,13 @@ def train_and_eval(
     logger.add(f"./logs/{model_label}.txt")
     logger.info(f"Train model `{model_label}`.")
 
-    epoch_start = load_checkpoint(model, optimizer, checkpoint_dir)
+    epoch_start = load_checkpoint(
+        checkpoint_dir,
+        model,
+        optimizer,
+        stopper,
+    )
 
-    model.train()
-    stopper = EarlyStopper(model, patience=20)
     best_epoch = stopper.best_epoch
     batch_num = len(train_data_loader)
     with Progress(
@@ -226,6 +250,7 @@ def train_and_eval(
             batch_index=0,
         )
         for epoch in range(epoch_start, num_epochs):
+            model.train()
             loss_value_list = []
             for batch_index, batch in enumerate(train_data_loader):
                 progress.update(task, loss=loss_value, batch_index=batch_index)
@@ -239,7 +264,6 @@ def train_and_eval(
                 loss_value = sum(loss_value_list) / len(loss_value_list)
 
             if (epoch + 1) % eval_interval == 0:
-                save_checkpoint(checkpoint_dir / str(epoch), model, optimizer, stopper)
                 test_accuracy, test_f1_score = calculate_accuracy_and_f1_score(model, dev_data_loader)
                 if stopper.update(epoch=epoch, f1=test_f1_score):
                     break
@@ -247,6 +271,7 @@ def train_and_eval(
 
                 if stopper.best_epoch != best_epoch:
                     best_epoch = stopper.best_epoch
+                    save_checkpoint(checkpoint_dir / str(epoch), model, optimizer, stopper)
                     print(
                         f"Epoch {epoch}: Better model found (Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%)"
                     )
@@ -260,5 +285,4 @@ def train_and_eval(
     train_accuracy, train_f1_score = calculate_accuracy_and_f1_score(model, train_data_loader)
     test_accuracy, test_f1_score = calculate_accuracy_and_f1_score(model, test_data_loader)
 
-    train_f1_score = calculate_f1_score(model, train_data_loader)
     return train_accuracy, test_accuracy, train_f1_score, test_f1_score

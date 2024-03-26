@@ -6,7 +6,7 @@ from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer
 
 from recognize.dataset import MELDDataset, MELDDatasetLabelType, MELDDatasetSplit
 from recognize.model import MultimodalInput, MultimodalModel
-from recognize.utils import train_and_eval
+from recognize.utils import load_checkpoint, train_and_eval
 
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     train_data_loader = DataLoader(
         train_dataset,
         num_workers=4,
-        batch_size=8,
+        batch_size=64,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     dev_data_loader = DataLoader(
         dev_dataset,
         num_workers=4,
-        batch_size=4,
+        batch_size=64,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     test_data_loader = DataLoader(
         test_dataset,
         num_workers=4,
-        batch_size=4,
+        batch_size=64,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
@@ -73,8 +73,32 @@ if __name__ == "__main__":
         class_weights=class_weights,
     ).cuda()
 
+    load_checkpoint("/home/zrr/workspace/emotion-recognition-project/checkpoints/text--all-mpnet-base-v2", model)
     train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
-        model, train_data_loader, dev_data_loader, test_data_loader, num_epochs=200, model_label="text+audio"
+        model, train_data_loader, dev_data_loader, test_data_loader, num_epochs=200, model_label="text+audio(freezed)"
     )
-
     print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)
+
+    # model.unfreeze_backbone()
+    # train_dataset = MELDDataset(
+    #     "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
+    #     tokenizer,
+    #     feature_extracor,
+    #     # image_processor,
+    #     split=MELDDatasetSplit.TRAIN,
+    #     label_type=MELDDatasetLabelType.EMOTION,
+    #     custom_unique_id="T+A",
+    # )
+    # train_data_loader = DataLoader(
+    #     train_dataset,
+    #     num_workers=4,
+    #     batch_size=64,
+    #     shuffle=False,
+    #     collate_fn=MultimodalInput.collate_fn,
+    #     pin_memory=True,
+    # )
+    # train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
+    #     model, train_data_loader, dev_data_loader, test_data_loader, num_epochs=200, model_label="text+audio"
+    # )
+
+    # print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)

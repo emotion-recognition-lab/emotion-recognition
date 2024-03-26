@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import torch
 from torch.utils.data import DataLoader
-from transformers import AutoModel, AutoTokenizer
+from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer
 
 from recognize.dataset import MELDDataset, MELDDatasetLabelType, MELDDatasetSplit
 from recognize.model import MultimodalInput, MultimodalModel
@@ -12,26 +12,34 @@ if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
 
     tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-mpnet-base-v2")
+    feature_extracor = AutoFeatureExtractor.from_pretrained("facebook/wav2vec2-base-960h")
+    # image_processor = VivitImageProcessor.from_pretrained("google/vivit-b-8x2-kinetics400")
     train_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
+        feature_extracor,
+        # image_processor,
         split=MELDDatasetSplit.TRAIN,
-        label_type=MELDDatasetLabelType.EMOTION,
-        custom_unique_id="T",
+        label_type=MELDDatasetLabelType.SENTIMENT,
+        custom_unique_id="T+A",
     )
     dev_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
+        # feature_extracor,
+        # image_processor,
         split=MELDDatasetSplit.DEV,
-        label_type=MELDDatasetLabelType.EMOTION,
-        custom_unique_id="T",
+        label_type=MELDDatasetLabelType.SENTIMENT,
+        custom_unique_id="T+A",
     )
     test_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
+        # feature_extracor,
+        # image_processor,
         split=MELDDatasetSplit.TEST,
-        label_type=MELDDatasetLabelType.EMOTION,
-        custom_unique_id="T",
+        label_type=MELDDatasetLabelType.SENTIMENT,
+        custom_unique_id="T+A",
     )
     train_data_loader = DataLoader(
         train_dataset,
@@ -64,26 +72,38 @@ if __name__ == "__main__":
         num_classes=train_dataset.num_classes,
         class_weights=class_weights,
     ).cuda()
+
     train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
         model,
         train_data_loader,
         dev_data_loader,
         test_data_loader,
         num_epochs=200,
-        model_label="text--all-mpnet-base-v2(freezed)",
+        model_label="text+audio--sentiment(freezed)",
     )
 
     print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)
-    # 96.69636600260286 59.46360153256705 94.61830442314921 57.29641334713633
 
-    model.unfreeze_backbone()
-    train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
-        model,
-        train_data_loader,
-        dev_data_loader,
-        test_data_loader,
-        num_epochs=200,
-        model_label="text--all-mpnet-base-v2",
-    )
+    # model.unfreeze_backbone()
+    # train_dataset = MELDDataset(
+    #     "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
+    #     tokenizer,
+    #     feature_extracor,
+    #     # image_processor,
+    #     split=MELDDatasetSplit.TRAIN,
+    #     label_type=MELDDatasetLabelType.SENTIMENT,
+    #     custom_unique_id="T+A",
+    # )
+    # train_data_loader = DataLoader(
+    #     train_dataset,
+    #     num_workers=4,
+    #     batch_size=64,
+    #     shuffle=False,
+    #     collate_fn=MultimodalInput.collate_fn,
+    #     pin_memory=True,
+    # )
+    # train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
+    #     model, train_data_loader, dev_data_loader, test_data_loader, num_epochs=200, model_label="text+audio"
+    # )
 
-    print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)
+    # print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)

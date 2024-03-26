@@ -71,9 +71,9 @@ class TensorFusionLayer(nn.Module):
         else:
             augmentation_zv = augmentation.broadcast_to(zl.size(0), self.video_size + 1)
 
-        assert augmentation_zl.size(1) == self.text_size + 1
-        assert augmentation_za.size(1) == self.audio_size + 1
-        assert augmentation_zv.size(1) == self.video_size + 1
+        assert augmentation_zl.size(1) == self.text_size + 1, f"{augmentation_zl.size(1)} != {self.text_size + 1}"
+        assert augmentation_za.size(1) == self.audio_size + 1, f"{augmentation_za.size(1)} != {self.audio_size + 1}"
+        assert augmentation_zv.size(1) == self.video_size + 1, f"{augmentation_zv.size(1)} != {self.video_size + 1}"
 
         fusion_tensor = torch.einsum("bi,bj,bk->bijk", augmentation_zl, augmentation_za, augmentation_zv).view(
             zl.size(0), -1
@@ -87,33 +87,34 @@ class MultimodalBackbone(Backbone):
         text_backbone: nn.Module,
         audio_backbone: nn.Module | None = None,
         video_backbone: nn.Module | None = None,
+        *,
+        text_feature_size: int = 128,
+        audio_feature_size: int = 1,
+        video_feature_size: int = 1,
     ):
         assert (audio_backbone is None or text_backbone.config.hidden_size == audio_backbone.config.hidden_size) and (
             video_backbone is None or text_backbone.config.hidden_size == video_backbone.config.hidden_size
         ), "Hidden size of text, audio and video backbones must be the same"
         self.backbone_hidden_size = text_backbone.config.hidden_size
-        hidden_size = 128 + 1
-        hidden_size *= 1 + 1
-        hidden_size *= 1 + 1
-        super().__init__(hidden_size)
+        super().__init__((text_feature_size + 1) * (audio_feature_size + 1) * (video_feature_size + 1))
         self.text_backbone = self.pretrained_module(text_backbone)
         self.audio_backbone = self.pretrained_module(audio_backbone)
         self.video_backbone = self.pretrained_module(video_backbone)
 
-        self.tensor_fusion_layer = TensorFusionLayer(128, 1, 1)
+        self.tensor_fusion_layer = TensorFusionLayer(text_feature_size, audio_feature_size, video_feature_size)
 
-        self.text_pooler = Pooler(self.backbone_hidden_size, self.tensor_fusion_layer.text_size)
-        self.audio_pooler = Pooler(self.backbone_hidden_size, self.tensor_fusion_layer.audio_size)
-        self.video_pooler = Pooler(self.backbone_hidden_size, self.tensor_fusion_layer.video_size)
+        self.text_pooler = Pooler(self.backbone_hidden_size, text_feature_size)
+        self.audio_pooler = Pooler(self.backbone_hidden_size, audio_feature_size)
+        self.video_pooler = Pooler(self.backbone_hidden_size, video_feature_size)
 
     def pool_embs(self, text_embs: torch.Tensor, audio_embs: torch.Tensor | None, video_embs: torch.Tensor | None):
         text_pooled_embs = self.text_pooler(text_embs)
-        if audio_embs is not None:
+        if audio_embs is not None and text_embs.size(0) == audio_embs.size(0):
             audio_pooled_embs = self.audio_pooler(audio_embs)
         else:
             audio_pooled_embs = None
 
-        if video_embs is not None:
+        if video_embs is not None and text_embs.size(0) == video_embs.size(0):
             video_pooled_embs = self.video_pooler(video_embs)
         else:
             video_pooled_embs = None
@@ -151,6 +152,7 @@ class MultimodalBackbone(Backbone):
         embs_dict: dict[str, torch.Tensor] = {
             k: torch.stack(v).to(inputs.text_input_ids.device) for k, v in embs_list_dict.items()
         }
+
         return self.pool_embs(
             embs_dict["text_embs"], embs_dict.get("audio_embs", None), embs_dict.get("video_embs", None)
         )

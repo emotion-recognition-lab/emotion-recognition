@@ -77,7 +77,7 @@ class Pooler(nn.Module):
         if out_features is None:
             out_features = in_features
         self.dense = nn.Linear(in_features, out_features, bias=bias)
-        self.activation = nn.Tanh()
+        self.activation = nn.ReLU()
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         first_token_tensor = hidden_states
@@ -130,7 +130,7 @@ class ClassifierModel(nn.Module):
         self.class_weights = class_weights
         self.hidden_size = backbone.hidden_size
         self.classifier = nn.Sequential(
-            nn.Dropout(0.1),
+            nn.Dropout(0.4),
             nn.Linear(self.hidden_size, num_classes),
         )
 
