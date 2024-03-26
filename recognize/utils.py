@@ -181,16 +181,19 @@ def load_checkpoint(model: nn.Module, optimizer: torch.optim.Optimizer, checkpoi
 def train_and_eval(
     model: ClassifierModel,
     train_data_loader: DataLoader,
-    test_data_loader: DataLoader,
+    dev_data_loader: DataLoader,
+    test_data_loader: DataLoader | None = None,
     *,
     optimizer: torch.optim.Optimizer | None = None,
     num_epochs: int = 100,
     model_label: str | None = None,
+    eval_interval: int = 1,
 ):
     if optimizer is None:
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
         # optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.1, amsgrad=True)
-
+    if test_data_loader is None:
+        test_data_loader = dev_data_loader
     if model_label is None:
         model_label = f"{model.__class__.__name__}-{id(model)}"
     checkpoint_dir = Path(f"./checkpoints/{model_label}")
@@ -235,9 +238,9 @@ def train_and_eval(
                 loss_value_list.append(loss.item())
                 loss_value = sum(loss_value_list) / len(loss_value_list)
 
-            if (epoch + 1) % 5 == 0:
+            if (epoch + 1) % eval_interval == 0:
                 save_checkpoint(checkpoint_dir / str(epoch), model, optimizer, stopper)
-                test_accuracy, test_f1_score = calculate_accuracy_and_f1_score(model, test_data_loader)
+                test_accuracy, test_f1_score = calculate_accuracy_and_f1_score(model, dev_data_loader)
                 if stopper.update(epoch=epoch, f1=test_f1_score):
                     break
                 progress.update(task, f1_score=test_f1_score, accuracy=test_accuracy)
@@ -245,7 +248,7 @@ def train_and_eval(
                 if stopper.best_epoch != best_epoch:
                     best_epoch = stopper.best_epoch
                     print(
-                        f"Epoch {epoch}: Best model found (Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%)"
+                        f"Epoch {epoch}: Better model found (Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%)"
                     )
             progress.update(task, advance=1)
 
@@ -258,4 +261,4 @@ def train_and_eval(
     test_accuracy, test_f1_score = calculate_accuracy_and_f1_score(model, test_data_loader)
 
     train_f1_score = calculate_f1_score(model, train_data_loader)
-    return model, train_accuracy, test_accuracy, train_f1_score, test_f1_score
+    return train_accuracy, test_accuracy, train_f1_score, test_f1_score

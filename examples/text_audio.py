@@ -73,8 +73,8 @@ if __name__ == "__main__":
         class_weights=class_weights,
     ).cuda()
 
-    best_model, train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
-        model, train_data_loader, test_data_loader, num_epochs=200, model_label="text+audio"
+    train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
+        model, train_data_loader, dev_data_loader, test_data_loader, num_epochs=200, model_label="text+audio"
     )
 
     print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)
