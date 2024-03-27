@@ -6,7 +6,7 @@ from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer
 
 from recognize.dataset import MELDDataset, MELDDatasetLabelType, MELDDatasetSplit
 from recognize.model import MultimodalInput, MultimodalModel
-from recognize.utils import load_checkpoint, train_and_eval
+from recognize.utils import train_and_eval
 
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
@@ -73,7 +73,7 @@ if __name__ == "__main__":
         class_weights=class_weights,
     ).cuda()
 
-    load_checkpoint("/home/zrr/workspace/emotion-recognition-project/checkpoints/text--all-mpnet-base-v2", model)
+    # load_checkpoint("/home/zrr/workspace/emotion-recognition-project/checkpoints/text--all-mpnet-base-v2", model)
     train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
         model, train_data_loader, dev_data_loader, test_data_loader, num_epochs=200, model_label="text+audio(freezed)"
     )

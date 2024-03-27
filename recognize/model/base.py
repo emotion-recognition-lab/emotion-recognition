@@ -76,20 +76,17 @@ class Pooler(nn.Module):
         super().__init__()
         if out_features is None:
             out_features = in_features
-        self.dense = nn.Linear(in_features, out_features, bias=bias)
-        self.activation = nn.ReLU()
+        self.pool = nn.Sequential(nn.Dropout(0.4), nn.Linear(in_features, out_features, bias=bias), nn.ReLU())
 
-    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        first_token_tensor = hidden_states
-        pooled_output = self.dense(first_token_tensor)
-        pooled_output = self.activation(pooled_output)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        pooled_output = self.pool(x)
         return pooled_output
 
 
 class Backbone(nn.Module):
-    def __init__(self, hidden_size: int, *, is_frozen: bool = True):
+    def __init__(self, output_size: int, *, is_frozen: bool = True):
         super().__init__()
-        self.hidden_size = hidden_size
+        self.output_size = output_size
         self.is_frozen = is_frozen
 
     def freeze(self):
@@ -123,15 +120,17 @@ class Backbone(nn.Module):
 class ClassifierModel(nn.Module):
     __call__: Callable[..., ClassifierOutput]
 
-    def __init__(self, backbone: Backbone, *, num_classes: int, class_weights: torch.Tensor | None = None):
+    def __init__(
+        self, backbone: Backbone, hidden_size: int, *, num_classes: int, class_weights: torch.Tensor | None = None
+    ):
         super().__init__()
         self.backbone = backbone
         self.num_classes = num_classes
         self.class_weights = class_weights
-        self.hidden_size = backbone.hidden_size
+        self.hidden_size = hidden_size
         self.classifier = nn.Sequential(
             nn.Dropout(0.4),
-            nn.Linear(self.hidden_size, num_classes),
+            nn.Linear(hidden_size, num_classes),
         )
 
     def freeze_backbone(self):

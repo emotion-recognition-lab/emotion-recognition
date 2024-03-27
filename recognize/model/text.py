@@ -5,7 +5,7 @@ from typing import Callable
 import torch
 from torch import nn
 
-from .base import Backbone, ClassifierModel, ClassifierOutput, Pooler
+from .base import Backbone, ClassifierModel, ClassifierOutput
 from .multimodal import MultimodalInput
 
 
@@ -15,8 +15,13 @@ class TextBackbone(Backbone):
         text_backbone: nn.Module,
     ):
         super().__init__(text_backbone.config.hidden_size)
+        self.hidden_size = text_backbone.config.hidden_size
         self.text_backbone = self.pretrained_module(text_backbone)
-        self.pooler = Pooler(self.hidden_size)
+        self.pooler = nn.Sequential(
+            nn.Dropout(0.2),
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.Tanh(),
+        )
 
     def forward(self, inputs: MultimodalInput):
         text_outputs = self.text_backbone(inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
@@ -35,6 +40,7 @@ class TextModel(ClassifierModel):
     ):
         super().__init__(
             TextBackbone(text_backbone),
+            text_backbone.hiden_size,
             num_classes=num_classes,
             class_weights=class_weights,
         )

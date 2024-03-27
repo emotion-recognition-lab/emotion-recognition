@@ -209,8 +209,8 @@ def train_and_eval(
     eval_interval: int = 1,
 ):
     if optimizer is None:
-        optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
-        # optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.1, amsgrad=True)
+        # optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5, weight_decay=0.1, amsgrad=True)
     if stopper is None:
         stopper = EarlyStopper(patience=10)
     if test_data_loader is None:
