@@ -75,7 +75,7 @@ if __name__ == "__main__":
         num_classes=train_dataset.num_classes,
         class_weights=torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda(),
     ).cuda()
-    train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
+    result = train_and_eval(
         model,
         train_data_loader,
         test_data_loader,
@@ -83,5 +83,5 @@ if __name__ == "__main__":
         model_label="text--all-mpnet-base-v2--sentiment",
     )
 
-    print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)
+    result.print()
     # 97.67744518970868 68.12260536398468 97.37895362236273 67.06585092859349

@@ -15,7 +15,7 @@ from rich.progress import (
 from safetensors.torch import load_file, save_file
 from torch.utils.data import DataLoader
 
-from .evaluate import calculate_accuracy_and_f1_score
+from .evaluate import TrainingResult, calculate_accuracy_and_f1_score
 from .model.base import ClassifierModel
 
 
@@ -192,4 +192,12 @@ def train_and_eval(
     train_accuracy, train_f1_score = calculate_accuracy_and_f1_score(model, train_data_loader)
     test_accuracy, test_f1_score = calculate_accuracy_and_f1_score(model, test_data_loader)
 
-    return train_accuracy, test_accuracy, train_f1_score, test_f1_score
+    result = TrainingResult(
+        train_accuracy=train_accuracy,
+        train_f1_score=train_f1_score,
+        test_accuracy=test_accuracy,
+        test_f1_score=test_f1_score,
+        best_epoch=best_epoch,
+    )
+    result.save(f"{checkpoint_dir}/result.json")
+    return result

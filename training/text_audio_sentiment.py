@@ -73,7 +73,7 @@ if __name__ == "__main__":
         class_weights=class_weights,
     ).cuda()
 
-    train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
+    result = train_and_eval(
         model,
         train_data_loader,
         dev_data_loader,
@@ -82,7 +82,7 @@ if __name__ == "__main__":
         model_label="text+audio--sentiment(freezed)",
     )
 
-    print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)
+    result.print()
 
     # model.unfreeze_backbone()
     # train_dataset = MELDDataset(
@@ -102,8 +102,8 @@ if __name__ == "__main__":
     #     collate_fn=MultimodalInput.collate_fn,
     #     pin_memory=True,
     # )
-    # train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
+    # result= train_and_eval(
     #     model, train_data_loader, dev_data_loader, test_data_loader, num_epochs=200, model_label="text+audio"
     # )
 
-    # print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)
+    # result.print()

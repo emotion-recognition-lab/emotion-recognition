@@ -152,7 +152,7 @@ class Backbone(nn.Module):
         peft_state_dicts: dict[str, dict[str, torch.Tensor]] = {}
         for name, module in self.named_modules():
             if isinstance(module, PeftModel):
-                peft_state_dicts[name] = get_peft_model_state_dict(module, save_embedding_layers=True)  # type: ignore  # noqa: PGH003
+                peft_state_dicts[name] = get_peft_model_state_dict(module, save_embedding_layers=False)  # type: ignore  # noqa: PGH003
         return peft_state_dicts
 
 

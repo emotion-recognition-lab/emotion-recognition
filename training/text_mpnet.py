@@ -75,7 +75,7 @@ def train(freeze: bool = True):
     else:
         model_label = "text--all-mpnet-base-v2--frozen"
 
-    train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
+    result = train_and_eval(
         model,
         train_data_loader,
         dev_data_loader,
@@ -83,7 +83,7 @@ def train(freeze: bool = True):
         num_epochs=200,
         model_label=model_label,
     )
-    print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)
+    result.print()
 
 
 if __name__ == "__main__":

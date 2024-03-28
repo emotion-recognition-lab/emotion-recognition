@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import numpy as np
 import torch
 from cachetools import Cache, cached
+from pydantic import BaseModel
 from torch.utils.data import DataLoader
 
+from .dataset import MELDDataset
 from .model import ClassifierModel
 
 
 @cached(cache=Cache(maxsize=10))
-def calculate_class_weights(data_loader: DataLoader, num_classes: int = 30):
+def calculate_class_weights(data_loader: DataLoader, num_classes: int = 30) -> list[float]:
+    if isinstance(data_loader.dataset, MELDDataset):
+        return data_loader.dataset.class_weights
     class_counts = [0] * num_classes
 
     with torch.no_grad():
@@ -18,11 +23,21 @@ def calculate_class_weights(data_loader: DataLoader, num_classes: int = 30):
                 class_counts[i] += (labels == i).sum().item()
 
     total_samples = sum(class_counts)
-    class_weights = []
+    class_weights: list[float] = []
     for i in range(num_classes):
         class_weights.append(class_counts[i] / total_samples)
 
     return class_weights
+
+
+def confusion_matrix(y_true, y_pred, num_classes: int):
+    labels = list(range(num_classes))
+    matrix = np.zeros((len(labels), len(labels)), dtype=int)
+
+    for true_label, pred_label in zip(y_true, y_pred, strict=True):
+        matrix[true_label, pred_label] += 1
+
+    return matrix
 
 
 def calculate_accuracy(model: ClassifierModel, data_loader: DataLoader):
@@ -66,7 +81,7 @@ def calculate_f1_score(model: ClassifierModel, data_loader: DataLoader):
                 class_f1_scores[i] += f1_score
                 class_counts[i] += 1
 
-    weighted_f1_score = 0
+    weighted_f1_score = 0.0
 
     for i in range(num_classes):
         class_weight = class_weights[i]
@@ -116,9 +131,41 @@ def calculate_accuracy_and_f1_score(model: ClassifierModel, data_loader: DataLoa
     accuracy = 100 * correct / total
 
     # f1 score
-    weighted_f1_score = 0
+    weighted_f1_score = 0.0
     for i in range(num_classes):
         class_weight = class_weights[i]
         class_f1 = class_f1_scores[i] / class_counts[i]
         weighted_f1_score += class_weight * class_f1
     return accuracy, 100 * weighted_f1_score
+
+
+class TrainingResult(BaseModel):
+    train_accuracy: float
+    train_f1_score: float
+    test_accuracy: float
+    test_f1_score: float
+
+    confusion_matrix: list[list[int]] | None = None
+    best_epoch: int = 0
+
+    def save(self, path: str):
+        with open(path, "w") as f:
+            f.write(self.model_dump_json())
+
+    def print(self):
+        print(f"Train Accuracy: {self.train_accuracy:.2f}%")
+        print(f"Train F1 Score: {self.train_f1_score:.2f}%")
+        print(f"Test Accuracy: {self.test_accuracy:.2f}%")
+        print(f"Test F1 Score: {self.test_f1_score:.2f}%")
+
+    @classmethod
+    def auto_compute(cls, model: ClassifierModel, train_data_loader: DataLoader, test_data_loader: DataLoader):
+        train_accuracy, train_f1_score = calculate_accuracy_and_f1_score(model, train_data_loader)
+        test_accuracy, test_f1_score = calculate_accuracy_and_f1_score(model, test_data_loader)
+
+        return cls(
+            train_accuracy=train_accuracy,
+            train_f1_score=train_f1_score,
+            test_accuracy=test_accuracy,
+            test_f1_score=test_f1_score,
+        )
