@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer
 
-from recognize.dataset import MELDDataset, MELDDatasetLabelType, MELDDatasetSplit
+from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType
 from recognize.model import MultimodalInput, MultimodalModel
 from recognize.utils import train_and_eval
 
@@ -19,7 +19,7 @@ if __name__ == "__main__":
         tokenizer,
         feature_extracor,
         # image_processor,
-        split=MELDDatasetSplit.TRAIN,
+        split=DatasetSplit.TRAIN,
         label_type=MELDDatasetLabelType.EMOTION,
         custom_unique_id="T+A",
     )
@@ -28,7 +28,7 @@ if __name__ == "__main__":
         tokenizer,
         feature_extracor,
         # image_processor,
-        split=MELDDatasetSplit.DEV,
+        split=DatasetSplit.DEV,
         label_type=MELDDatasetLabelType.EMOTION,
         custom_unique_id="T+A",
     )
@@ -37,7 +37,7 @@ if __name__ == "__main__":
         tokenizer,
         feature_extracor,
         # image_processor,
-        split=MELDDatasetSplit.TEST,
+        split=DatasetSplit.TEST,
         label_type=MELDDatasetLabelType.EMOTION,
         custom_unique_id="T+A",
     )
@@ -85,7 +85,7 @@ if __name__ == "__main__":
     #     tokenizer,
     #     feature_extracor,
     #     # image_processor,
-    #     split=MELDDatasetSplit.TRAIN,
+    #     split=DatasetSplit.TRAIN,
     #     label_type=MELDDatasetLabelType.EMOTION,
     #     custom_unique_id="T+A",
     # )

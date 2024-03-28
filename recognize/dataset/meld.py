@@ -1,22 +1,13 @@
 from __future__ import annotations
 
-import os
 from enum import Enum
 from functools import cached_property
 
 import pandas as pd
-import soundfile as sf
 import torch
-from torch.utils.data import Dataset
 
 from ..model import MultimodalInput
-from .utils import read_videos
-
-
-class MELDDatasetSplit(Enum):
-    TRAIN = "train"
-    DEV = "dev"
-    TEST = "test"
+from .base import DatasetSplit, MultimodalDataset
 
 
 class MELDDatasetLabelType(Enum):
@@ -24,7 +15,7 @@ class MELDDatasetLabelType(Enum):
     SENTIMENT = "sentiment"
 
 
-class MELDDataset(Dataset):
+class MELDDataset(MultimodalDataset):
     @staticmethod
     def emotion2int(item):
         emotion = item["Emotion"]
@@ -44,7 +35,7 @@ class MELDDataset(Dataset):
         feature_extractor=None,
         image_processor=None,
         *,
-        split: MELDDatasetSplit = MELDDatasetSplit.TRAIN,
+        split: DatasetSplit = DatasetSplit.TRAIN,
         label_type: MELDDatasetLabelType = MELDDatasetLabelType.EMOTION,
         custom_unique_id: str = "",
     ):
@@ -69,40 +60,6 @@ class MELDDataset(Dataset):
 
         self.custom_unique_id = custom_unique_id
 
-    def load_audio(self, audio_path):
-        if self.feature_extractor is not None and os.path.exists(audio_path):
-            raw_speech, sampling_rate = sf.read(audio_path)
-            audio_inputs = self.feature_extractor(
-                raw_speech.mean(1), sampling_rate=sampling_rate, return_attention_mask=True, return_tensors="pt"
-            )
-            audio_input_values = audio_inputs["input_values"][0]
-            audio_attention_mask = audio_inputs["attention_mask"][0]
-
-            if audio_input_values.shape[0] < 3280:
-                audio_input_values = torch.cat(
-                    [
-                        audio_input_values,
-                        torch.zeros(3280 - audio_input_values.shape[0]),
-                    ],
-                    dim=0,
-                )
-            # TODO: better way to reduce langth
-            audio_input_values = audio_input_values[:200000]
-            audio_attention_mask = audio_attention_mask[:200000]
-        else:
-            audio_input_values = None
-            audio_attention_mask = None
-        return audio_input_values, audio_attention_mask
-
-    def load_video(self, video_path):
-        if self.image_processor is not None and os.path.exists(video_path):
-            videos = read_videos(video_path)
-            video_inputs = self.image_processor(list(videos), return_tensors="pt")
-            video_pixel_values = video_inputs["pixel_values"][0]
-        else:
-            video_pixel_values = None
-        return video_pixel_values
-
     @cached_property
     def class_weights(self) -> list[float]:
         labels = self.meta.apply(self.label2int, axis=1)
@@ -115,17 +72,15 @@ class MELDDataset(Dataset):
         item = self.meta.iloc[index]
         label = self.label2int(item)
 
-        text_inputs = self.tokenizer(item["Utterance"], return_attention_mask=True, return_tensors="pt")
-        text_input_ids = text_inputs["input_ids"][0]
-        text_attention_mask = text_inputs["attention_mask"][0]
-
         utt_id = item["Utterance_ID"]
         dia_id = item["Dialogue_ID"]
         audio_path = f"{self.dataset_path}/audios/{self.split}/dia{dia_id}_utt{utt_id}.flac"
         video_path = f"{self.dataset_path}/videos/{self.split}/dia{dia_id}_utt{utt_id}.mp4"
 
+        text_input_ids, text_attention_mask = self.load_text(item["Utterance"])
         audio_input_values, audio_attention_mask = self.load_audio(audio_path)
         video_pixel_values = self.load_video(video_path)
+        assert text_input_ids is not None, "Now, text must be provided"
         return MultimodalInput(
             unique_id=f"{self.custom_unique_id}--{self.split}_{index}",
             text_input_ids=text_input_ids,

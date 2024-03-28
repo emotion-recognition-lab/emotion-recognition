@@ -6,13 +6,13 @@ from cachetools import Cache, cached
 from pydantic import BaseModel
 from torch.utils.data import DataLoader
 
-from .dataset import MELDDataset
+from .dataset import MELDDataset, SIMSDataset
 from .model import ClassifierModel
 
 
 @cached(cache=Cache(maxsize=10))
 def calculate_class_weights(data_loader: DataLoader, num_classes: int = 30) -> list[float]:
-    if isinstance(data_loader.dataset, MELDDataset):
+    if isinstance(data_loader.dataset, (MELDDataset, SIMSDataset)):
         return data_loader.dataset.class_weights
     class_counts = [0] * num_classes
 
@@ -30,56 +30,53 @@ def calculate_class_weights(data_loader: DataLoader, num_classes: int = 30) -> l
     return class_weights
 
 
-def confusion_matrix(y_true, y_pred, num_classes: int):
-    labels = list(range(num_classes))
-    matrix = np.zeros((len(labels), len(labels)), dtype=int)
+def __confusion_matrix(y_true, y_pred, num_classes: int):
+    if num_classes == 1:
+        num_classes = 2
+    matrix = [[0] * num_classes for _ in range(num_classes)]
 
     for true_label, pred_label in zip(y_true, y_pred, strict=True):
-        matrix[true_label, pred_label] += 1
+        matrix[true_label][pred_label] += 1
 
     return matrix
 
 
-def calculate_accuracy(model: ClassifierModel, data_loader: DataLoader):
-    correct: int = 0
-    total: int = 0
+def confusion_matrix(model: ClassifierModel, data_loader: DataLoader):
+    y_true, y_pred = get_outputs(model, data_loader)
+    return __confusion_matrix(y_true, y_pred, model.num_classes)
 
-    with torch.no_grad():
-        model.eval()
-        for batch in data_loader:
-            outputs = model(batch)
-            _, predicted = torch.max(outputs.logits.detach(), 1)
-            total += batch.labels.size(0)
-            correct += (predicted == batch.labels).sum().item()
+
+def calculate_accuracy(predicted_list: list[int], labels_list: list[int]):
+    correct: int = 0
+    total: int = len(predicted_list)
+    for predicted, labels in zip(predicted_list, labels_list, strict=True):
+        if predicted == labels:
+            correct += 1
 
     accuracy = 100 * correct / total
     return accuracy
 
 
-def calculate_f1_score(model: ClassifierModel, data_loader: DataLoader):
-    num_classes = model.num_classes
-    class_weights = calculate_class_weights(data_loader, num_classes)
+def calculate_f1_score(predicted_list: list[int], labels_list: list[int], class_weights: list[float]):
+    num_classes = len(class_weights)
+    predicted = np.array(predicted_list)
+    labels = np.array(labels_list)
+
     class_f1_scores = [0] * num_classes
     class_counts = [0] * num_classes
 
-    with torch.no_grad():
-        for batch in data_loader:
-            outputs = model(batch)
-            _, predicted = torch.max(outputs.logits, 1)
-            labels = batch.labels
+    for i in range(num_classes):
+        true_positives = ((predicted == i) & (labels == i)).sum()
+        false_positives = ((predicted == i) & (labels != i)).sum()
+        false_negatives = ((predicted != i) & (labels == i)).sum()
 
-            for i in range(num_classes):
-                true_positives = ((predicted == i) & (labels == i)).sum().item()
-                false_positives = ((predicted == i) & (labels != i)).sum().item()
-                false_negatives = ((predicted != i) & (labels == i)).sum().item()
+        precision = true_positives / (true_positives + false_positives + 1e-10)
+        recall = true_positives / (true_positives + false_negatives + 1e-10)
 
-                precision = true_positives / (true_positives + false_positives + 1e-10)
-                recall = true_positives / (true_positives + false_negatives + 1e-10)
+        f1_score = 2 * (precision * recall) / (precision + recall + 1e-10)
 
-                f1_score = 2 * (precision * recall) / (precision + recall + 1e-10)
-
-                class_f1_scores[i] += f1_score
-                class_counts[i] += 1
+        class_f1_scores[i] += f1_score
+        class_counts[i] += 1
 
     weighted_f1_score = 0.0
 
@@ -91,52 +88,36 @@ def calculate_f1_score(model: ClassifierModel, data_loader: DataLoader):
 
 
 def calculate_accuracy_and_f1_score(model: ClassifierModel, data_loader: DataLoader):
-    model.eval()
+    num_classes = model.num_classes
+    predicted_list, labels_list = get_outputs(model, data_loader)
 
     # accuracy
-    correct: int = 0
-    total: int = 0
+    accuracy = calculate_accuracy(predicted_list, labels_list)
 
     # f1 score
-    num_classes = model.num_classes
-    class_weights = calculate_class_weights(data_loader, num_classes)
-    class_f1_scores = [0] * num_classes
-    class_counts = [0] * num_classes
+    weighted_f1_score = calculate_f1_score(
+        predicted_list, labels_list, calculate_class_weights(data_loader, num_classes)
+    )
 
+    return accuracy, weighted_f1_score
+
+
+def get_outputs(model: ClassifierModel, data_loader: DataLoader):
+    model.eval()
+    predicted_list: list[int] = []
+    labels_list: list[int] = []
     with torch.no_grad():
         for batch in data_loader:
             outputs = model(batch)
-            _, predicted = torch.max(outputs.logits, 1)
-            labels = batch.labels
-
-            # accuracy
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-
-            # f1 score
-            for i in range(num_classes):
-                true_positives = ((predicted == i) & (labels == i)).sum().item()
-                false_positives = ((predicted == i) & (labels != i)).sum().item()
-                false_negatives = ((predicted != i) & (labels == i)).sum().item()
-
-                precision = true_positives / (true_positives + false_positives + 1e-10)
-                recall = true_positives / (true_positives + false_negatives + 1e-10)
-
-                f1_score = 2 * (precision * recall) / (precision + recall + 1e-10)
-
-                class_f1_scores[i] += f1_score
-                class_counts[i] += 1
-
-    # accuracy
-    accuracy = 100 * correct / total
-
-    # f1 score
-    weighted_f1_score = 0.0
-    for i in range(num_classes):
-        class_weight = class_weights[i]
-        class_f1 = class_f1_scores[i] / class_counts[i]
-        weighted_f1_score += class_weight * class_f1
-    return accuracy, 100 * weighted_f1_score
+            if outputs.logits.shape[1] == 1:
+                predicted = (outputs.logits > 0).int().view(-1)
+                labels = (batch.labels > 0).int()
+            else:
+                _, predicted = torch.max(outputs.logits.detach(), 1)
+                labels = batch.labels
+            predicted_list.extend(predicted.detach().cpu().numpy().tolist())
+            labels_list.extend(labels.cpu().numpy().tolist())
+    return predicted_list, labels_list
 
 
 class TrainingResult(BaseModel):

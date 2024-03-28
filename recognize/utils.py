@@ -15,7 +15,7 @@ from rich.progress import (
 from safetensors.torch import load_file, save_file
 from torch.utils.data import DataLoader
 
-from .evaluate import TrainingResult, calculate_accuracy_and_f1_score
+from .evaluate import TrainingResult, calculate_accuracy_and_f1_score, confusion_matrix
 from .model.base import ClassifierModel
 
 
@@ -97,10 +97,24 @@ def load_last_checkpoint(
     model_list = os.listdir(checkpoint_dir)
     epoch_start = 0
     if model_list:
-        model_list.sort(key=lambda x: int(x))
+        model_list = [int(model_name) for model_name in model_list if model_name.isdigit()]
+        model_list.sort()
         epoch_start = int(model_list[-1])
         load_checkpoint(f"{checkpoint_dir}/{model_list[-1]}", model, optimizer, stopper)
     return epoch_start
+
+
+def load_best_checkpoint(
+    checkpoint_dir: Path | str,
+    model: ClassifierModel,
+    optimizer: torch.optim.Optimizer | None = None,
+    stopper: EarlyStopper | None = None,
+) -> int:
+    with open(f"{checkpoint_dir}/result.json", "r") as f:
+        best_epoch = TrainingResult.model_validate_json(f.read()).best_epoch
+
+    load_checkpoint(f"{checkpoint_dir}/{best_epoch}", model, optimizer, stopper)
+    return best_epoch
 
 
 def train_and_eval(
@@ -120,7 +134,7 @@ def train_and_eval(
         # optimizer = torch.optim.Adam(parameters, lr=1e-5)
         optimizer = torch.optim.AdamW(parameters, lr=1e-5, weight_decay=0.1, amsgrad=True)
     if stopper is None:
-        stopper = EarlyStopper(patience=10)
+        stopper = EarlyStopper(patience=30)
     if test_data_loader is None:
         test_data_loader = dev_data_loader
     if model_label is None:
@@ -200,4 +214,6 @@ def train_and_eval(
         best_epoch=best_epoch,
     )
     result.save(f"{checkpoint_dir}/result.json")
+    print(confusion_matrix(model, test_data_loader))
+    print(confusion_matrix(model, train_data_loader))
     return result

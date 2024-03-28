@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 from transformers import AutoModel, AutoTokenizer
 
-from recognize.dataset import MELDDataset, MELDDatasetLabelType, MELDDatasetSplit
+from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType
 from recognize.model import MultimodalInput, TextModel
 from recognize.utils import (
     train_and_eval,
@@ -17,19 +17,19 @@ if __name__ == "__main__":
     train_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
-        split=MELDDatasetSplit.TRAIN,
+        split=DatasetSplit.TRAIN,
         label_type=MELDDatasetLabelType.EMOTION,
     )
     dev_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
-        split=MELDDatasetSplit.DEV,
+        split=DatasetSplit.DEV,
         label_type=MELDDatasetLabelType.EMOTION,
     )
     test_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
-        split=MELDDatasetSplit.TEST,
+        split=DatasetSplit.TEST,
         label_type=MELDDatasetLabelType.EMOTION,
     )
     train_data_loader = DataLoader(

@@ -86,9 +86,10 @@ class Pooler(nn.Module):
 
 
 class Backbone(nn.Module):
-    def __init__(self, output_size: int, *, is_frozen: bool = True):
+    def __init__(self, output_size: int, *, is_frozen: bool = True, use_peft: bool = False):
         super().__init__()
         self.output_size = output_size
+        self.use_peft = use_peft
         self.is_frozen = is_frozen
 
     def freeze(self):
@@ -106,7 +107,8 @@ class Backbone(nn.Module):
     def pretrained_module(self, module: nn.Module | None) -> nn.Module | None:
         if module is None:
             return None
-        module = self.apply_peft(module)
+        if self.use_peft:
+            module = self.apply_peft(module)
         module_forward = module.forward
 
         def forward(*args, **kwargs):
@@ -123,10 +125,10 @@ class Backbone(nn.Module):
     def apply_peft(
         model: nn.Module,
         *,
-        rank: int = 32,
-        lora_alpha: int = 32,
+        rank: int = 64,
+        lora_alpha: int = 128,
         lora_dropout: float = 0.1,
-        bias: Literal["none", "all", "lora_only"] = "none",
+        bias: Literal["none", "all", "lora_only"] = "all",
     ):
         model = get_peft_model(
             model,  # type: ignore  # noqa: PGH003
@@ -182,11 +184,18 @@ class ClassifierModel(nn.Module):
     def sample_weights(self):
         return 1 / self.class_weights if self.class_weights is not None else None
 
+    def compute_loss(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        if self.num_classes == 1:
+            loss_fct = nn.MSELoss()
+            return loss_fct(logits.view(-1), labels.float())
+        else:
+            loss_fct = CrossEntropyLoss(weight=self.sample_weights)
+            return loss_fct(logits, labels)
+
     @torch.compile()
     def classify(self, features: torch.Tensor, labels: torch.Tensor | None) -> ClassifierOutput:
         logits = self.classifier(features)
         loss = None
         if labels is not None:
-            loss_fct = CrossEntropyLoss(weight=self.sample_weights)
-            loss = loss_fct(logits, labels)
-        return ClassifierOutput(logits=logits, loss=loss)
+            loss = self.compute_loss(logits, labels)
+        return ClassifierOutput(logits=logits.detach(), loss=loss)

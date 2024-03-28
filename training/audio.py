@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer
 
-from recognize.dataset import MELDDataset, MELDDatasetLabelType, MELDDatasetSplit
+from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType
 from recognize.model import MultimodalInput, MultimodalModel
 from recognize.utils import calculate_accuracy, calculate_f1_score, train_and_eval
 
@@ -17,21 +17,21 @@ if __name__ == "__main__":
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         feature_extracor,
-        split=MELDDatasetSplit.TRAIN,
+        split=DatasetSplit.TRAIN,
         label_type=MELDDatasetLabelType.EMOTION,
     )
     dev_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         feature_extracor,
-        split=MELDDatasetSplit.DEV,
+        split=DatasetSplit.DEV,
         label_type=MELDDatasetLabelType.EMOTION,
     )
     test_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         feature_extracor,
-        split=MELDDatasetSplit.TEST,
+        split=DatasetSplit.TEST,
         label_type=MELDDatasetLabelType.EMOTION,
     )
     train_data_loader = DataLoader(

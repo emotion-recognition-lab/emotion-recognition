@@ -5,36 +5,33 @@ import typer
 from torch.utils.data import DataLoader
 from transformers import AutoModel, AutoTokenizer
 
-from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType
+from recognize.dataset import DatasetSplit, SIMSDataset
 from recognize.model import MultimodalInput, MultimodalModel
-from recognize.utils import load_best_checkpoint, train_and_eval
+from recognize.utils import train_and_eval
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 @app.command()
-def train(freeze: bool = True, use_best: bool = True):
-    tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-mpnet-base-v2")
-    train_dataset = MELDDataset(
-        "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
+def train(freeze: bool = True):
+    tokenizer = AutoTokenizer.from_pretrained("uer/roberta-base-chinese-extractive-qa")
+    train_dataset = SIMSDataset(
+        "/home/zrr/datasets/SIMS",
         tokenizer,
         split=DatasetSplit.TRAIN,
-        label_type=MELDDatasetLabelType.EMOTION,
-        custom_unique_id="T",
+        custom_unique_id="SIMS--T",
     )
-    dev_dataset = MELDDataset(
-        "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
+    valid_dataset = SIMSDataset(
+        "/home/zrr/datasets/SIMS",
         tokenizer,
-        split=DatasetSplit.DEV,
-        label_type=MELDDatasetLabelType.EMOTION,
-        custom_unique_id="T",
+        split=DatasetSplit.VALID,
+        custom_unique_id="SIMS--T",
     )
-    test_dataset = MELDDataset(
-        "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
+    test_dataset = SIMSDataset(
+        "/home/zrr/datasets/SIMS",
         tokenizer,
         split=DatasetSplit.TEST,
-        label_type=MELDDatasetLabelType.EMOTION,
-        custom_unique_id="T",
+        custom_unique_id="SIMS--T",
     )
     train_data_loader = DataLoader(
         train_dataset,
@@ -44,8 +41,8 @@ def train(freeze: bool = True, use_best: bool = True):
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
     )
-    dev_data_loader = DataLoader(
-        dev_dataset,
+    valid_data_loader = DataLoader(
+        valid_dataset,
         num_workers=4,
         batch_size=64,
         shuffle=False,
@@ -60,27 +57,23 @@ def train(freeze: bool = True, use_best: bool = True):
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
     )
-    class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
 
     model = MultimodalModel(
-        AutoModel.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
+        AutoModel.from_pretrained("uer/roberta-base-chinese-extractive-qa"),
         # AutoModel.from_pretrained("facebook/wav2vec2-base-960h"),
         num_classes=train_dataset.num_classes,
-        class_weights=class_weights,
     ).cuda()
 
     if not freeze:
         model.unfreeze_backbone()
-        model_label = "text--all-mpnet-base-v2"
+        model_label = "SIMS--text--all-mpnet-base-v2"
     else:
-        if use_best:
-            load_best_checkpoint("./checkpoints/text--all-mpnet-base-v2", model)
-        model_label = "text--all-mpnet-base-v2--frozen"
+        model_label = "SIMS--text--all-mpnet-base-v2--frozen"
 
     result = train_and_eval(
         model,
         train_data_loader,
-        dev_data_loader,
+        valid_data_loader,
         test_data_loader,
         num_epochs=200,
         model_label=model_label,
