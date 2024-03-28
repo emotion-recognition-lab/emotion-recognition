@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import torch
+import typer
 from torch.utils.data import DataLoader
 from transformers import AutoModel, AutoTokenizer
 
@@ -8,9 +9,11 @@ from recognize.dataset import MELDDataset, MELDDatasetLabelType, MELDDatasetSpli
 from recognize.model import MultimodalInput, MultimodalModel
 from recognize.utils import train_and_eval
 
-if __name__ == "__main__":
-    torch.set_float32_matmul_precision("high")
+app = typer.Typer(pretty_exceptions_show_locals=False)
 
+
+@app.command()
+def train(freeze: bool = True):
     tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-mpnet-base-v2")
     train_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
@@ -61,28 +64,28 @@ if __name__ == "__main__":
 
     model = MultimodalModel(
         AutoModel.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
-        AutoModel.from_pretrained("facebook/wav2vec2-base-960h"),
+        # AutoModel.from_pretrained("facebook/wav2vec2-base-960h"),
         num_classes=train_dataset.num_classes,
         class_weights=class_weights,
     ).cuda()
 
+    if not freeze:
+        model.unfreeze_backbone()
+        model_label = "text--all-mpnet-base-v2"
+    else:
+        model_label = "text--all-mpnet-base-v2--frozen"
+
     train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
         model,
         train_data_loader,
         dev_data_loader,
         test_data_loader,
         num_epochs=200,
-        model_label="text--all-mpnet-base-v2(freezed)",
+        model_label=model_label,
     )
     print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)
 
-    model.unfreeze_backbone()
-    train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
-        model,
-        train_data_loader,
-        dev_data_loader,
-        test_data_loader,
-        num_epochs=200,
-        model_label="text--all-mpnet-base-v2",
-    )
-    print(train_accuracy, test_accuracy, train_f1_score, test_f1_score)
+
+if __name__ == "__main__":
+    torch.set_float32_matmul_precision("high")
+    app()

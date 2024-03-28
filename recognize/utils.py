@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 
 import torch
-from cachetools import Cache, cached
 from loguru import logger
 from rich.progress import (
     BarColumn,
@@ -14,127 +13,10 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 from safetensors.torch import load_file, save_file
-from torch import nn
 from torch.utils.data import DataLoader
 
+from .evaluate import calculate_accuracy_and_f1_score
 from .model.base import ClassifierModel
-
-
-@cached(cache=Cache(maxsize=10))
-def calculate_class_weights(data_loader: DataLoader, num_classes: int = 30):
-    class_counts = [0] * num_classes
-
-    with torch.no_grad():
-        for batch in data_loader:
-            for i in range(num_classes):
-                labels = batch.labels
-                class_counts[i] += (labels == i).sum().item()
-
-    total_samples = sum(class_counts)
-    class_weights = []
-    for i in range(num_classes):
-        class_weights.append(class_counts[i] / total_samples)
-
-    return class_weights
-
-
-def calculate_accuracy(model: ClassifierModel, data_loader: DataLoader):
-    correct: int = 0
-    total: int = 0
-
-    with torch.no_grad():
-        model.eval()
-        for batch in data_loader:
-            outputs = model(batch)
-            _, predicted = torch.max(outputs.logits.detach(), 1)
-            total += batch.labels.size(0)
-            correct += (predicted == batch.labels).sum().item()
-
-    accuracy = 100 * correct / total
-    return accuracy
-
-
-def calculate_f1_score(model: ClassifierModel, data_loader: DataLoader):
-    num_classes = model.num_classes
-    class_weights = calculate_class_weights(data_loader, num_classes)
-    class_f1_scores = [0] * num_classes
-    class_counts = [0] * num_classes
-
-    with torch.no_grad():
-        for batch in data_loader:
-            outputs = model(batch)
-            _, predicted = torch.max(outputs.logits, 1)
-            labels = batch.labels
-
-            for i in range(num_classes):
-                true_positives = ((predicted == i) & (labels == i)).sum().item()
-                false_positives = ((predicted == i) & (labels != i)).sum().item()
-                false_negatives = ((predicted != i) & (labels == i)).sum().item()
-
-                precision = true_positives / (true_positives + false_positives + 1e-10)
-                recall = true_positives / (true_positives + false_negatives + 1e-10)
-
-                f1_score = 2 * (precision * recall) / (precision + recall + 1e-10)
-
-                class_f1_scores[i] += f1_score
-                class_counts[i] += 1
-
-    weighted_f1_score = 0
-
-    for i in range(num_classes):
-        class_weight = class_weights[i]
-        class_f1 = class_f1_scores[i] / class_counts[i]
-        weighted_f1_score += class_weight * class_f1
-    return 100 * weighted_f1_score
-
-
-def calculate_accuracy_and_f1_score(model: ClassifierModel, data_loader: DataLoader):
-    model.eval()
-
-    # accuracy
-    correct: int = 0
-    total: int = 0
-
-    # f1 score
-    num_classes = model.num_classes
-    class_weights = calculate_class_weights(data_loader, num_classes)
-    class_f1_scores = [0] * num_classes
-    class_counts = [0] * num_classes
-
-    with torch.no_grad():
-        for batch in data_loader:
-            outputs = model(batch)
-            _, predicted = torch.max(outputs.logits, 1)
-            labels = batch.labels
-
-            # accuracy
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-
-            # f1 score
-            for i in range(num_classes):
-                true_positives = ((predicted == i) & (labels == i)).sum().item()
-                false_positives = ((predicted == i) & (labels != i)).sum().item()
-                false_negatives = ((predicted != i) & (labels == i)).sum().item()
-
-                precision = true_positives / (true_positives + false_positives + 1e-10)
-                recall = true_positives / (true_positives + false_negatives + 1e-10)
-
-                f1_score = 2 * (precision * recall) / (precision + recall + 1e-10)
-
-                class_f1_scores[i] += f1_score
-                class_counts[i] += 1
-
-    # accuracy
-    accuracy = 100 * correct / total
-
-    # f1 score
-    weighted_f1_score = 0
-    for i in range(num_classes):
-        class_weight = class_weights[i]
-        class_f1 = class_f1_scores[i] / class_counts[i]
-        weighted_f1_score += class_weight * class_f1
-    return accuracy, 100 * weighted_f1_score
 
 
 class EarlyStopper:
@@ -165,21 +47,50 @@ class EarlyStopper:
                 repeat_times = self.best_scores[key][1]
                 self.best_scores[key] = (self.best_scores[key][0], repeat_times + 1)
                 if self.best_scores[key][1] >= self.patience:
-                    logger.info(f"Early stopping by {key}!")
+                    print(f"Early stopping by {key}!")
                     return True
         return False
 
 
-def save_checkpoint(checkpoint_dir: Path, model: nn.Module, optimizer: torch.optim.Optimizer, stopper: EarlyStopper):
+def save_checkpoint(
+    checkpoint_dir: Path, model: ClassifierModel, optimizer: torch.optim.Optimizer, stopper: EarlyStopper
+):
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    save_file(model.state_dict(), checkpoint_dir / "model.safetensors")
+    model_state_dict = {key: value for key, value in model.state_dict().items() if not key.startswith("backbone.")}
+    save_file(model_state_dict, checkpoint_dir / "model.safetensors")
+    for name, state_dict in model.backbone.get_peft_state_dicts().items():
+        pefts_dir = checkpoint_dir / "pefts"
+        pefts_dir.mkdir(parents=True, exist_ok=True)
+        save_file(state_dict, pefts_dir / f"{name}.safetensors")
     torch.save(optimizer.state_dict(), checkpoint_dir / "optimizer.pt")
     torch.save(stopper.state_dict(), checkpoint_dir / "stopper.pt")
 
 
 def load_checkpoint(
     checkpoint_dir: Path | str,
-    model: nn.Module,
+    model: ClassifierModel,
+    optimizer: torch.optim.Optimizer | None = None,
+    stopper: EarlyStopper | None = None,
+):
+    checkpoint_dir = Path(checkpoint_dir)
+    model_state_dict = load_file(checkpoint_dir / "model.safetensors")
+    model.load_state_dict(model_state_dict, strict=False)
+    if (checkpoint_dir / "pefts").exists():
+        model.backbone.set_peft_state_dicts(
+            {
+                name.split(".")[0]: load_file(checkpoint_dir / f"pefts/{name}")
+                for name in os.listdir(checkpoint_dir / "pefts")
+            }
+        )
+    if optimizer is not None and os.path.exists(checkpoint_dir / "optimizer.pt"):
+        optimizer.load_state_dict(torch.load(checkpoint_dir / "optimizer.pt"))
+    if stopper is not None and os.path.exists(checkpoint_dir / "stopper.pt"):
+        stopper.load_state_dict(torch.load(checkpoint_dir / "stopper.pt"))
+
+
+def load_last_checkpoint(
+    checkpoint_dir: Path | str,
+    model: ClassifierModel,
     optimizer: torch.optim.Optimizer | None = None,
     stopper: EarlyStopper | None = None,
 ) -> int:
@@ -188,11 +99,7 @@ def load_checkpoint(
     if model_list:
         model_list.sort(key=lambda x: int(x))
         epoch_start = int(model_list[-1])
-        model.load_state_dict(load_file(f"{checkpoint_dir}/{model_list[-1]}/model.safetensors"))
-        if optimizer is not None:
-            optimizer.load_state_dict(torch.load(f"{checkpoint_dir}/{model_list[-1]}/optimizer.pt"))
-        if stopper is not None:
-            stopper.load_state_dict(torch.load(f"{checkpoint_dir}/{model_list[-1]}/stopper.pt"))
+        load_checkpoint(f"{checkpoint_dir}/{model_list[-1]}", model, optimizer, stopper)
     return epoch_start
 
 
@@ -209,8 +116,9 @@ def train_and_eval(
     eval_interval: int = 1,
 ):
     if optimizer is None:
-        # optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
-        optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5, weight_decay=0.1, amsgrad=True)
+        parameters = filter(lambda p: p.requires_grad, model.parameters())
+        # optimizer = torch.optim.Adam(parameters, lr=1e-5)
+        optimizer = torch.optim.AdamW(parameters, lr=1e-5, weight_decay=0.1, amsgrad=True)
     if stopper is None:
         stopper = EarlyStopper(patience=10)
     if test_data_loader is None:
@@ -220,9 +128,9 @@ def train_and_eval(
     checkpoint_dir = Path(f"./checkpoints/{model_label}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     logger.add(f"./logs/{model_label}.txt")
-    logger.info(f"Train model `{model_label}`.")
+    print(f"Train model `{model_label}`.", flush=False)
 
-    epoch_start = load_checkpoint(
+    epoch_start = load_last_checkpoint(
         checkpoint_dir,
         model,
         optimizer,
@@ -273,15 +181,14 @@ def train_and_eval(
                     best_epoch = stopper.best_epoch
                     save_checkpoint(checkpoint_dir / str(epoch), model, optimizer, stopper)
                     print(
-                        f"Epoch {epoch}: Better model found (Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%)"
+                        f"Epoch {epoch}: Better model found (Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%)",
                     )
             progress.update(task, advance=1)
 
             # if epoch > 100:
             #     model.unfreeze_backbone()
 
-    model.load_state_dict(load_file(checkpoint_dir / f"{best_epoch}/model.safetensors"))
-
+    load_checkpoint(f"{checkpoint_dir}/{best_epoch}", model)
     train_accuracy, train_f1_score = calculate_accuracy_and_f1_score(model, train_data_loader)
     test_accuracy, test_f1_score = calculate_accuracy_and_f1_score(model, test_data_loader)
 

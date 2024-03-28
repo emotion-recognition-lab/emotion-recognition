@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import Callable, TypeVar, overload
+from typing import Callable, Literal, TypeVar, overload
 
 import torch
+from peft import LoraConfig, get_peft_model, get_peft_model_state_dict, set_peft_model_state_dict
+from peft.peft_model import PeftModel
 from pydantic import BaseModel, ConfigDict
 from torch import nn
 from torch.nn import CrossEntropyLoss
@@ -104,6 +106,7 @@ class Backbone(nn.Module):
     def pretrained_module(self, module: nn.Module | None) -> nn.Module | None:
         if module is None:
             return None
+        module = self.apply_peft(module)
         module_forward = module.forward
 
         def forward(*args, **kwargs):
@@ -115,6 +118,42 @@ class Backbone(nn.Module):
 
         module.forward = forward
         return module
+
+    @staticmethod
+    def apply_peft(
+        model: nn.Module,
+        *,
+        rank: int = 32,
+        lora_alpha: int = 32,
+        lora_dropout: float = 0.1,
+        bias: Literal["none", "all", "lora_only"] = "none",
+    ):
+        model = get_peft_model(
+            model,  # type: ignore  # noqa: PGH003
+            LoraConfig(
+                target_modules=[n for n, m in model.named_modules() if type(m) in [nn.Linear, nn.Embedding, nn.Conv2d]],
+                inference_mode=False,
+                r=rank,
+                lora_alpha=lora_alpha,
+                lora_dropout=lora_dropout,
+                bias=bias,
+            ),
+        )
+        model.print_trainable_parameters()
+        return model
+
+    def set_peft_state_dicts(self, peft_state_dicts: dict[str, dict[str, torch.Tensor]]):
+        for name, state_dict in peft_state_dicts.items():
+            module = getattr(self, name)
+            if isinstance(module, PeftModel):
+                set_peft_model_state_dict(module, state_dict)
+
+    def get_peft_state_dicts(self):
+        peft_state_dicts: dict[str, dict[str, torch.Tensor]] = {}
+        for name, module in self.named_modules():
+            if isinstance(module, PeftModel):
+                peft_state_dicts[name] = get_peft_model_state_dict(module, save_embedding_layers=True)  # type: ignore  # noqa: PGH003
+        return peft_state_dicts
 
 
 class ClassifierModel(nn.Module):

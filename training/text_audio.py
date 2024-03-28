@@ -44,7 +44,7 @@ if __name__ == "__main__":
     train_data_loader = DataLoader(
         train_dataset,
         num_workers=4,
-        batch_size=64,
+        batch_size=4,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     dev_data_loader = DataLoader(
         dev_dataset,
         num_workers=4,
-        batch_size=64,
+        batch_size=4,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     test_data_loader = DataLoader(
         test_dataset,
         num_workers=4,
-        batch_size=64,
+        batch_size=4,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
@@ -72,7 +72,7 @@ if __name__ == "__main__":
         num_classes=train_dataset.num_classes,
         class_weights=class_weights,
     ).cuda()
-
+    model.unfreeze_backbone()
     # load_checkpoint("/home/zrr/workspace/emotion-recognition-project/checkpoints/text--all-mpnet-base-v2", model)
     train_accuracy, test_accuracy, train_f1_score, test_f1_score = train_and_eval(
         model, train_data_loader, dev_data_loader, test_data_loader, num_epochs=200, model_label="text+audio(freezed)"
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     # train_data_loader = DataLoader(
     #     train_dataset,
     #     num_workers=4,
-    #     batch_size=64,
+    #     batch_size=4,
     #     shuffle=False,
     #     collate_fn=MultimodalInput.collate_fn,
     #     pin_memory=True,

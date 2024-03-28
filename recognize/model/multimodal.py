@@ -96,12 +96,12 @@ class LowRankFusionLayer(nn.Module):
         assert len(inputs) <= len(
             self.low_rank_weights
         ), "Number of inputs should be less than or equal to number of weights"
-        # N*d x R*d*h -> R*N*h ~> N*h*R
+        # N*d x R*d*h => R*N*h ~reshape~> N*h*R -> N*h*1 ~squeeze~> N*h
         fusion_tensors = [
             torch.matmul(i, w) for i, w in zip(inputs, self.low_rank_weights, strict=False) if i is not None
         ]
         product_tensor = torch.prod(torch.stack(fusion_tensors), dim=0)
-        output = self.output_layer(product_tensor.permute(1, 2, 0)).squeeze()
+        output = self.output_layer(product_tensor.permute(1, 2, 0)).squeeze(dim=-1)
         return output
 
 
