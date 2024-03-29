@@ -5,6 +5,8 @@ from pathlib import Path
 
 import torch
 from loguru import logger
+from rich.highlighter import NullHighlighter
+from rich.logging import RichHandler
 from rich.progress import (
     BarColumn,
     Progress,
@@ -47,7 +49,7 @@ class EarlyStopper:
                 repeat_times = self.best_scores[key][1]
                 self.best_scores[key] = (self.best_scores[key][0], repeat_times + 1)
                 if self.best_scores[key][1] >= self.patience:
-                    print(f"Early stopping by {key}!")
+                    logger.info(f"Early stopping by {key}!")
                     return True
         return False
 
@@ -58,11 +60,12 @@ def save_checkpoint(
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     model_state_dict = {key: value for key, value in model.state_dict().items() if not key.startswith("backbone.")}
     save_file(model_state_dict, checkpoint_dir / "model.safetensors")
-    for name, state_dict in model.backbone.get_peft_state_dicts().items():
-        pefts_dir = checkpoint_dir / "pefts"
-        pefts_dir.mkdir(parents=True, exist_ok=True)
-        save_file(state_dict, pefts_dir / f"{name}.safetensors")
-    torch.save(optimizer.state_dict(), checkpoint_dir / "optimizer.pt")
+    if not model.backbone.is_frozen:
+        for name, state_dict in model.backbone.get_state_dicts().items():
+            backbones_dir = checkpoint_dir / "backbones"
+            backbones_dir.mkdir(parents=True, exist_ok=True)
+            save_file(state_dict, backbones_dir / f"{name}.safetensors")
+    # torch.save(optimizer.state_dict(), checkpoint_dir / "optimizer.pt")  # TODO: improve size
     torch.save(stopper.state_dict(), checkpoint_dir / "stopper.pt")
 
 
@@ -75,11 +78,11 @@ def load_checkpoint(
     checkpoint_dir = Path(checkpoint_dir)
     model_state_dict = load_file(checkpoint_dir / "model.safetensors")
     model.load_state_dict(model_state_dict, strict=False)
-    if (checkpoint_dir / "pefts").exists():
-        model.backbone.set_peft_state_dicts(
+    if (checkpoint_dir / "backbones").exists():
+        model.backbone.set_state_dicts(
             {
-                name.split(".")[0]: load_file(checkpoint_dir / f"pefts/{name}")
-                for name in os.listdir(checkpoint_dir / "pefts")
+                name.split(".")[0]: load_file(checkpoint_dir / f"backbones/{name}")
+                for name in os.listdir(checkpoint_dir / "backbones")
             }
         )
     if optimizer is not None and os.path.exists(checkpoint_dir / "optimizer.pt"):
@@ -100,6 +103,7 @@ def load_last_checkpoint(
         model_list = [int(model_name) for model_name in model_list if model_name.isdigit()]
         model_list.sort()
         epoch_start = int(model_list[-1])
+        print(f"Load last checkpoint: {epoch_start}")
         load_checkpoint(f"{checkpoint_dir}/{model_list[-1]}", model, optimizer, stopper)
     return epoch_start
 
@@ -113,6 +117,7 @@ def load_best_checkpoint(
     with open(f"{checkpoint_dir}/result.json", "r") as f:
         best_epoch = TrainingResult.model_validate_json(f.read()).best_epoch
 
+    logger.info(f"Load best checkpoint: {best_epoch}")
     load_checkpoint(f"{checkpoint_dir}/{best_epoch}", model, optimizer, stopper)
     return best_epoch
 
@@ -142,7 +147,7 @@ def train_and_eval(
     checkpoint_dir = Path(f"./checkpoints/{model_label}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     logger.add(f"./logs/{model_label}.txt")
-    print(f"Train model `{model_label}`.", flush=False)
+    logger.info(f"Train model [blue]{model_label}[/]. Save to [blue]{checkpoint_dir}[/]")
 
     epoch_start = load_last_checkpoint(
         checkpoint_dir,
@@ -194,14 +199,14 @@ def train_and_eval(
                 if stopper.best_epoch != best_epoch:
                     best_epoch = stopper.best_epoch
                     save_checkpoint(checkpoint_dir / str(epoch), model, optimizer, stopper)
-                    print(
-                        f"Epoch {epoch}: Better model found (Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%)",
+                    logger.info(
+                        f"Epoch {epoch}: Better model found [red](Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%)",
                     )
+
             progress.update(task, advance=1)
 
             # if epoch > 100:
             #     model.unfreeze_backbone()
-
     load_checkpoint(f"{checkpoint_dir}/{best_epoch}", model)
     train_accuracy, train_f1_score = calculate_accuracy_and_f1_score(model, train_data_loader)
     test_accuracy, test_f1_score = calculate_accuracy_and_f1_score(model, test_data_loader)
@@ -212,8 +217,14 @@ def train_and_eval(
         test_accuracy=test_accuracy,
         test_f1_score=test_f1_score,
         best_epoch=best_epoch,
+        confusion_matrix=confusion_matrix(model, test_data_loader),
     )
     result.save(f"{checkpoint_dir}/result.json")
-    print(confusion_matrix(model, test_data_loader))
     print(confusion_matrix(model, train_data_loader))
     return result
+
+
+def init_logger(log_level: str):
+    handler = RichHandler(highlighter=NullHighlighter(), markup=True)
+    logger.remove()
+    logger.add(handler, format="{message}", level=log_level)

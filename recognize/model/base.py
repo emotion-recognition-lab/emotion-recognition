@@ -144,17 +144,23 @@ class Backbone(nn.Module):
         model.print_trainable_parameters()
         return model
 
-    def set_peft_state_dicts(self, peft_state_dicts: dict[str, dict[str, torch.Tensor]]):
+    def set_state_dicts(self, peft_state_dicts: dict[str, dict[str, torch.Tensor]]):
         for name, state_dict in peft_state_dicts.items():
-            module = getattr(self, name)
+            module: nn.Module = getattr(self, name)
             if isinstance(module, PeftModel):
                 set_peft_model_state_dict(module, state_dict)
+            else:
+                module.load_state_dict(state_dict)
 
-    def get_peft_state_dicts(self):
+    def get_state_dicts(self):
         peft_state_dicts: dict[str, dict[str, torch.Tensor]] = {}
         for name, module in self.named_modules():
+            if not hasattr(self, name):
+                continue
             if isinstance(module, PeftModel):
                 peft_state_dicts[name] = get_peft_model_state_dict(module, save_embedding_layers=False)  # type: ignore  # noqa: PGH003
+            else:
+                peft_state_dicts[name] = module.state_dict()
         return peft_state_dicts
 
 

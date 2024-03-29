@@ -121,10 +121,10 @@ def get_outputs(model: ClassifierModel, data_loader: DataLoader):
 
 
 class TrainingResult(BaseModel):
-    train_accuracy: float
-    train_f1_score: float
-    test_accuracy: float
-    test_f1_score: float
+    train_accuracy: float = 0
+    train_f1_score: float = 0
+    test_accuracy: float = 0
+    test_f1_score: float = 0
 
     confusion_matrix: list[list[int]] | None = None
     best_epoch: int = 0
@@ -138,6 +138,10 @@ class TrainingResult(BaseModel):
         print(f"Train F1 Score: {self.train_f1_score:.2f}%")
         print(f"Test Accuracy: {self.test_accuracy:.2f}%")
         print(f"Test F1 Score: {self.test_f1_score:.2f}%")
+        if self.confusion_matrix is not None:
+            print("Confusion Matrix:")
+            for row in self.confusion_matrix:
+                print(row)
 
     @classmethod
     def auto_compute(cls, model: ClassifierModel, train_data_loader: DataLoader, test_data_loader: DataLoader):

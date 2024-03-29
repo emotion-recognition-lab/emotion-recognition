@@ -111,6 +111,8 @@ class MultimodalBackbone(Backbone):
         text_backbone: nn.Module,
         audio_backbone: nn.Module | None = None,
         video_backbone: nn.Module | None = None,
+        *,
+        use_cache: bool = True,
     ):
         assert (audio_backbone is None or text_backbone.config.hidden_size == audio_backbone.config.hidden_size) and (
             video_backbone is None or text_backbone.config.hidden_size == video_backbone.config.hidden_size
@@ -119,6 +121,8 @@ class MultimodalBackbone(Backbone):
         self.text_backbone = self.pretrained_module(text_backbone)
         self.audio_backbone = self.pretrained_module(audio_backbone)
         self.video_backbone = self.pretrained_module(video_backbone)
+
+        self.use_cache = use_cache
 
     def compute_embs(self, inputs: MultimodalInput) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]:
         assert isinstance(inputs.unique_id, list), "unique_id must be a list"
@@ -141,7 +145,7 @@ class MultimodalBackbone(Backbone):
         return text_embs, audio_embs, video_embs
 
     def forward(self, inputs: MultimodalInput):
-        if self.is_frozen:
+        if self.is_frozen and self.use_cache:
             return self.cached_forward(inputs)
         else:
             return self.compute_embs(inputs)

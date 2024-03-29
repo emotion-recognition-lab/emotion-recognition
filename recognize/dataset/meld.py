@@ -5,6 +5,7 @@ from functools import cached_property
 
 import pandas as pd
 import torch
+from loguru import logger
 
 from ..model import MultimodalInput
 from .base import DatasetSplit, MultimodalDataset
@@ -39,7 +40,10 @@ class MELDDataset(MultimodalDataset):
         label_type: MELDDatasetLabelType = MELDDatasetLabelType.EMOTION,
         custom_unique_id: str = "",
     ):
-        self.split = split.value
+        if split == DatasetSplit.DEV:
+            logger.warning("DEV split is deprecated. Using VALID split instead.")
+            split = DatasetSplit.VALID
+        self.split = "dev" if split == DatasetSplit.VALID else split.value
         self.label_type = label_type.value
 
         self.dataset_path = dataset_path

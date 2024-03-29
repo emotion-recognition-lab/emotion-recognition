@@ -6,7 +6,7 @@ from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer
 
 from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType
 from recognize.model import MultimodalInput, MultimodalModel
-from recognize.utils import calculate_accuracy, calculate_f1_score, train_and_eval
+from recognize.utils import train_and_eval
 
 if __name__ == "__main__":
     torch.set_float32_matmul_precision("high")
@@ -69,7 +69,3 @@ if __name__ == "__main__":
     model.freeze_backbone()
 
     train_and_eval(model, train_data_loader, dev_data_loader, num_epochs=100, model_label="multimodal")
-
-    test_accuracy = calculate_accuracy(model, test_data_loader)
-    test_f1_score = calculate_f1_score(model, test_data_loader)
-    print(test_accuracy, test_f1_score)
