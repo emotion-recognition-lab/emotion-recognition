@@ -33,6 +33,7 @@ class MultimodalDataset(Dataset):
         num_classes: int = 2,
         split: DatasetSplit = DatasetSplit.TRAIN,
         custom_unique_id: str = "",
+        cache_mode: bool = False,
     ):
         self.dataset_path = dataset_path
         self.meta = meta
@@ -44,6 +45,8 @@ class MultimodalDataset(Dataset):
         self.split = split.value
 
         self.custom_unique_id = custom_unique_id
+
+        self.cache_mode = cache_mode
 
     def load_text(self, text: str) -> tuple[torch.Tensor | None, torch.Tensor | None]:
         if self.tokenizer is not None:
