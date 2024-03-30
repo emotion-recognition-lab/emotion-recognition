@@ -12,7 +12,7 @@ from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer
 
 from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType
 from recognize.model import MultimodalInput, MultimodalModel
-from recognize.utils import calculate_accuracy_and_f1_score, init_logger, load_best_checkpoint, train_and_eval
+from recognize.utils import calculate_accuracy_and_f1_score, init_logger, load_best_model, train_and_eval
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
@@ -113,7 +113,7 @@ def train(
     else:
         model_label += "--frozen"
     if checkpoint is not None:
-        load_best_checkpoint(checkpoint, model)
+        load_best_model(checkpoint, model)
         test_accuracy, test_f1_score = calculate_accuracy_and_f1_score(model, test_data_loader)
         print(test_accuracy, test_f1_score)
 
