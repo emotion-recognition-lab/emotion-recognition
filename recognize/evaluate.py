@@ -3,7 +3,9 @@ from __future__ import annotations
 import numpy as np
 import torch
 from cachetools import Cache, cached
+from loguru import logger
 from pydantic import BaseModel
+from rich.table import Table
 from torch.utils.data import DataLoader
 
 from .dataset import MELDDataset, SIMSDataset
@@ -134,14 +136,18 @@ class TrainingResult(BaseModel):
             f.write(self.model_dump_json())
 
     def print(self):
-        print(f"Train Accuracy: {self.train_accuracy:.2f}%")
-        print(f"Train F1 Score: {self.train_f1_score:.2f}%")
-        print(f"Test Accuracy: {self.test_accuracy:.2f}%")
-        print(f"Test F1 Score: {self.test_f1_score:.2f}%")
+        from rich import print
+
+        logger.info(
+            f"Best epoch: {self.best_epoch} (Test Accuracy: {self.test_accuracy:.2f}%, Test F1 Score: {self.test_f1_score:.2f}%)"
+        )
         if self.confusion_matrix is not None:
-            print("Confusion Matrix:")
-            for row in self.confusion_matrix:
-                print(row)
+            logger.info("Confusion Matrix:")
+            table = Table(show_header=False, show_lines=True)
+            for i, row in enumerate(self.confusion_matrix):
+                str_row = [f"[red]{v}" if i == j else f"{v}" for j, v in enumerate(row)]
+                table.add_row(*str_row)
+            print(table)
 
     @classmethod
     def auto_compute(cls, model: ClassifierModel, train_data_loader: DataLoader, test_data_loader: DataLoader):
@@ -153,4 +159,5 @@ class TrainingResult(BaseModel):
             train_f1_score=train_f1_score,
             test_accuracy=test_accuracy,
             test_f1_score=test_f1_score,
+            confusion_matrix=confusion_matrix(model, test_data_loader),
         )

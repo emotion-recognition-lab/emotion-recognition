@@ -17,7 +17,7 @@ from rich.progress import (
 from safetensors.torch import load_file, save_file
 from torch.utils.data import DataLoader
 
-from .evaluate import TrainingResult, calculate_accuracy_and_f1_score, confusion_matrix
+from .evaluate import TrainingResult, calculate_accuracy_and_f1_score
 from .model.base import ClassifierModel
 
 
@@ -180,7 +180,6 @@ def train_and_eval(
             model.train()
             loss_value_list = []
             for batch_index, batch in enumerate(train_data_loader):
-                progress.update(task, loss=loss_value, batch_index=batch_index)
                 optimizer.zero_grad()
                 output = model(batch)
                 loss = output.loss
@@ -189,6 +188,7 @@ def train_and_eval(
                 optimizer.step()
                 loss_value_list.append(loss.item())
                 loss_value = sum(loss_value_list) / len(loss_value_list)
+                progress.update(task, loss=loss_value, batch_index=batch_index + 1)
 
             if (epoch + 1) % eval_interval == 0:
                 test_accuracy, test_f1_score = calculate_accuracy_and_f1_score(model, dev_data_loader)
@@ -205,22 +205,10 @@ def train_and_eval(
 
             progress.update(task, advance=1)
 
-            # if epoch > 100:
-            #     model.unfreeze_backbone()
     load_checkpoint(f"{checkpoint_dir}/{best_epoch}", model)
-    train_accuracy, train_f1_score = calculate_accuracy_and_f1_score(model, train_data_loader)
-    test_accuracy, test_f1_score = calculate_accuracy_and_f1_score(model, test_data_loader)
-
-    result = TrainingResult(
-        train_accuracy=train_accuracy,
-        train_f1_score=train_f1_score,
-        test_accuracy=test_accuracy,
-        test_f1_score=test_f1_score,
-        best_epoch=best_epoch,
-        confusion_matrix=confusion_matrix(model, test_data_loader),
-    )
+    result = TrainingResult.auto_compute(model, train_data_loader, test_data_loader)
     result.save(f"{checkpoint_dir}/result.json")
-    print(confusion_matrix(model, train_data_loader))
+    # print(confusion_matrix(model, train_data_loader))
     return result
 
 

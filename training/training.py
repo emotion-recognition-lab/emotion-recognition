@@ -67,6 +67,7 @@ def train(
 ):
     clean_cache()
     init_logger(log_level)
+    batch_size = 64 if freeze else 2
     tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-mpnet-base-v2")
     feature_extracor = (
         AutoFeatureExtractor.from_pretrained("facebook/wav2vec2-base-960h") if modal == ModalType.TEXT_AUDIO else None
@@ -76,7 +77,7 @@ def train(
     train_data_loader = DataLoader(
         train_dataset,
         num_workers=4,
-        batch_size=2,
+        batch_size=batch_size,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
@@ -84,7 +85,7 @@ def train(
     dev_data_loader = DataLoader(
         dev_dataset,
         num_workers=4,
-        batch_size=2,
+        batch_size=batch_size,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
@@ -92,7 +93,7 @@ def train(
     test_data_loader = DataLoader(
         test_dataset,
         num_workers=4,
-        batch_size=2,
+        batch_size=batch_size,
         shuffle=False,
         collate_fn=MultimodalInput.collate_fn,
         pin_memory=True,
