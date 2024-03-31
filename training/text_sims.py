@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from transformers import AutoModel, AutoTokenizer
 
 from recognize.dataset import DatasetSplit, SIMSDataset
-from recognize.model import MultimodalInput, MultimodalModel
+from recognize.model import LazyMultimodalInput, MultimodalModel
 from recognize.utils import train_and_eval
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
@@ -38,7 +38,7 @@ def train(freeze: bool = True):
         num_workers=4,
         batch_size=64,
         shuffle=False,
-        collate_fn=MultimodalInput.collate_fn,
+        collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
     valid_data_loader = DataLoader(
@@ -46,7 +46,7 @@ def train(freeze: bool = True):
         num_workers=4,
         batch_size=64,
         shuffle=False,
-        collate_fn=MultimodalInput.collate_fn,
+        collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
     test_data_loader = DataLoader(
@@ -54,7 +54,7 @@ def train(freeze: bool = True):
         num_workers=4,
         batch_size=64,
         shuffle=False,
-        collate_fn=MultimodalInput.collate_fn,
+        collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
 

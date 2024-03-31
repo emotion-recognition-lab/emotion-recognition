@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer, VivitImageProcessor
 
 from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType
-from recognize.model import MultimodalInput, MultimodalModel
+from recognize.model import LazyMultimodalInput, MultimodalModel
 from recognize.utils import train_and_eval
 
 if __name__ == "__main__":
@@ -40,26 +40,23 @@ if __name__ == "__main__":
     )
     train_data_loader = DataLoader(
         train_dataset,
-        num_workers=4,
         batch_size=16,
         shuffle=False,
-        collate_fn=MultimodalInput.collate_fn,
+        collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
     dev_data_loader = DataLoader(
         dev_dataset,
-        num_workers=4,
         batch_size=16,
         shuffle=False,
-        collate_fn=MultimodalInput.collate_fn,
+        collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
     test_data_loader = DataLoader(
         test_dataset,
-        num_workers=4,
         batch_size=16,
         shuffle=False,
-        collate_fn=MultimodalInput.collate_fn,
+        collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()

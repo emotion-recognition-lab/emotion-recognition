@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from transformers import AutoModel, AutoTokenizer
 
 from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType
-from recognize.model import MultimodalInput, TextModel
+from recognize.model import LazyMultimodalInput, TextModel
 from recognize.utils import (
     train_and_eval,
 )
@@ -37,7 +37,7 @@ if __name__ == "__main__":
         num_workers=4,
         batch_size=64,
         shuffle=False,
-        collate_fn=MultimodalInput.collate_fn,
+        collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
     dev_data_loader = DataLoader(
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         num_workers=4,
         batch_size=64,
         shuffle=False,
-        collate_fn=MultimodalInput.collate_fn,
+        collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
     test_data_loader = DataLoader(
@@ -53,7 +53,7 @@ if __name__ == "__main__":
         num_workers=4,
         batch_size=64,
         shuffle=False,
-        collate_fn=MultimodalInput.collate_fn,
+        collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
 
