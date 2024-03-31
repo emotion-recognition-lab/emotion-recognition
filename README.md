@@ -38,8 +38,8 @@ LoRA
 |      模态      |    骨干网络    | 融合网络 |                           训练方式                            |      准确率      | 精确率 | 召回率 |   weighted-F1    |
 | :------------: | :------------: | :------: | :-----------------------------------------------------------: | :--------------: | :----: | :----: | :--------------: |
 | 文本+语音(T+A) | MPNet+Wav2Vec2 |   LMF    |        Text-only Full Tuning -> Traing Classification         |      58.62%      |   -    |   -    |      58.64%      |
-| 文本+语音(T+A) | MPNet+Wav2Vec2 |   LMF    |             Text-only Full Tuning -> Full Tuning              |      58.74%      |   -    |   -    |      58.84%      |
-| 文本+语音(T+A) | MPNet+Wav2Vec2 |   LMF    | Text-only Full Tuning -> Full Tuning -> Traing Classification | 59.89%/62.64%(2) |   -    |   -    | 59.55%/62.64%(2) |
+| 文本+语音(T+A) | MPNet+Wav2Vec2 |   LMF    |             Text-only Full Tuning -> Full Tuning              | 58.74%/63.29%(2) |   -    |   -    | 58.84%/62.90%(2) |
+| 文本+语音(T+A) | MPNet+Wav2Vec2 |   LMF    | Text-only Full Tuning -> Full Tuning -> Traing Classification | 59.89%/62.64%(2) |   -    |   -    | 59.55%/62.66%(2) |
 
 ## 进行中实验
 

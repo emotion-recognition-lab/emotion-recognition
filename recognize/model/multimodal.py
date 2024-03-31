@@ -266,16 +266,16 @@ class LowRankFusionLayer(nn.Module):
 class MultimodalBackbone(Backbone):
     def __init__(
         self,
-        text_backbone: nn.Module,
+        text_backbone: nn.Module | None = None,
         audio_backbone: nn.Module | None = None,
         video_backbone: nn.Module | None = None,
         *,
         use_cache: bool = True,
     ):
-        assert (audio_backbone is None or text_backbone.config.hidden_size == audio_backbone.config.hidden_size) and (
-            video_backbone is None or text_backbone.config.hidden_size == video_backbone.config.hidden_size
-        ), "Hidden size of text, audio and video backbones must be the same"
-        super().__init__(text_backbone.config.hidden_size)
+        # TODO: If text_backbone is None, hidden_size should be provided
+        # Hidden size of text, audio and video backbones must be the same
+        hidden_size = text_backbone.config.hidden_size if text_backbone is not None else 768
+        super().__init__(hidden_size)
         self.text_backbone = self.pretrained_module(text_backbone)
         self.audio_backbone = self.pretrained_module(audio_backbone)
         self.video_backbone = self.pretrained_module(video_backbone)
@@ -284,10 +284,13 @@ class MultimodalBackbone(Backbone):
 
     def compute_embs(
         self, inputs: LazyMultimodalInput
-    ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]:
+    ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
         assert isinstance(inputs.unique_id, list), "unique_id must be a list"
-        text_outputs = self.text_backbone(inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
-        text_embs = text_outputs.last_hidden_state[:, 0]
+        if inputs.text_input_ids is not None and self.text_backbone is not None:
+            text_outputs = self.text_backbone(inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
+            text_embs = text_outputs.last_hidden_state[:, 0]
+        else:
+            text_embs = None
 
         if inputs.audio_input_values is not None and self.audio_backbone is not None:
             audio_outputs = self.audio_backbone(inputs.audio_input_values, attention_mask=inputs.audio_attention_mask)
