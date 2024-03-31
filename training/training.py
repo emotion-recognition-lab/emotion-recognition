@@ -19,14 +19,16 @@ from recognize.utils import init_logger, load_best_model, train_and_eval
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
-def provide_meld_datasets(tokenizer, feature_extracor=None, image_processor=None):
+def provide_meld_datasets(
+    tokenizer, feature_extracor=None, image_processor=None, label_type=MELDDatasetLabelType.EMOTION
+):
     train_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
         tokenizer,
         feature_extracor,
         image_processor,
         split=DatasetSplit.TRAIN,
-        label_type=MELDDatasetLabelType.EMOTION,
+        label_type=label_type,
         custom_unique_id="T",
     )
     dev_dataset = MELDDataset(
@@ -35,7 +37,7 @@ def provide_meld_datasets(tokenizer, feature_extracor=None, image_processor=None
         feature_extracor,
         image_processor,
         split=DatasetSplit.VALID,
-        label_type=MELDDatasetLabelType.EMOTION,
+        label_type=label_type,
         custom_unique_id="T",
     )
     test_dataset = MELDDataset(
@@ -44,7 +46,7 @@ def provide_meld_datasets(tokenizer, feature_extracor=None, image_processor=None
         feature_extracor,
         image_processor,
         split=DatasetSplit.TEST,
-        label_type=MELDDatasetLabelType.EMOTION,
+        label_type=label_type,
         custom_unique_id="T",
     )
     return train_dataset, dev_dataset, test_dataset
@@ -65,7 +67,11 @@ class ModalType(str, Enum):
 
 @app.command()
 def train(
-    modal: ModalType = ModalType.TEXT, freeze: bool = True, checkpoint: Optional[Path] = None, log_level: str = "DEBUG"
+    modal: ModalType = ModalType.TEXT,
+    freeze: bool = True,
+    checkpoint: Optional[Path] = None,
+    label_type: MELDDatasetLabelType = MELDDatasetLabelType.EMOTION,
+    log_level: str = "DEBUG",
 ):
     clean_cache()
     init_logger(log_level)
@@ -75,7 +81,7 @@ def train(
         AutoFeatureExtractor.from_pretrained("facebook/wav2vec2-base-960h") if modal == ModalType.TEXT_AUDIO else None
     )
     # image_processor = VivitImageProcessor.from_pretrained("google/vivit-b-8x2-kinetics400")
-    train_dataset, dev_dataset, test_dataset = provide_meld_datasets(tokenizer, feature_extracor)
+    train_dataset, dev_dataset, test_dataset = provide_meld_datasets(tokenizer, feature_extracor, label_type=label_type)
     train_data_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
