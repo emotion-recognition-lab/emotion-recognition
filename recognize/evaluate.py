@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import torch
 from cachetools import Cache, cached
@@ -123,10 +125,8 @@ def get_outputs(model: ClassifierModel, data_loader: DataLoader):
 
 
 class TrainingResult(BaseModel):
-    train_accuracy: float = 0
-    train_f1_score: float = 0
-    test_accuracy: float = 0
-    test_f1_score: float = 0
+    accuracy: float = 0
+    f1_score: float = 0
 
     confusion_matrix: list[list[int]] | None = None
     best_epoch: int = 0
@@ -135,29 +135,59 @@ class TrainingResult(BaseModel):
         with open(path, "w") as f:
             f.write(self.model_dump_json())
 
-    def print(self):
+    def print(self, *, print_table: bool = False):
+        logger.info(f"Accuracy: {self.accuracy:.2f}%, F1 Score: {self.f1_score:.2f}%")
+        if not print_table or self.confusion_matrix is None:
+            return
+
         from rich import print
 
-        logger.info(
-            f"Best epoch: {self.best_epoch} (Test Accuracy: {self.test_accuracy:.2f}%, Test F1 Score: {self.test_f1_score:.2f}%)"
-        )
-        if self.confusion_matrix is not None:
-            logger.info("Confusion Matrix:")
-            table = Table(show_header=False, show_lines=True)
-            for i, row in enumerate(self.confusion_matrix):
-                str_row = [f"[red]{v}" if i == j else f"{v}" for j, v in enumerate(row)]
-                table.add_row(*str_row)
-            print(table)
+        logger.info("Confusion Matrix:")
+        table = Table(show_header=False, show_lines=True)
+        for i, row in enumerate(self.confusion_matrix):
+            str_row = [f"[red]{v}" if i == j else f"{v}" for j, v in enumerate(row)]
+            table.add_row(*str_row)
+        print(table)
 
     @classmethod
-    def auto_compute(cls, model: ClassifierModel, train_data_loader: DataLoader, test_data_loader: DataLoader):
-        train_accuracy, train_f1_score = calculate_accuracy_and_f1_score(model, train_data_loader)
-        test_accuracy, test_f1_score = calculate_accuracy_and_f1_score(model, test_data_loader)
+    def auto_compute(cls, model: ClassifierModel, data_loader: DataLoader):
+        accuracy, f1_score = calculate_accuracy_and_f1_score(model, data_loader)
 
         return cls(
-            train_accuracy=train_accuracy,
-            train_f1_score=train_f1_score,
-            test_accuracy=test_accuracy,
-            test_f1_score=test_f1_score,
-            confusion_matrix=confusion_matrix(model, test_data_loader),
+            accuracy=accuracy,
+            f1_score=f1_score,
+            confusion_matrix=confusion_matrix(model, data_loader),
         )
+
+
+class EarlyStopper:
+    def __init__(self, patience: int = 20):
+        self.patience = patience
+        self.best_scores: dict[str, Any] = {}
+        self.best_epoch: int = -1
+
+    def state_dict(self):
+        return {
+            "best_scores": self.best_scores,
+            "best_epoch": self.best_epoch,
+        }
+
+    def load_state_dict(self, state_dict):
+        self.best_scores = state_dict["best_scores"]
+        self.best_epoch = state_dict["best_epoch"]
+
+    def update(self, epoch: int, **kwargs: float):
+        for key, value in kwargs.items():
+            if key not in self.best_scores:
+                self.best_scores[key] = (float("-inf"), 0)
+            if value > self.best_scores[key][0]:
+                repeat_times = self.best_scores[key][1]
+                self.best_scores[key] = (value, repeat_times)
+                self.best_epoch = epoch
+            else:
+                repeat_times = self.best_scores[key][1]
+                self.best_scores[key] = (self.best_scores[key][0], repeat_times + 1)
+                if self.best_scores[key][1] >= self.patience:
+                    logger.info(f"Early stopping by {key}!")
+                    return True
+        return False

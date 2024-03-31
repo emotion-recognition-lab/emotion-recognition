@@ -6,7 +6,6 @@ from functools import cached_property
 import pandas as pd
 import torch
 
-from ..model import MultimodalInput
 from .base import DatasetSplit, MultimodalDataset
 
 
@@ -45,7 +44,9 @@ class SIMSDataset(MultimodalDataset):
         sentiment = item["label"]
         return float(sentiment)
 
-    def __getitem__(self, index: int) -> MultimodalInput:
+    def __getitem__(self, index: int):
+        from ..model import LazyMultimodalInput
+
         item = self.meta.iloc[index]
         label = self.label2int(item)
 
@@ -55,17 +56,11 @@ class SIMSDataset(MultimodalDataset):
         audio_path = f"{self.dataset_path}/Raw/{audio_id}/{clip_id}.flac"
         video_path = f"{self.dataset_path}/Raw/{video_id}/{clip_id}.mp4"
 
-        text_input_ids, text_attention_mask = self.load_text(item["text"])
-        audio_input_values, audio_attention_mask = self.load_audio(audio_path)
-        video_pixel_values = self.load_video(video_path)
-        assert text_input_ids is not None, "Now, text must be provided"
-
-        return MultimodalInput(
-            unique_id=f"{self.custom_unique_id}--{self.split}_{index}",
-            text_input_ids=text_input_ids,
-            text_attention_mask=text_attention_mask,
-            audio_input_values=audio_input_values,
-            audio_attention_mask=audio_attention_mask,
-            video_pixel_values=video_pixel_values,
+        return LazyMultimodalInput(
+            preprocessor=self.preprocessor,
+            unique_id=[f"{self.custom_unique_id}--{self.split}_{index}"],
+            texts=[item["text"]],
+            audio_paths=[audio_path],
+            video_paths=[video_path],
             labels=torch.tensor(label, dtype=torch.int64),
         )

@@ -7,7 +7,6 @@ import pandas as pd
 import torch
 from loguru import logger
 
-from ..model import MultimodalInput
 from .base import DatasetSplit, MultimodalDataset
 
 
@@ -46,13 +45,6 @@ class MELDDataset(MultimodalDataset):
         self.split = "dev" if split == DatasetSplit.VALID else split.value
         self.label_type = label_type.value
 
-        self.dataset_path = dataset_path
-        self.meta = pd.read_csv(f"{dataset_path}/{self.split}_sent_emo.csv", sep=",", index_col=0, header=0)
-
-        self.tokenizer = tokenizer
-        self.feature_extractor = feature_extractor
-        self.image_processor = image_processor
-
         if label_type == MELDDatasetLabelType.EMOTION:
             self.label2int = self.emotion2int
             self.num_classes = 7
@@ -62,7 +54,17 @@ class MELDDataset(MultimodalDataset):
         else:
             raise ValueError(f"Unsupported label type {label_type}")
 
-        self.custom_unique_id = custom_unique_id
+        super().__init__(
+            dataset_path,
+            pd.read_csv(f"{dataset_path}/{self.split}_sent_emo.csv", sep=",", index_col=0, header=0),
+            tokenizer,
+            feature_extractor,
+            image_processor,
+            num_classes=self.num_classes,
+            split=split,
+            custom_unique_id=custom_unique_id,
+        )
+        self.split = "dev" if split == DatasetSplit.VALID else split.value
 
     @cached_property
     def class_weights(self) -> list[float]:
@@ -72,7 +74,9 @@ class MELDDataset(MultimodalDataset):
         class_weights = [class_count / total_samples for class_count in class_counts]
         return class_weights
 
-    def __getitem__(self, index: int) -> MultimodalInput:
+    def __getitem__(self, index: int):
+        from ..model import LazyMultimodalInput
+
         item = self.meta.iloc[index]
         label = self.label2int(item)
 
@@ -81,18 +85,13 @@ class MELDDataset(MultimodalDataset):
         audio_path = f"{self.dataset_path}/audios/{self.split}/dia{dia_id}_utt{utt_id}.flac"
         video_path = f"{self.dataset_path}/videos/{self.split}/dia{dia_id}_utt{utt_id}.mp4"
 
-        text_input_ids, text_attention_mask = self.load_text(item["Utterance"])
-        audio_input_values, audio_attention_mask = self.load_audio(audio_path)
-        video_pixel_values = self.load_video(video_path)
-        assert text_input_ids is not None, "Now, text must be provided"
-        return MultimodalInput(
-            unique_id=f"{self.custom_unique_id}--{self.split}_{index}",
-            text_input_ids=text_input_ids,
-            text_attention_mask=text_attention_mask,
-            audio_input_values=audio_input_values,
-            audio_attention_mask=audio_attention_mask,
-            video_pixel_values=video_pixel_values,
-            labels=torch.tensor(label, dtype=torch.int64),
+        return LazyMultimodalInput(
+            preprocessor=self.preprocessor,
+            unique_id=[f"{self.custom_unique_id}--{self.split}_{index}"],
+            texts=[item["Utterance"]],
+            audio_paths=[audio_path],
+            video_paths=[video_path],
+            labels=torch.tensor([label], dtype=torch.int64),
         )
 
     def __len__(self):

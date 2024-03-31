@@ -3,10 +3,14 @@ from __future__ import annotations
 from typing import Callable
 
 import torch
+from loguru import logger
+from pydantic import Field
 from torch import nn
 from torch.nn.parameter import Parameter
+from torch.nn.utils.rnn import pad_sequence
 
 from ..cache import load_cached_tensors, save_cached_tensors
+from ..dataset import Preprocessor
 from .base import Backbone, ClassifierModel, ClassifierOutput, ModelInput, Pooler
 
 
@@ -48,6 +52,160 @@ class MultimodalInput(ModelInput):
             labels=labels,
             unique_id=unique_id,
         )
+
+    @property
+    def device(self):
+        if self.text_input_ids is not None:
+            return self.text_input_ids.device
+        elif self.audio_input_values is not None:
+            return self.audio_input_values.device
+        elif self.video_pixel_values is not None:
+            return self.video_pixel_values.device
+        else:
+            return torch.device("cpu")
+
+    @classmethod
+    def collate_fn(cls, batch: list[MultimodalInput]):
+        field_dict = {}
+        for field, field_info in cls.model_fields.items():
+            if field_info.annotation == torch.Tensor:
+                attr = [getattr(item, field) for item in batch]
+            elif field_info.annotation == torch.Tensor | None:
+                attr = cls.merge(batch, field)
+            elif field_info.annotation == str | list[str]:
+                attr = [getattr(item, field) for item in batch]
+            else:
+                logger.debug(f"Field [red]{field}[/] will use first item in batch")
+                attr = getattr(batch[0], field)
+            if field == "labels":
+                attr = torch.tensor(attr, dtype=torch.int64)
+            elif isinstance(attr, torch.Tensor):
+                attr = pad_sequence(attr, batch_first=True)
+            elif isinstance(attr, list) and isinstance(attr[0], torch.Tensor):
+                attr = pad_sequence(attr, batch_first=True)
+            field_dict[field] = attr
+        return cls(**field_dict)
+
+
+class LazyMultimodalInput(ModelInput):
+    preprocessor: Preprocessor
+
+    texts: list[str] | None = Field(default_factory=list)
+    audio_paths: list[str] | None = Field(default_factory=list)
+    video_paths: list[str] | None = Field(default_factory=list)
+
+    labels: torch.Tensor | None = None
+    unique_id: list[str] = Field(default_factory=list)
+
+    # The following fields will be computed lazily
+    text_input_ids: torch.Tensor | None = None
+    text_attention_mask: torch.Tensor | None = None
+    audio_input_values: torch.Tensor | None = None
+    audio_attention_mask: torch.Tensor | None = None
+    video_pixel_values: torch.Tensor | None = None
+    video_head_mask: torch.Tensor | None = None
+
+    def __getattribute__(self, __name: str):
+        if (
+            __name in ["text_input_ids", "text_attention_mask"]
+            and super().__getattribute__("text_input_ids") is None
+            and self.texts is not None
+        ):
+            self.text_input_ids, self.text_attention_mask = self.preprocessor.load_texts(self.texts)
+        elif (
+            __name in ["audio_input_values", "audio_attention_mask"]
+            and super().__getattribute__("audio_input_values") is None
+            and self.audio_paths is not None
+        ):
+            self.audio_input_values, self.audio_attention_mask = self.preprocessor.load_audios(self.audio_paths)
+        elif (
+            __name == "video_pixel_values"
+            and super().__getattribute__("video_pixel_values") is None
+            and self.video_paths is not None
+        ):
+            self.video_pixel_values = self.preprocessor.load_videos(self.video_paths)
+
+        return super().__getattribute__(__name)
+
+    def __getitem__(self, index: int | list[int] | slice) -> LazyMultimodalInput:
+        assert isinstance(self.unique_id, list), "unique_id must be a list"
+        if isinstance(index, slice):
+            texts = self.texts[index] if self.texts is not None else None
+            audio_paths = self.audio_paths[index] if self.audio_paths is not None else None
+            video_paths = self.video_paths[index] if self.video_paths is not None else None
+            labels = self.labels[index] if self.labels is not None else None
+            unique_id = self.unique_id[index]
+        else:
+            if isinstance(index, int):
+                index = [index]
+            texts = [self.texts[i] for i in index] if self.texts is not None else None
+            audio_paths = [self.audio_paths[i] for i in index] if self.audio_paths is not None else None
+            video_paths = [self.video_paths[i] for i in index] if self.video_paths is not None else None
+            labels = self.labels[index] if self.labels is not None else None
+            unique_id = [self.unique_id[i] for i in index]
+
+        text_input_ids = self.text_input_ids[index] if self.text_input_ids is not None else None
+        text_attention_mask = self.text_attention_mask[index] if self.text_attention_mask is not None else None
+        audio_input_values = self.audio_input_values[index] if self.audio_input_values is not None else None
+        audio_attention_mask = self.audio_attention_mask[index] if self.audio_attention_mask is not None else None
+        video_pixel_values = self.video_pixel_values[index] if self.video_pixel_values is not None else None
+        video_head_mask = self.video_head_mask[index] if self.video_head_mask is not None else None
+
+        return LazyMultimodalInput(
+            preprocessor=self.preprocessor,
+            texts=texts,
+            audio_paths=audio_paths,
+            video_paths=video_paths,
+            labels=labels,
+            unique_id=unique_id,
+            text_input_ids=text_input_ids,
+            text_attention_mask=text_attention_mask,
+            audio_input_values=audio_input_values,
+            audio_attention_mask=audio_attention_mask,
+            video_pixel_values=video_pixel_values,
+            video_head_mask=video_head_mask,
+        )
+
+    @property
+    def device(self):
+        if self.text_input_ids is not None:
+            return self.text_input_ids.device
+        elif self.audio_input_values is not None:
+            return self.audio_input_values.device
+        elif self.video_pixel_values is not None:
+            return self.video_pixel_values.device
+        else:
+            return torch.device("cpu")
+
+    @classmethod
+    def collate_fn(cls, batch: list[LazyMultimodalInput]):
+        field_dict = {}
+        for field in cls.model_fields.keys():
+            if field in [
+                "text_input_ids",
+                "text_attention_mask",
+                "audio_input_values",
+                "audio_attention_mask",
+                "video_pixel_values",
+                "video_head_mask",
+            ]:
+                continue
+            if field == "labels":
+                attr = cls.merge(batch, field)
+                if attr is not None:
+                    attr = torch.cat(attr)
+            elif field == "preprocessor":
+                attr = batch[0].preprocessor
+            else:
+                attr = []
+                for item in batch:
+                    itme_attr = getattr(item, field)
+                    if itme_attr is None:
+                        break
+                    assert isinstance(itme_attr, list), f"{field} must be a list"
+                    attr.extend(itme_attr)
+            field_dict[field] = attr
+        return cls(**field_dict)
 
 
 class TensorFusionLayer(nn.Module):
@@ -124,9 +282,10 @@ class MultimodalBackbone(Backbone):
 
         self.use_cache = use_cache
 
-    def compute_embs(self, inputs: MultimodalInput) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]:
+    def compute_embs(
+        self, inputs: LazyMultimodalInput
+    ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]:
         assert isinstance(inputs.unique_id, list), "unique_id must be a list"
-
         text_outputs = self.text_backbone(inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
         text_embs = text_outputs.last_hidden_state[:, 0]
 
@@ -144,13 +303,13 @@ class MultimodalBackbone(Backbone):
 
         return text_embs, audio_embs, video_embs
 
-    def forward(self, inputs: MultimodalInput):
+    def forward(self, inputs: LazyMultimodalInput):
         if self.is_frozen and self.use_cache:
             return self.cached_forward(inputs)
         else:
             return self.compute_embs(inputs)
 
-    def cached_forward(self, inputs: MultimodalInput):
+    def cached_forward(self, inputs: LazyMultimodalInput):
         assert isinstance(inputs.unique_id, list), "unique_id must be a list"
         cached_list, cached_index_list, no_cached_index_list = load_cached_tensors(inputs.unique_id)
 
@@ -178,9 +337,7 @@ class MultimodalBackbone(Backbone):
                 if k not in embs_list_dict:
                     embs_list_dict[k] = []
                 embs_list_dict[k].append(v)
-        embs_dict: dict[str, torch.Tensor] = {
-            k: torch.stack(v).to(inputs.text_input_ids.device) for k, v in embs_list_dict.items()
-        }
+        embs_dict: dict[str, torch.Tensor] = {k: torch.stack(v).to(inputs.device) for k, v in embs_list_dict.items()}
 
         return embs_dict["text_embs"], embs_dict.get("audio_embs", None), embs_dict.get("video_embs", None)
 
@@ -249,10 +406,10 @@ class MultimodalModel(ClassifierModel):
 
         return text_pooled_embs, audio_pooled_embs, video_pooled_embs
 
-    def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
+    def forward(self, inputs: LazyMultimodalInput) -> ClassifierOutput:
         text_embs, audio_embs, video_embs = self.backbone(inputs)
         text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.pool_embs(text_embs, audio_embs, video_embs)
         fusion_features = self.fusion_layer(text_pooled_embs, audio_pooled_embs, video_pooled_embs)
         return self.classify(fusion_features, inputs.labels)
 
-    __call__: Callable[[MultimodalInput], ClassifierOutput]
+    __call__: Callable[[LazyMultimodalInput], ClassifierOutput]

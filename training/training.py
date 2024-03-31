@@ -7,12 +7,14 @@ from typing import Optional
 
 import torch
 import typer
+from loguru import logger
 from torch.utils.data import DataLoader
 from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer
 
 from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType
-from recognize.model import MultimodalInput, MultimodalModel
-from recognize.utils import calculate_accuracy_and_f1_score, init_logger, load_best_model, train_and_eval
+from recognize.evaluate import calculate_accuracy_and_f1_score
+from recognize.model import LazyMultimodalInput, MultimodalModel
+from recognize.utils import init_logger, load_best_model, train_and_eval
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
@@ -63,7 +65,7 @@ class ModalType(str, Enum):
 
 @app.command()
 def train(
-    modal: ModalType = ModalType.TEXT, freeze: bool = True, checkpoint: Optional[Path] = None, log_level: str = "INFO"
+    modal: ModalType = ModalType.TEXT, freeze: bool = True, checkpoint: Optional[Path] = None, log_level: str = "DEBUG"
 ):
     clean_cache()
     init_logger(log_level)
@@ -76,26 +78,23 @@ def train(
     train_dataset, dev_dataset, test_dataset = provide_meld_datasets(tokenizer, feature_extracor)
     train_data_loader = DataLoader(
         train_dataset,
-        num_workers=4,
         batch_size=batch_size,
         shuffle=False,
-        collate_fn=MultimodalInput.collate_fn,
+        collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
     dev_data_loader = DataLoader(
         dev_dataset,
-        num_workers=4,
         batch_size=batch_size,
         shuffle=False,
-        collate_fn=MultimodalInput.collate_fn,
+        collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
     test_data_loader = DataLoader(
         test_dataset,
-        num_workers=4,
         batch_size=batch_size,
         shuffle=False,
-        collate_fn=MultimodalInput.collate_fn,
+        collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
@@ -125,6 +124,7 @@ def train(
         num_epochs=200,
         model_label=model_label,
     )
+    logger.info("Test result:")
     result.print()
 
 

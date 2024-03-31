@@ -9,7 +9,6 @@ from peft.peft_model import PeftModel
 from pydantic import BaseModel, ConfigDict
 from torch import nn
 from torch.nn import CrossEntropyLoss
-from torch.nn.utils.rnn import pad_sequence
 
 ModelInputT = TypeVar("ModelInputT", bound="ModelInput")
 ClassifierModelT = TypeVar("ClassifierModelT", bound="ClassifierModel")
@@ -28,14 +27,14 @@ class ModelInput(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def cuda(self):
-        for field in self.model_fields_set:
+        for field in self.model_fields.keys():
             field_value = getattr(self, field)
             if isinstance(field_value, torch.Tensor):
                 setattr(self, field, field_value.cuda())
         return self
 
     def pin_memory(self):
-        for field in self.model_fields_set:
+        for field in self.model_fields.keys():
             field_value = getattr(self, field)
             if isinstance(field_value, torch.Tensor):
                 setattr(self, field, field_value.pin_memory().cuda())
@@ -50,27 +49,6 @@ class ModelInput(BaseModel):
             else:
                 return None
         return attr
-
-    @classmethod
-    def collate_fn(cls, batch: list[ModelInputT]):
-        field_dict = {}
-        for field, field_info in cls.model_fields.items():
-            if field_info.annotation == torch.Tensor:
-                attr = [getattr(item, field) for item in batch]
-            elif field_info.annotation == torch.Tensor | None:
-                attr = cls.merge(batch, field)
-            elif field_info.annotation == str | list[str]:
-                attr = [getattr(item, field) for item in batch]
-            else:
-                raise NotImplementedError(f"Field {field} has unsupported type {field_info.annotation}")
-            if field == "labels":
-                attr = torch.tensor(attr, dtype=torch.int64)
-            elif isinstance(attr, torch.Tensor):
-                attr = pad_sequence(attr, batch_first=True)
-            elif isinstance(attr, list) and isinstance(attr[0], torch.Tensor):
-                attr = pad_sequence(attr, batch_first=True)
-            field_dict[field] = attr
-        return cls(**field_dict)
 
 
 class Pooler(nn.Module):

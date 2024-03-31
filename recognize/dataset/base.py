@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from enum import Enum
+from typing import TYPE_CHECKING
 
 import pandas as pd
 from torch.utils.data import Dataset
 
-from ..model import MultimodalInput
 from .preprocessor import Preprocessor
+
+if TYPE_CHECKING:
+    from ..model import LazyMultimodalInput
 
 
 class DatasetSplit(Enum):
@@ -15,7 +18,7 @@ class DatasetSplit(Enum):
     VALID = "valid"
     TEST = "test"
 
-    DEV = "dev"  # a error
+    DEV = "dev"  # meld dataset
 
 
 class MultimodalDataset(Dataset):
@@ -48,7 +51,7 @@ class MultimodalDataset(Dataset):
         self.cache_mode = cache_mode
 
     @abstractmethod
-    def __getitem__(self, index: int) -> MultimodalInput: ...
+    def __getitem__(self, index: int) -> LazyMultimodalInput: ...
 
     def __len__(self):
         return len(self.meta)
