@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import hashlib
 from functools import cached_property
+from pathlib import Path
 from typing import Callable, Literal, TypeVar, overload
 
 import torch
 from peft import LoraConfig, get_peft_model, get_peft_model_state_dict, set_peft_model_state_dict
 from peft.peft_model import PeftModel
 from pydantic import BaseModel, ConfigDict
+from safetensors.torch import save
 from torch import nn
 from torch.nn import CrossEntropyLoss
 
@@ -64,11 +67,19 @@ class Pooler(nn.Module):
 
 
 class Backbone(nn.Module):
-    def __init__(self, output_size: int, *, is_frozen: bool = True, use_peft: bool = False):
+    def __init__(
+        self,
+        output_size: int,
+        *,
+        is_frozen: bool = True,
+        use_peft: bool = False,
+        backbones_dir: str | Path = "./checkpoints/backbones",
+    ):
         super().__init__()
         self.output_size = output_size
         self.use_peft = use_peft
         self.is_frozen = is_frozen
+        self.backbones_dir = Path(backbones_dir)
 
     def freeze(self):
         self.is_frozen = True
@@ -140,6 +151,22 @@ class Backbone(nn.Module):
             else:
                 peft_state_dicts[name] = module.state_dict()
         return peft_state_dicts
+
+    def save(self):
+        hash_dict: dict[str, Path] = {}
+        self.backbones_dir.mkdir(parents=True, exist_ok=True)
+        for name, state_dict in self.get_state_dicts().items():
+            state_bytes = save(state_dict)
+            hasher = hashlib.md5()
+            hasher.update(state_bytes)
+            model_hash = hasher.hexdigest()
+            path = Path(f"{self.backbones_dir}/{model_hash}.safetensors")
+            hash_dict[name] = path.absolute()
+            if path.exists():
+                continue
+            with open(path, "wb") as f:
+                f.write(state_bytes)
+        return hash_dict
 
 
 class ClassifierModel(nn.Module):

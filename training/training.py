@@ -111,10 +111,10 @@ def train(
         model.unfreeze_backbone()
     else:
         model_label += "--frozen"
-    if checkpoint is not None:
+    if checkpoint is not None and not os.path.exists(f"./checkpoints/{model_label}/stopper.json"):
         load_best_model(checkpoint, model)
         test_accuracy, test_f1_score = calculate_accuracy_and_f1_score(model, test_data_loader)
-        print(test_accuracy, test_f1_score)
+        logger.info(f"Test result(best model): accuracy={test_accuracy}, f1_score={test_f1_score}")
 
     result = train_and_eval(
         model,
@@ -124,7 +124,7 @@ def train(
         num_epochs=200,
         model_label=model_label,
     )
-    logger.info("Test result:")
+    logger.info(f"Test result(best model in epoch {result.best_epoch}):")
     result.print()
 
 

@@ -29,33 +29,27 @@ def save_checkpoint(
     model_state_dict = {key: value for key, value in model.state_dict().items() if not key.startswith("backbone.")}
     save_file(model_state_dict, epoch_checkpoint_dir / "model.safetensors")
     if not model.backbone.is_frozen:
-        # save backbone state_dict
+        # save and link backbone state_dict
         backbones_dir = epoch_checkpoint_dir / "backbones"
         backbones_dir.mkdir(parents=True, exist_ok=True)
-        for name, state_dict in model.backbone.get_state_dicts().items():
-            save_file(state_dict, backbones_dir / f"{name}.safetensors")
+        for name, path in model.backbone.save().items():
+            (backbones_dir / f"{name}.safetensors").symlink_to(path)
     else:
-        # link original backbone state_dict
+        # save and link original backbone state_dict
         original_backbones_dir = checkpoint_dir / "backbones"
         if not original_backbones_dir.exists():
             original_backbones_dir.mkdir(parents=True)
-            # TODO: maybe use symlink
-            for name, state_dict in model.backbone.get_state_dicts().items():
-                save_file(state_dict, original_backbones_dir / f"{name}.safetensors")
+            for name, path in model.backbone.save().items():
+                (original_backbones_dir / f"{name}.safetensors").symlink_to(path)
 
         backbones_dir = epoch_checkpoint_dir / "backbones"
         backbones_dir.symlink_to("../backbones")
 
     torch.save(optimizer.state_dict(), checkpoint_dir / "optimizer.pt")  # TODO: improve size
-    torch.save(stopper.state_dict(), checkpoint_dir / "stopper.pt")
+    stopper.save(checkpoint_dir / "stopper.json")
 
 
-def load_model(
-    checkpoint_dir: Path | str,
-    model: ClassifierModel,
-    # optimizer: torch.optim.Optimizer | None = None,
-    # stopper: EarlyStopper | None = None,
-):
+def load_model(checkpoint_dir: Path | str, model: ClassifierModel):
     checkpoint_dir = Path(checkpoint_dir)
     model_state_dict = load_file(checkpoint_dir / "model.safetensors")
     model.load_state_dict(model_state_dict, strict=False)
@@ -69,10 +63,14 @@ def load_model(
 
 
 def load_best_model(checkpoint_dir: Path | str, model: ClassifierModel) -> int:
-    with open(f"{checkpoint_dir}/result.json", "r") as f:
-        best_epoch = TrainingResult.model_validate_json(f.read()).best_epoch
+    if os.path.exists(f"{checkpoint_dir}/stopper.json"):
+        stopper = EarlyStopper.from_file(f"{checkpoint_dir}/stopper.json")
+        best_epoch = stopper.best_epoch
+    else:
+        with open(f"{checkpoint_dir}/result.json", "r") as f:
+            best_epoch = TrainingResult.model_validate_json(f.read()).best_epoch
 
-    logger.info(f"Load best model: {best_epoch}")
+    logger.info(f"Load best model from [blue]{checkpoint_dir}/{best_epoch}")
     load_model(f"{checkpoint_dir}/{best_epoch}", model)
     return best_epoch
 
@@ -85,17 +83,17 @@ def load_last_checkpoint(
 ) -> int:
     checkpoint_dir = Path(checkpoint_dir)
     model_list = os.listdir(checkpoint_dir)
-    epoch_start = 0
+    epoch_start = -1
     if model_list:
         model_list = [int(model_name) for model_name in model_list if model_name.isdigit()]
         model_list.sort()
         epoch_start = int(model_list[-1])
-        print(f"Load last model: {epoch_start}")
-        load_model(f"{checkpoint_dir}/{model_list[-1]}", model)
+        logger.info(f"Load last model from [blue]{checkpoint_dir}/{epoch_start}")
+        load_model(f"{checkpoint_dir}/{epoch_start}", model)
     if optimizer is not None and os.path.exists(checkpoint_dir / "optimizer.pt"):
         optimizer.load_state_dict(torch.load(checkpoint_dir / "optimizer.pt"))
-    if stopper is not None and os.path.exists(checkpoint_dir / "stopper.pt"):
-        stopper.load_state_dict(torch.load(checkpoint_dir / "stopper.pt"))
+    if stopper is not None and os.path.exists(checkpoint_dir / "stopper.json"):
+        stopper.load(checkpoint_dir / "stopper.json")
     return epoch_start
 
 
@@ -150,10 +148,10 @@ def train_and_eval(
             loss=loss_value,
             accuracy=0,
             f1_score=0,
-            completed=epoch_start,
+            completed=epoch_start + 1,
             batch_index=0,
         )
-        for epoch in range(epoch_start, num_epochs):
+        for epoch in range(epoch_start + 1, num_epochs):
             model.train()
             loss_value_list = []
             for batch_index, batch in enumerate(train_data_loader):
@@ -172,12 +170,13 @@ def train_and_eval(
                 test_f1_score = result.f1_score
                 test_accuracy = result.accuracy
                 if stopper.update(epoch=epoch, f1=test_f1_score):
+                    save_checkpoint(checkpoint_dir, epoch, model, optimizer, stopper)
                     break
 
                 progress.update(task, f1_score=test_f1_score, accuracy=test_accuracy)
                 if stopper.best_epoch != best_epoch:
                     best_epoch = stopper.best_epoch
-                    result.save(f"{checkpoint_dir}/result.json")
+                    result.best_epoch = best_epoch
                     save_checkpoint(checkpoint_dir, epoch, model, optimizer, stopper)
                     logger.info(
                         f"Epoch {best_epoch}: Better model found [red](Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%)",
@@ -187,8 +186,10 @@ def train_and_eval(
 
             progress.update(task, advance=1)
 
-    load_best_model(checkpoint_dir, model)
+    load_model(checkpoint_dir / str(best_epoch), model)
     result = TrainingResult.auto_compute(model, test_data_loader)
+    result.best_epoch = best_epoch
+    result.save(f"{checkpoint_dir}/result.json")
     return result
 
 

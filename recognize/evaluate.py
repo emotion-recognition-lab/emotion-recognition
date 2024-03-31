@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import torch
 from cachetools import Cache, cached
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from rich.table import Table
 from torch.utils.data import DataLoader
 
@@ -124,6 +125,38 @@ def get_outputs(model: ClassifierModel, data_loader: DataLoader):
     return predicted_list, labels_list
 
 
+class ModelResult(BaseModel):
+    accuracy: float = 0
+    f1_score: float = 0
+
+    confusion_matrix: list[list[int]] | None = None
+    best_epoch: int = 0
+
+    def print(self, *, print_table: bool = False):
+        logger.info(f"Accuracy: {self.accuracy:.2f}%, F1 Score: {self.f1_score:.2f}%")
+        if not print_table or self.confusion_matrix is None:
+            return
+
+        from rich import print
+
+        logger.info("Confusion Matrix:")
+        table = Table(show_header=False, show_lines=True)
+        for i, row in enumerate(self.confusion_matrix):
+            str_row = [f"[red]{v}" if i == j else f"{v}" for j, v in enumerate(row)]
+            table.add_row(*str_row)
+        print(table)
+
+    @classmethod
+    def auto_compute(cls, model: ClassifierModel, data_loader: DataLoader):
+        accuracy, f1_score = calculate_accuracy_and_f1_score(model, data_loader)
+
+        return cls(
+            accuracy=accuracy,
+            f1_score=f1_score,
+            confusion_matrix=confusion_matrix(model, data_loader),
+        )
+
+
 class TrainingResult(BaseModel):
     accuracy: float = 0
     f1_score: float = 0
@@ -160,21 +193,27 @@ class TrainingResult(BaseModel):
         )
 
 
-class EarlyStopper:
-    def __init__(self, patience: int = 20):
-        self.patience = patience
-        self.best_scores: dict[str, Any] = {}
-        self.best_epoch: int = -1
+class EarlyStopper(BaseModel):
+    patience: int = 20
+    best_scores: dict[str, Any] = Field(default_factory=dict)
+    best_epoch: int = -1
 
-    def state_dict(self):
-        return {
-            "best_scores": self.best_scores,
-            "best_epoch": self.best_epoch,
-        }
+    @classmethod
+    def from_file(cls, path: str):
+        with open(path, "r") as f:
+            state_dict = f.read()
+        return cls.model_validate_json(state_dict)
 
-    def load_state_dict(self, state_dict):
+    def load(self, path: str | Path):
+        with open(path, "r") as f:
+            state_dict = self.model_validate_json(f.read()).model_dump()
+        self.patience = state_dict["patience"]
         self.best_scores = state_dict["best_scores"]
         self.best_epoch = state_dict["best_epoch"]
+
+    def save(self, path: str | Path):
+        with open(path, "w") as f:
+            f.write(self.model_dump_json())
 
     def update(self, epoch: int, **kwargs: float):
         for key, value in kwargs.items():
