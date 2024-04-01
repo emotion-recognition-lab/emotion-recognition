@@ -189,6 +189,7 @@ class LazyMultimodalInput(ModelInput):
                 "video_pixel_values",
                 "video_head_mask",
             ]:
+                # those field is lazy
                 continue
             if field == "labels":
                 attr = cls.merge(batch, field)

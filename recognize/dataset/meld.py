@@ -31,7 +31,7 @@ class MELDDataset(MultimodalDataset):
 
     def __init__(
         self,
-        dataset_path,
+        dataset_path: str,
         preprocessor: Preprocessor,
         *,
         split: DatasetSplit = DatasetSplit.TRAIN,

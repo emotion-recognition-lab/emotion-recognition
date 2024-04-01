@@ -7,15 +7,14 @@ import pandas as pd
 import torch
 
 from .base import DatasetSplit, MultimodalDataset
+from .preprocessor import Preprocessor
 
 
 class SIMSDataset(MultimodalDataset):
     def __init__(
         self,
-        dataset_path,
-        tokenizer,
-        feature_extractor=None,
-        image_processor=None,
+        dataset_path: str,
+        preprocessor: Preprocessor,
         *,
         split: DatasetSplit = DatasetSplit.TRAIN,
         custom_unique_id: str = "",
@@ -25,9 +24,7 @@ class SIMSDataset(MultimodalDataset):
         super().__init__(
             dataset_path,
             meta,
-            tokenizer,
-            feature_extractor,
-            image_processor,
+            preprocessor,
             num_classes=1,
             split=split,
             custom_unique_id=custom_unique_id,
