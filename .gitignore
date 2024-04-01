@@ -7,6 +7,7 @@ logs/
 cache/
 
 .pdm-python
+result.json
 
 *.pdf
 

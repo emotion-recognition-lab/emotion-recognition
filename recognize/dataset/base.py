@@ -26,9 +26,7 @@ class MultimodalDataset(Dataset):
         self,
         dataset_path,
         meta: pd.DataFrame,
-        tokenizer,
-        feature_extractor=None,
-        image_processor=None,
+        preprocessor: Preprocessor,
         *,
         num_classes: int = 2,
         split: DatasetSplit = DatasetSplit.TRAIN,
@@ -38,7 +36,7 @@ class MultimodalDataset(Dataset):
         self.dataset_path = dataset_path
         self.meta = meta
 
-        self.preprocessor = Preprocessor(tokenizer, feature_extractor, image_processor)
+        self.preprocessor = preprocessor
         self.load_text = self.preprocessor.load_text
         self.load_audio = self.preprocessor.load_audio
         self.load_video = self.preprocessor.load_video

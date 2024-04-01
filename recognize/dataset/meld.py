@@ -8,6 +8,7 @@ import torch
 from loguru import logger
 
 from .base import DatasetSplit, MultimodalDataset
+from .preprocessor import Preprocessor
 
 
 class MELDDatasetLabelType(Enum):
@@ -31,9 +32,7 @@ class MELDDataset(MultimodalDataset):
     def __init__(
         self,
         dataset_path,
-        tokenizer,
-        feature_extractor=None,
-        image_processor=None,
+        preprocessor: Preprocessor,
         *,
         split: DatasetSplit = DatasetSplit.TRAIN,
         label_type: MELDDatasetLabelType = MELDDatasetLabelType.EMOTION,
@@ -57,9 +56,7 @@ class MELDDataset(MultimodalDataset):
         super().__init__(
             dataset_path,
             pd.read_csv(f"{dataset_path}/{self.split}_sent_emo.csv", sep=",", index_col=0, header=0),
-            tokenizer,
-            feature_extractor,
-            image_processor,
+            preprocessor,
             num_classes=self.num_classes,
             split=split,
             custom_unique_id=custom_unique_id,
@@ -84,7 +81,6 @@ class MELDDataset(MultimodalDataset):
         dia_id = item["Dialogue_ID"]
         audio_path = f"{self.dataset_path}/audios/{self.split}/dia{dia_id}_utt{utt_id}.flac"
         video_path = f"{self.dataset_path}/videos/{self.split}/dia{dia_id}_utt{utt_id}.mp4"
-
         return LazyMultimodalInput(
             preprocessor=self.preprocessor,
             unique_ids=[f"{self.custom_unique_id}--{self.split}_{index}"],

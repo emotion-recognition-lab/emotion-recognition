@@ -11,40 +11,32 @@ from loguru import logger
 from torch.utils.data import DataLoader
 from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer
 
-from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType
-from recognize.evaluate import calculate_accuracy_and_f1_score
-from recognize.model import LazyMultimodalInput, MultimodalModel
+from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType, Preprocessor
+from recognize.evaluate import TrainingResult
+from recognize.model import LazyMultimodalInput, LowRankFusionLayer, MultimodalBackbone, MultimodalModel
 from recognize.utils import init_logger, load_best_model, train_and_eval
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
-def provide_meld_datasets(
-    tokenizer, feature_extracor=None, image_processor=None, label_type=MELDDatasetLabelType.EMOTION
-):
+def provide_meld_datasets(preprocessor, label_type=MELDDatasetLabelType.EMOTION):
     train_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
-        tokenizer,
-        feature_extracor,
-        image_processor,
+        preprocessor,
         split=DatasetSplit.TRAIN,
         label_type=label_type,
         custom_unique_id="T",
     )
     dev_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
-        tokenizer,
-        feature_extracor,
-        image_processor,
+        preprocessor,
         split=DatasetSplit.VALID,
         label_type=label_type,
         custom_unique_id="T",
     )
     test_dataset = MELDDataset(
         "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
-        tokenizer,
-        feature_extracor,
-        image_processor,
+        preprocessor,
         split=DatasetSplit.TEST,
         label_type=label_type,
         custom_unique_id="T",
@@ -56,6 +48,15 @@ def clean_cache():
     for file in os.listdir("./cache"):
         file_path = os.path.join("./cache", file)
         os.unlink(file_path)
+
+
+def generate_model_label(modal: ModalType, freeze: bool, label_type: MELDDatasetLabelType):
+    model_label = modal.value
+    if label_type == MELDDatasetLabelType.SENTIMENT:
+        model_label += "--sentiment"
+    if freeze:
+        model_label += "--frozen"
+    return model_label
 
 
 class ModalType(str, Enum):
@@ -75,13 +76,20 @@ def train(
 ):
     clean_cache()
     init_logger(log_level)
+    model_label = generate_model_label(modal, freeze, label_type)
     batch_size = 64 if freeze else 2
-    tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-mpnet-base-v2")
-    feature_extracor = (
-        AutoFeatureExtractor.from_pretrained("facebook/wav2vec2-base-960h") if modal == ModalType.TEXT_AUDIO else None
-    )
-    # image_processor = VivitImageProcessor.from_pretrained("google/vivit-b-8x2-kinetics400")
-    train_dataset, dev_dataset, test_dataset = provide_meld_datasets(tokenizer, feature_extracor, label_type=label_type)
+    if checkpoint is not None and os.path.exists(f"./{checkpoint}/preprocessor"):
+        preprocessor = Preprocessor.load(f"./{checkpoint}/preprocessor")
+        logger.info("load preprocessor from checkpoint")
+    else:
+        preprocessor = Preprocessor(
+            AutoTokenizer.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
+            AutoFeatureExtractor.from_pretrained("facebook/wav2vec2-base-960h"),
+            # VivitImageProcessor.from_pretrained("google/vivit-b-16x2-kinetics400")
+        )
+        preprocessor.save(f"./checkpoints/{model_label}/preprocessor")
+
+    train_dataset, dev_dataset, test_dataset = provide_meld_datasets(preprocessor, label_type=label_type)
     train_data_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
@@ -105,24 +113,33 @@ def train(
     )
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
 
-    model = MultimodalModel(
+    text_feature_size, audio_feature_size, video_feature_size = 128, 16, 1
+    backbone = MultimodalBackbone(
         AutoModel.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
-        AutoModel.from_pretrained("facebook/wav2vec2-base-960h") if modal == ModalType.TEXT_AUDIO else None,
+        AutoModel.from_pretrained("facebook/wav2vec2-base-960h"),
+    )
+    fusion_layer = LowRankFusionLayer([text_feature_size, audio_feature_size, video_feature_size], 16, 128)
+
+    model = MultimodalModel(
+        backbone,
+        fusion_layer,
+        text_feature_size=text_feature_size,
+        audio_feature_size=audio_feature_size,
+        video_feature_size=video_feature_size,
         num_classes=train_dataset.num_classes,
         class_weights=class_weights,
     ).cuda()
-    model_label = modal.value
 
     if not freeze:
         model.unfreeze_backbone()
-    else:
-        model_label += "--frozen"
+
     if checkpoint is not None and not os.path.exists(f"./checkpoints/{model_label}/stopper.json"):
         load_best_model(checkpoint, model)
-        test_accuracy, test_f1_score = calculate_accuracy_and_f1_score(model, test_data_loader)
-        logger.info(f"Test result(best model): accuracy={test_accuracy}, f1_score={test_f1_score}")
+        result = TrainingResult.auto_compute(model, test_data_loader)
+        logger.info("Test result(best model):")
+        result.print()
 
-    result = train_and_eval(
+    result: TrainingResult = train_and_eval(
         model,
         train_data_loader,
         dev_data_loader,

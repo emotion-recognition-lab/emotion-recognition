@@ -66,9 +66,12 @@ def load_best_model(checkpoint_dir: Path | str, model: ClassifierModel) -> int:
     if os.path.exists(f"{checkpoint_dir}/stopper.json"):
         stopper = EarlyStopper.from_file(f"{checkpoint_dir}/stopper.json")
         best_epoch = stopper.best_epoch
-    else:
+    elif os.path.exists(f"{checkpoint_dir}/result.json"):
         with open(f"{checkpoint_dir}/result.json", "r") as f:
             best_epoch = TrainingResult.model_validate_json(f.read()).best_epoch
+    else:
+        logger.warning(f"No stopper or result file found in [blue]{checkpoint_dir}")
+        return -1
 
     logger.info(f"Load best model from [blue]{checkpoint_dir}/{best_epoch}")
     load_model(f"{checkpoint_dir}/{best_epoch}", model)
@@ -84,8 +87,8 @@ def load_last_checkpoint(
     checkpoint_dir = Path(checkpoint_dir)
     model_list = os.listdir(checkpoint_dir)
     epoch_start = -1
+    model_list = [int(model_name) for model_name in model_list if model_name.isdigit()]
     if model_list:
-        model_list = [int(model_name) for model_name in model_list if model_name.isdigit()]
         model_list.sort()
         epoch_start = int(model_list[-1])
         logger.info(f"Load last model from [blue]{checkpoint_dir}/{epoch_start}")

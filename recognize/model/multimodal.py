@@ -4,14 +4,13 @@ from typing import Callable
 
 import torch
 from loguru import logger
-from pydantic import Field
 from torch import nn
-from torch.nn.parameter import Parameter
 from torch.nn.utils.rnn import pad_sequence
 
 from ..cache import load_cached_tensors, save_cached_tensors
 from ..dataset import Preprocessor
 from .base import Backbone, ClassifierModel, ClassifierOutput, ModelInput, Pooler
+from .fusion import FusionLayer
 
 
 class MultimodalInput(ModelInput):
@@ -95,7 +94,7 @@ class LazyMultimodalInput(ModelInput):
     video_paths: list[str] | None = None
 
     labels: torch.Tensor | None = None
-    unique_ids: list[str] = Field(default_factory=list)
+    unique_ids: list[str] | None = None
 
     # The following fields will be computed lazily
     text_input_ids: torch.Tensor | None = None
@@ -123,18 +122,19 @@ class LazyMultimodalInput(ModelInput):
             and super().__getattribute__("video_pixel_values") is None
             and self.video_paths is not None
         ):
-            self.video_pixel_values = self.preprocessor.load_videos(self.video_paths)
+            pass
+            # TODO: too slow
+            # self.video_pixel_values = self.preprocessor.load_videos(self.video_paths)
 
         return super().__getattribute__(__name)
 
     def __getitem__(self, index: int | list[int] | slice) -> LazyMultimodalInput:
-        assert isinstance(self.unique_ids, list), "unique_ids must be a list"
         if isinstance(index, slice):
             texts = self.texts[index] if self.texts is not None else None
             audio_paths = self.audio_paths[index] if self.audio_paths is not None else None
             video_paths = self.video_paths[index] if self.video_paths is not None else None
             labels = self.labels[index] if self.labels is not None else None
-            unique_ids = self.unique_ids[index]
+            unique_ids = self.unique_ids[index] if self.unique_ids is not None else None
         else:
             if isinstance(index, int):
                 index = [index]
@@ -142,7 +142,7 @@ class LazyMultimodalInput(ModelInput):
             audio_paths = [self.audio_paths[i] for i in index] if self.audio_paths is not None else None
             video_paths = [self.video_paths[i] for i in index] if self.video_paths is not None else None
             labels = self.labels[index] if self.labels is not None else None
-            unique_ids = [self.unique_ids[i] for i in index]
+            unique_ids = [self.unique_ids[i] for i in index] if self.unique_ids is not None else None
 
         text_input_ids = self.text_input_ids[index] if self.text_input_ids is not None else None
         text_attention_mask = self.text_attention_mask[index] if self.text_attention_mask is not None else None
@@ -202,65 +202,10 @@ class LazyMultimodalInput(ModelInput):
                     itme_attr = getattr(item, field)
                     if itme_attr is None:
                         break
-                    assert isinstance(itme_attr, list), f"{field} must be a list"
+                    assert isinstance(itme_attr, list), f"{field} must be a list, but got {type(itme_attr)}"
                     attr.extend(itme_attr)
             field_dict[field] = attr
         return cls(**field_dict)
-
-
-class TensorFusionLayer(nn.Module):
-    def __init__(self, text_size: int, audio_size: int, video_size: int):
-        super().__init__()
-        self.text_size = text_size
-        self.audio_size = audio_size
-        self.video_size = video_size
-        self.augmentation = Parameter(torch.ones(1))
-        self.output_size = (text_size + 1) * (audio_size + 1) * (video_size + 1)
-
-    def forward(self, zl: torch.Tensor, za: torch.Tensor | None, zv: torch.Tensor | None):
-        augmentation = self.augmentation.broadcast_to(zl.size(0), 1)
-
-        augmentation_zl = torch.cat((zl, augmentation), dim=1)
-        if za is not None:
-            augmentation_za = torch.cat((za, augmentation), dim=1)
-        else:
-            augmentation_za = augmentation.broadcast_to(zl.size(0), self.audio_size + 1)
-        if zv is not None:
-            augmentation_zv = torch.cat((zv, augmentation), dim=1)
-        else:
-            augmentation_zv = augmentation.broadcast_to(zl.size(0), self.video_size + 1)
-
-        assert augmentation_zl.size(1) == self.text_size + 1, f"{augmentation_zl.size(1)} != {self.text_size + 1}"
-        assert augmentation_za.size(1) == self.audio_size + 1, f"{augmentation_za.size(1)} != {self.audio_size + 1}"
-        assert augmentation_zv.size(1) == self.video_size + 1, f"{augmentation_zv.size(1)} != {self.video_size + 1}"
-
-        fusion_tensor = torch.einsum("bi,bj,bk->bijk", augmentation_zl, augmentation_za, augmentation_zv).view(
-            zl.size(0), -1
-        )
-        return fusion_tensor
-
-
-class LowRankFusionLayer(nn.Module):
-    def __init__(self, dims: list[int], rank: int, output_size: int):
-        super().__init__()
-        self.dims = dims
-        self.rank = rank
-        self.output_size = output_size
-
-        self.low_rank_weights = nn.ParameterList([nn.Parameter(torch.randn(rank, dim, output_size)) for dim in dims])
-        self.output_layer = nn.Linear(rank, 1)
-
-    def forward(self, *inputs: torch.Tensor | None):
-        assert len(inputs) <= len(
-            self.low_rank_weights
-        ), "Number of inputs should be less than or equal to number of weights"
-        # N*d x R*d*h => R*N*h ~reshape~> N*h*R -> N*h*1 ~squeeze~> N*h
-        fusion_tensors = [
-            torch.matmul(i, w) for i, w in zip(inputs, self.low_rank_weights, strict=False) if i is not None
-        ]
-        product_tensor = torch.prod(torch.stack(fusion_tensors), dim=0)
-        output = self.output_layer(product_tensor.permute(1, 2, 0)).squeeze(dim=-1)
-        return output
 
 
 class MultimodalBackbone(Backbone):
@@ -285,20 +230,19 @@ class MultimodalBackbone(Backbone):
     def compute_embs(
         self, inputs: LazyMultimodalInput
     ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
-        assert isinstance(inputs.unique_ids, list), "unique_ids must be a list"
-        if inputs.text_input_ids is not None and self.text_backbone is not None:
+        if self.text_backbone is not None and inputs.text_input_ids is not None:
             text_outputs = self.text_backbone(inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
             text_embs = text_outputs.last_hidden_state[:, 0]
         else:
             text_embs = None
 
-        if inputs.audio_input_values is not None and self.audio_backbone is not None:
+        if self.audio_backbone is not None and inputs.audio_input_values is not None:
             audio_outputs = self.audio_backbone(inputs.audio_input_values, attention_mask=inputs.audio_attention_mask)
             audio_embs = audio_outputs.last_hidden_state[:, 0]
         else:
             audio_embs = None
 
-        if inputs.video_pixel_values is not None and self.video_backbone is not None:
+        if self.video_backbone is not None and inputs.video_pixel_values is not None:
             video_outputs = self.video_backbone(inputs.video_pixel_values)
             video_embs = video_outputs.last_hidden_state[:, 0]
         else:
@@ -307,7 +251,7 @@ class MultimodalBackbone(Backbone):
         return text_embs, audio_embs, video_embs
 
     def forward(self, inputs: LazyMultimodalInput):
-        if self.is_frozen and self.use_cache:
+        if self.is_frozen and self.use_cache and inputs.unique_ids is not None:
             return self.cached_forward(inputs)
         else:
             return self.compute_embs(inputs)
@@ -317,12 +261,13 @@ class MultimodalBackbone(Backbone):
         cached_list, cached_index_list, no_cached_index_list = load_cached_tensors(inputs.unique_ids)
         if len(no_cached_index_list) != 0:
             no_cached_inputs = inputs[no_cached_index_list]
+            assert isinstance(no_cached_inputs.unique_ids, list), "unique_ids must be a list"
             with torch.no_grad():
                 text_embs, audio_embs, video_embs = self.compute_embs(no_cached_inputs)
 
             if self.is_frozen:
                 save_cached_tensors(
-                    inputs.unique_ids,
+                    no_cached_inputs.unique_ids,
                     {
                         "text_embs": text_embs,
                         "audio_embs": audio_embs,
@@ -362,9 +307,8 @@ class MultimodalBackbone(Backbone):
 class MultimodalModel(ClassifierModel):
     def __init__(
         self,
-        text_backbone: nn.Module,
-        audio_backbone: nn.Module | None = None,
-        video_backbone: nn.Module | None = None,
+        backbone: MultimodalBackbone,
+        fusion_layer: FusionLayer,
         *,
         text_feature_size: int = 128,
         audio_feature_size: int = 16,
@@ -372,10 +316,8 @@ class MultimodalModel(ClassifierModel):
         num_classes: int = 2,
         class_weights: torch.Tensor | None = None,
     ):
-        # fusion_layer = TensorFusionLayer(text_feature_size, audio_feature_size, video_feature_size)
-        fusion_layer = LowRankFusionLayer([text_feature_size, audio_feature_size, video_feature_size], 16, 128)
         super().__init__(
-            MultimodalBackbone(text_backbone, audio_backbone, video_backbone),
+            backbone,
             fusion_layer.output_size,
             num_classes=num_classes,
             class_weights=class_weights,

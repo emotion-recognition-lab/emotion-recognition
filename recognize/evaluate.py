@@ -185,11 +185,10 @@ class TrainingResult(BaseModel):
     @classmethod
     def auto_compute(cls, model: ClassifierModel, data_loader: DataLoader):
         accuracy, f1_score = calculate_accuracy_and_f1_score(model, data_loader)
-
         return cls(
             accuracy=accuracy,
             f1_score=f1_score,
-            confusion_matrix=confusion_matrix(model, data_loader),
+            # confusion_matrix=confusion_matrix(model, data_loader),
         )
 
 

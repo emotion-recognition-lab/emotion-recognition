@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import soundfile as sf
 import torch
@@ -113,3 +114,26 @@ class Preprocessor:
             video_pixel_values = video_inputs["pixel_values"][0]
             video_pixel_values_list.append(video_pixel_values)
         return pad_sequence(video_pixel_values_list, batch_first=True)
+
+    def save(self, path: str | Path):
+        if self.tokenizer is not None:
+            self.tokenizer.save_pretrained(f"{path}/tokenizer")
+        if self.feature_extractor is not None:
+            self.feature_extractor.save_pretrained(f"{path}/feature_extractor")
+        if self.image_processor is not None:
+            self.image_processor.save_pretrained(f"{path}/image_processor")
+
+    @classmethod
+    def load(cls, path: str | Path):
+        from transformers import AutoFeatureExtractor, AutoTokenizer, VivitImageProcessor
+
+        tokenizer = None
+        feature_extractor = None
+        image_processor = None
+        if os.path.exists(f"{path}/tokenizer"):
+            tokenizer = AutoTokenizer.from_pretrained(f"{path}/tokenizer")
+        if os.path.exists(f"{path}/feature_extractor"):
+            feature_extractor = AutoFeatureExtractor.from_pretrained(f"{path}/feature_extractor")
+        if os.path.exists(f"{path}/image_processor"):
+            image_processor = VivitImageProcessor.from_pretrained(f"{path}/image_processor")
+        return cls(tokenizer, feature_extractor, image_processor)
