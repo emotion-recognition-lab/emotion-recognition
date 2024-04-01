@@ -58,7 +58,7 @@ class SIMSDataset(MultimodalDataset):
 
         return LazyMultimodalInput(
             preprocessor=self.preprocessor,
-            unique_id=[f"{self.custom_unique_id}--{self.split}_{index}"],
+            unique_ids=[f"{self.custom_unique_id}--{self.split}_{index}"],
             texts=[item["text"]],
             audio_paths=[audio_path],
             video_paths=[video_path],

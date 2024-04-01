@@ -25,10 +25,10 @@ class MultimodalInput(ModelInput):
     video_head_mask: torch.Tensor | None = None
 
     labels: torch.Tensor | None = None
-    unique_id: str | list[str] = ""
+    unique_ids: str | list[str] = ""
 
     def __getitem__(self, index: int | list[int] | slice) -> MultimodalInput:
-        assert isinstance(self.unique_id, list), "unique_id must be a list"
+        assert isinstance(self.unique_ids, list), "unique_ids must be a list"
 
         text_input_ids = self.text_input_ids[index]
         text_attention_mask = self.text_attention_mask[index] if self.text_attention_mask is not None else None
@@ -40,7 +40,7 @@ class MultimodalInput(ModelInput):
         video_head_mask = self.video_head_mask[index] if self.video_head_mask is not None else None
 
         labels = self.labels[index] if self.labels is not None else None
-        unique_id = [self.unique_id[i] for i in index] if isinstance(index, list) else self.unique_id[index]
+        unique_ids = [self.unique_ids[i] for i in index] if isinstance(index, list) else self.unique_ids[index]
 
         return MultimodalInput(
             text_input_ids=text_input_ids,
@@ -50,7 +50,7 @@ class MultimodalInput(ModelInput):
             video_pixel_values=video_pixel_values,
             video_head_mask=video_head_mask,
             labels=labels,
-            unique_id=unique_id,
+            unique_ids=unique_ids,
         )
 
     @property
@@ -90,12 +90,12 @@ class MultimodalInput(ModelInput):
 class LazyMultimodalInput(ModelInput):
     preprocessor: Preprocessor
 
-    texts: list[str] | None = Field(default_factory=list)
-    audio_paths: list[str] | None = Field(default_factory=list)
-    video_paths: list[str] | None = Field(default_factory=list)
+    texts: list[str] | None = None
+    audio_paths: list[str] | None = None
+    video_paths: list[str] | None = None
 
     labels: torch.Tensor | None = None
-    unique_id: list[str] = Field(default_factory=list)
+    unique_ids: list[str] = Field(default_factory=list)
 
     # The following fields will be computed lazily
     text_input_ids: torch.Tensor | None = None
@@ -128,13 +128,13 @@ class LazyMultimodalInput(ModelInput):
         return super().__getattribute__(__name)
 
     def __getitem__(self, index: int | list[int] | slice) -> LazyMultimodalInput:
-        assert isinstance(self.unique_id, list), "unique_id must be a list"
+        assert isinstance(self.unique_ids, list), "unique_ids must be a list"
         if isinstance(index, slice):
             texts = self.texts[index] if self.texts is not None else None
             audio_paths = self.audio_paths[index] if self.audio_paths is not None else None
             video_paths = self.video_paths[index] if self.video_paths is not None else None
             labels = self.labels[index] if self.labels is not None else None
-            unique_id = self.unique_id[index]
+            unique_ids = self.unique_ids[index]
         else:
             if isinstance(index, int):
                 index = [index]
@@ -142,7 +142,7 @@ class LazyMultimodalInput(ModelInput):
             audio_paths = [self.audio_paths[i] for i in index] if self.audio_paths is not None else None
             video_paths = [self.video_paths[i] for i in index] if self.video_paths is not None else None
             labels = self.labels[index] if self.labels is not None else None
-            unique_id = [self.unique_id[i] for i in index]
+            unique_ids = [self.unique_ids[i] for i in index]
 
         text_input_ids = self.text_input_ids[index] if self.text_input_ids is not None else None
         text_attention_mask = self.text_attention_mask[index] if self.text_attention_mask is not None else None
@@ -157,7 +157,7 @@ class LazyMultimodalInput(ModelInput):
             audio_paths=audio_paths,
             video_paths=video_paths,
             labels=labels,
-            unique_id=unique_id,
+            unique_ids=unique_ids,
             text_input_ids=text_input_ids,
             text_attention_mask=text_attention_mask,
             audio_input_values=audio_input_values,
@@ -285,7 +285,7 @@ class MultimodalBackbone(Backbone):
     def compute_embs(
         self, inputs: LazyMultimodalInput
     ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
-        assert isinstance(inputs.unique_id, list), "unique_id must be a list"
+        assert isinstance(inputs.unique_ids, list), "unique_ids must be a list"
         if inputs.text_input_ids is not None and self.text_backbone is not None:
             text_outputs = self.text_backbone(inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
             text_embs = text_outputs.last_hidden_state[:, 0]
@@ -313,9 +313,8 @@ class MultimodalBackbone(Backbone):
             return self.compute_embs(inputs)
 
     def cached_forward(self, inputs: LazyMultimodalInput):
-        assert isinstance(inputs.unique_id, list), "unique_id must be a list"
-        cached_list, cached_index_list, no_cached_index_list = load_cached_tensors(inputs.unique_id)
-
+        assert isinstance(inputs.unique_ids, list), "unique_ids must be a list"
+        cached_list, cached_index_list, no_cached_index_list = load_cached_tensors(inputs.unique_ids)
         if len(no_cached_index_list) != 0:
             no_cached_inputs = inputs[no_cached_index_list]
             with torch.no_grad():
@@ -323,7 +322,7 @@ class MultimodalBackbone(Backbone):
 
             if self.is_frozen:
                 save_cached_tensors(
-                    inputs.unique_id,
+                    inputs.unique_ids,
                     {
                         "text_embs": text_embs,
                         "audio_embs": audio_embs,
@@ -331,7 +330,7 @@ class MultimodalBackbone(Backbone):
                     },
                 )
 
-            cached_list, cached_index_list, no_cached_index_list = load_cached_tensors(inputs.unique_id)
+            cached_list, cached_index_list, no_cached_index_list = load_cached_tensors(inputs.unique_ids)
         assert len(no_cached_index_list) == 0, "All tensors should be cached"
 
         embs_list_dict: dict[str, list[torch.Tensor]] = {}
@@ -341,8 +340,7 @@ class MultimodalBackbone(Backbone):
                     embs_list_dict[k] = []
                 embs_list_dict[k].append(v)
         embs_dict: dict[str, torch.Tensor] = {k: torch.stack(v).to(inputs.device) for k, v in embs_list_dict.items()}
-
-        return embs_dict["text_embs"], embs_dict.get("audio_embs", None), embs_dict.get("video_embs", None)
+        return embs_dict.get("text_embs", None), embs_dict.get("audio_embs", None), embs_dict.get("video_embs", None)
 
     def mean_embs(self, embs_list: list[torch.Tensor | None]):
         filtered_embs_list = [emb for emb in embs_list if emb is not None]
