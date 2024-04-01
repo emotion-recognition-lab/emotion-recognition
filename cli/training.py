@@ -9,7 +9,7 @@ import torch
 import typer
 from loguru import logger
 from torch.utils.data import DataLoader
-from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer
+from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer, VivitImageProcessor
 
 from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType, Preprocessor
 from recognize.evaluate import TrainingResult
@@ -79,15 +79,15 @@ def train(
     model_label = generate_model_label(modal, freeze, label_type)
     batch_size = 64 if freeze else 2
     if checkpoint is not None and os.path.exists(f"./{checkpoint}/preprocessor"):
-        preprocessor = Preprocessor.load(f"./{checkpoint}/preprocessor")
+        preprocessor = Preprocessor.from_pretrained(f"./{checkpoint}/preprocessor")
         logger.info("load preprocessor from checkpoint")
     else:
         preprocessor = Preprocessor(
             AutoTokenizer.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
             AutoFeatureExtractor.from_pretrained("facebook/wav2vec2-base-960h"),
-            # VivitImageProcessor.from_pretrained("google/vivit-b-16x2-kinetics400")
+            VivitImageProcessor.from_pretrained("google/vivit-b-16x2-kinetics400"),
         )
-        preprocessor.save(f"./checkpoints/{model_label}/preprocessor")
+        preprocessor.save_pretrained(f"./checkpoints/{model_label}/preprocessor")
 
     train_dataset, dev_dataset, test_dataset = provide_meld_datasets(preprocessor, label_type=label_type)
     train_data_loader = DataLoader(

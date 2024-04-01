@@ -28,9 +28,10 @@ def save_checkpoint(
     epoch_checkpoint_dir.mkdir(parents=True, exist_ok=True)
     model_state_dict = {key: value for key, value in model.state_dict().items() if not key.startswith("backbone.")}
     save_file(model_state_dict, epoch_checkpoint_dir / "model.safetensors")
+
+    backbones_dir = epoch_checkpoint_dir / "backbones"
     if not model.backbone.is_frozen:
         # save and link backbone state_dict
-        backbones_dir = epoch_checkpoint_dir / "backbones"
         backbones_dir.mkdir(parents=True, exist_ok=True)
         for name, path in model.backbone.save().items():
             (backbones_dir / f"{name}.safetensors").symlink_to(path)
@@ -42,7 +43,6 @@ def save_checkpoint(
             for name, path in model.backbone.save().items():
                 (original_backbones_dir / f"{name}.safetensors").symlink_to(path)
 
-        backbones_dir = epoch_checkpoint_dir / "backbones"
         backbones_dir.symlink_to("../backbones")
 
     torch.save(optimizer.state_dict(), checkpoint_dir / "optimizer.pt")  # TODO: improve size

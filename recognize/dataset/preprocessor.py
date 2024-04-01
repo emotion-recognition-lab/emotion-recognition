@@ -115,7 +115,7 @@ class Preprocessor:
             video_pixel_values_list.append(video_pixel_values)
         return pad_sequence(video_pixel_values_list, batch_first=True)
 
-    def save(self, path: str | Path):
+    def save_pretrained(self, path: str | Path):
         if self.tokenizer is not None:
             self.tokenizer.save_pretrained(f"{path}/tokenizer")
         if self.feature_extractor is not None:
@@ -124,7 +124,7 @@ class Preprocessor:
             self.image_processor.save_pretrained(f"{path}/image_processor")
 
     @classmethod
-    def load(cls, path: str | Path):
+    def from_pretrained(cls, path: str | Path):
         from transformers import AutoFeatureExtractor, AutoTokenizer, VivitImageProcessor
 
         tokenizer = None

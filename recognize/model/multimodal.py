@@ -322,6 +322,10 @@ class MultimodalModel(ClassifierModel):
             num_classes=num_classes,
             class_weights=class_weights,
         )
+        self.text_feature_size = text_feature_size
+        self.audio_feature_size = audio_feature_size
+        self.video_feature_size = video_feature_size
+
         self.poolers = nn.ModuleList(
             [
                 Pooler(self.backbone.output_size, text_feature_size),
@@ -330,6 +334,17 @@ class MultimodalModel(ClassifierModel):
             ]
         )
         self.fusion_layer = fusion_layer
+
+    def get_hyperparameter(self):
+        hyperparameter = super().get_hyperparameter()
+        hyperparameter.update(
+            {
+                "text_feature_size": self.text_feature_size,
+                "audio_feature_size": self.audio_feature_size,
+                "video_feature_size": self.video_feature_size,
+            }
+        )
+        return hyperparameter
 
     def pool_embs(
         self, text_embs: torch.Tensor, audio_embs: torch.Tensor | None, video_embs: torch.Tensor | None

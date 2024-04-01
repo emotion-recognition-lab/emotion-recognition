@@ -173,16 +173,17 @@ class ClassifierModel(nn.Module):
     __call__: Callable[..., ClassifierOutput]
 
     def __init__(
-        self, backbone: Backbone, hidden_size: int, *, num_classes: int, class_weights: torch.Tensor | None = None
+        self, backbone: Backbone, feature_size: int, num_classes: int, *, class_weights: torch.Tensor | None = None
     ):
         super().__init__()
         self.backbone = backbone
         self.num_classes = num_classes
         self.class_weights = class_weights
-        self.hidden_size = hidden_size
+        self.feature_size = feature_size
+        self.hidden_size = feature_size  # for compatibility with old code
         self.classifier = nn.Sequential(
             nn.Dropout(0.4),
-            nn.Linear(hidden_size, num_classes),
+            nn.Linear(feature_size, num_classes),
         )
 
     def freeze_backbone(self):
@@ -210,3 +211,13 @@ class ClassifierModel(nn.Module):
         if labels is not None:
             loss = self.compute_loss(logits, labels)
         return ClassifierOutput(logits=logits.detach(), loss=loss)
+
+    def get_hyperparameter(self):
+        return {
+            "num_classes": self.num_classes,
+            "feature_size": self.feature_size,
+        }
+
+    @cached_property
+    def hyperparameter(self):
+        return self.get_hyperparameter()
