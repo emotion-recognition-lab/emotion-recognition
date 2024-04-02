@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from functools import cached_property
 from pathlib import Path
 from typing import Callable, Literal, TypeVar, overload
@@ -9,7 +10,7 @@ import torch
 from peft import LoraConfig, get_peft_model, get_peft_model_state_dict, set_peft_model_state_dict
 from peft.peft_model import PeftModel
 from pydantic import BaseModel, ConfigDict
-from safetensors.torch import save
+from safetensors.torch import save, save_file
 from torch import nn
 from torch.nn import CrossEntropyLoss
 
@@ -69,12 +70,25 @@ class Pooler(nn.Module):
 class Backbone(nn.Module):
     def __init__(
         self,
-        output_size: int,
-        *,
+        *backbones: nn.Module | None,
         is_frozen: bool = True,
         use_peft: bool = False,
         backbones_dir: str | Path = "./checkpoints/backbones",
     ):
+        # TODO: If text_backbone is None, output_size should be provided
+        # Hidden size of text, audio and video backbones must be the same
+        output_size: int | None = None
+        for backbone in backbones:
+            if backbone is not None:
+                if output_size is not None and output_size != backbone.config.hidden_size:
+                    raise ValueError("Hidden size of text, audio and video backbones must be the same")
+                output_size = backbone.config.hidden_size
+
+        if output_size is None:
+            raise ValueError(
+                "output_size must be provided if text_backbone, audio_backbone and video_backbone are None"
+            )
+
         super().__init__()
         self.output_size = output_size
         self.use_peft = use_peft
@@ -168,6 +182,9 @@ class Backbone(nn.Module):
                 f.write(state_bytes)
         return hash_dict
 
+    def from_checkpoint(self, checkpoint_path: str | Path):
+        pass
+
 
 class ClassifierModel(nn.Module):
     __call__: Callable[..., ClassifierOutput]
@@ -221,3 +238,10 @@ class ClassifierModel(nn.Module):
     @cached_property
     def hyperparameter(self):
         return self.get_hyperparameter()
+
+    def save_checkpoint(self, checkpoint_path: str | Path):
+        checkpoint_path = Path(checkpoint_path)
+        model_state_dict = {key: value for key, value in self.state_dict().items() if not key.startswith("backbone.")}
+        save_file(model_state_dict, checkpoint_path / "model.safetensors")
+        with open(checkpoint_path / "config.json", "w") as f:
+            json.dump(self.hyperparameter, f)

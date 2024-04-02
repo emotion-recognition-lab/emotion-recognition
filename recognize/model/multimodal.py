@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Callable
 
 import torch
@@ -124,7 +126,7 @@ class LazyMultimodalInput(ModelInput):
         ):
             pass
             # TODO: too slow
-            # self.video_pixel_values = self.preprocessor.load_videos(self.video_paths)
+            self.video_pixel_values = self.preprocessor.load_videos(self.video_paths)
 
         return super().__getattribute__(__name)
 
@@ -175,6 +177,7 @@ class LazyMultimodalInput(ModelInput):
         elif self.video_pixel_values is not None:
             return self.video_pixel_values.device
         else:
+            logger.warning("No tensor is loaded, use CPU as default")
             return torch.device("cpu")
 
     @classmethod
@@ -218,10 +221,7 @@ class MultimodalBackbone(Backbone):
         *,
         use_cache: bool = True,
     ):
-        # TODO: If text_backbone is None, hidden_size should be provided
-        # Hidden size of text, audio and video backbones must be the same
-        hidden_size = text_backbone.config.hidden_size if text_backbone is not None else 768
-        super().__init__(hidden_size)
+        super().__init__(text_backbone, audio_backbone, video_backbone)
         self.text_backbone = self.pretrained_module(text_backbone)
         self.audio_backbone = self.pretrained_module(audio_backbone)
         self.video_backbone = self.pretrained_module(video_backbone)
@@ -337,28 +337,29 @@ class MultimodalModel(ClassifierModel):
         self.fusion_layer = fusion_layer
 
     def get_hyperparameter(self):
-        hyperparameter = super().get_hyperparameter()
-        hyperparameter.update(
-            {
-                "text_feature_size": self.text_feature_size,
-                "audio_feature_size": self.audio_feature_size,
-                "video_feature_size": self.video_feature_size,
-            }
-        )
-        return hyperparameter
+        return {
+            "text_feature_size": self.text_feature_size,
+            "audio_feature_size": self.audio_feature_size,
+            "video_feature_size": self.video_feature_size,
+            "num_classes": self.num_classes,
+        }
 
     def pool_embs(
-        self, text_embs: torch.Tensor, audio_embs: torch.Tensor | None, video_embs: torch.Tensor | None
-    ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]:
+        self, text_embs: torch.Tensor | None, audio_embs: torch.Tensor | None, video_embs: torch.Tensor | None
+    ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
         text_pooler, audio_pooler, video_pooler = self.poolers
 
-        text_pooled_embs = text_pooler(text_embs)
-        if audio_embs is not None and text_embs.size(0) == audio_embs.size(0):
+        if text_embs is not None:
+            text_pooled_embs = text_pooler(text_embs)
+        else:
+            text_pooled_embs = None
+
+        if audio_embs is not None:
             audio_pooled_embs = audio_pooler(audio_embs)
         else:
             audio_pooled_embs = None
 
-        if video_embs is not None and text_embs.size(0) == video_embs.size(0):
+        if video_embs is not None:
             video_pooled_embs = video_pooler(video_embs)
         else:
             video_pooled_embs = None
@@ -370,5 +371,19 @@ class MultimodalModel(ClassifierModel):
         text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.pool_embs(text_embs, audio_embs, video_embs)
         fusion_features = self.fusion_layer(text_pooled_embs, audio_pooled_embs, video_pooled_embs)
         return self.classify(fusion_features, inputs.labels)
+
+    @classmethod
+    def from_checkpoint(
+        cls,
+        checkpoint_path: str | Path,
+        backbone: MultimodalBackbone,
+        fusion_layer: FusionLayer,
+        *,
+        class_weights: torch.Tensor | None = None,
+    ):
+        checkpoint_path = Path(checkpoint_path)
+        with open(checkpoint_path / "config.json", "r") as f:
+            model_config = json.load(f)
+        return cls(backbone, fusion_layer, **model_config, class_weights=class_weights)
 
     __call__: Callable[[LazyMultimodalInput], ClassifierOutput]

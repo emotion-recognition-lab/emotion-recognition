@@ -14,7 +14,7 @@ from rich.progress import (
     TextColumn,
     TimeRemainingColumn,
 )
-from safetensors.torch import load_file, save_file
+from safetensors.torch import load_file
 from torch.utils.data import DataLoader
 
 from .evaluate import EarlyStopper, TrainingResult
@@ -26,8 +26,7 @@ def save_checkpoint(
 ):
     epoch_checkpoint_dir = checkpoint_dir / str(epoch)
     epoch_checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    model_state_dict = {key: value for key, value in model.state_dict().items() if not key.startswith("backbone.")}
-    save_file(model_state_dict, epoch_checkpoint_dir / "model.safetensors")
+    model.save_checkpoint(epoch_checkpoint_dir)
 
     backbones_dir = epoch_checkpoint_dir / "backbones"
     if not model.backbone.is_frozen:
@@ -62,7 +61,7 @@ def load_model(checkpoint_dir: Path | str, model: ClassifierModel):
         )
 
 
-def load_best_model(checkpoint_dir: Path | str, model: ClassifierModel) -> int:
+def find_best_model(checkpoint_dir: Path | str) -> int:
     if os.path.exists(f"{checkpoint_dir}/stopper.json"):
         stopper = EarlyStopper.from_file(f"{checkpoint_dir}/stopper.json")
         best_epoch = stopper.best_epoch
@@ -71,8 +70,12 @@ def load_best_model(checkpoint_dir: Path | str, model: ClassifierModel) -> int:
             best_epoch = TrainingResult.model_validate_json(f.read()).best_epoch
     else:
         logger.warning(f"No stopper or result file found in [blue]{checkpoint_dir}")
-        return -1
+        best_epoch = -1
+    return best_epoch
 
+
+def load_best_model(checkpoint_dir: Path | str, model: ClassifierModel) -> int:
+    best_epoch = find_best_model(checkpoint_dir)
     logger.info(f"Load best model from [blue]{checkpoint_dir}/{best_epoch}")
     load_model(f"{checkpoint_dir}/{best_epoch}", model)
     return best_epoch

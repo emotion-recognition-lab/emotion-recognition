@@ -4,11 +4,11 @@ from pathlib import Path
 
 import torch
 import typer
-from transformers import AutoModel
+from transformers import AutoModel, VivitModel
 
 from recognize.dataset import Preprocessor
 from recognize.model import LazyMultimodalInput, LowRankFusionLayer, MultimodalBackbone, MultimodalModel
-from recognize.utils import init_logger, load_best_model
+from recognize.utils import find_best_model, init_logger
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
@@ -16,27 +16,32 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 @app.command()
 def inference(checkpoint: Path = Path("."), *, log_level: str = "DEBUG"):
     init_logger(log_level)
-    preprocessor = Preprocessor.from_pretrained(f"./{checkpoint}/preprocessor")
+    preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
     text_feature_size, audio_feature_size, video_feature_size = 128, 16, 1
     backbone = MultimodalBackbone(
         AutoModel.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
         AutoModel.from_pretrained("facebook/wav2vec2-base-960h"),
+        VivitModel.from_pretrained("google/vivit-b-16x2-kinetics400"),  # type: ignore  # noqa: PGH003
         use_cache=False,
     )
     fusion_layer = LowRankFusionLayer([text_feature_size, audio_feature_size, video_feature_size], 16, 128)
-    model = MultimodalModel(
-        backbone,
-        fusion_layer,
-        text_feature_size=text_feature_size,
-        audio_feature_size=audio_feature_size,
-        video_feature_size=video_feature_size,
-        num_classes=3,
+    model = MultimodalModel.from_checkpoint(
+        f"{checkpoint}/{find_best_model(checkpoint)}", backbone=backbone, fusion_layer=fusion_layer
     ).cuda()
     model.eval()
-    load_best_model(checkpoint, model)
     inputs = LazyMultimodalInput(
         preprocessor=preprocessor,
-        texts=["I'm feeling really good today.", "I'm feeling really good today, I'm sad."],
+        # texts=["I'm feeling really good today.", "I'm feeling really good today, I'm sad."],
+        audio_paths=[
+            "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/audios/test/dia58_utt1.flac",
+            "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/audios/test/dia58_utt2.flac",
+            "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/audios/test/dia58_utt2.flac",
+        ],
+        # video_paths=[
+        #     "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/videos/test/dia58_utt1.mp4",
+        #     "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/videos/test/dia58_utt1.mp4",
+        #     "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/videos/test/dia58_utt2.mp4",
+        # ],
     ).cuda()
     for _ in range(100):
         outputs = model(inputs)
