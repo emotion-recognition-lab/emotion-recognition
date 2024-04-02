@@ -40,6 +40,8 @@ def save_checkpoint(
         if not original_backbones_dir.exists():
             original_backbones_dir.mkdir(parents=True)
             for name, path in model.backbone.save().items():
+                config_path = original_backbones_dir / name
+                model.backbone.get_submodule(name).config.save_pretrained(config_path)
                 (original_backbones_dir / f"{name}.safetensors").symlink_to(path)
 
         backbones_dir.symlink_to("../backbones")

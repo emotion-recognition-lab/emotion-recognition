@@ -4,7 +4,7 @@ from pathlib import Path
 
 import torch
 import typer
-from transformers import AutoModel, VivitModel
+from transformers import AutoModel
 
 from recognize.dataset import Preprocessor
 from recognize.model import LazyMultimodalInput, LowRankFusionLayer, MultimodalBackbone, MultimodalModel
@@ -17,17 +17,21 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 def inference(checkpoint: Path = Path("."), *, log_level: str = "DEBUG"):
     init_logger(log_level)
     preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
+    model_checkpoint = f"{checkpoint}/{find_best_model(checkpoint)}"
     text_feature_size, audio_feature_size, video_feature_size = 128, 16, 1
-    backbone = MultimodalBackbone(
-        AutoModel.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
-        AutoModel.from_pretrained("facebook/wav2vec2-base-960h"),
-        VivitModel.from_pretrained("google/vivit-b-16x2-kinetics400"),  # type: ignore  # noqa: PGH003
-        use_cache=False,
+
+    backbone = MultimodalBackbone.from_checkpoint(
+        f"{model_checkpoint}/backbones",
     )
+    # backbone = MultimodalBackbone(
+    #     AutoModel.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
+    #     AutoModel.from_pretrained("facebook/wav2vec2-base-960h"),
+    #     # VivitModel.from_pretrained("google/vivit-b-16x2-kinetics400"),  # type: ignore  # noqa: PGH003
+    #     use_cache=False,
+    # )
+    AutoModel.from_pretrained("sentence-transformers/all-mpnet-base-v2").config.save_pretrained("test")
     fusion_layer = LowRankFusionLayer([text_feature_size, audio_feature_size, video_feature_size], 16, 128)
-    model = MultimodalModel.from_checkpoint(
-        f"{checkpoint}/{find_best_model(checkpoint)}", backbone=backbone, fusion_layer=fusion_layer
-    ).cuda()
+    model = MultimodalModel.from_checkpoint(model_checkpoint, backbone=backbone, fusion_layer=fusion_layer).cuda()
     model.eval()
     inputs = LazyMultimodalInput(
         preprocessor=preprocessor,

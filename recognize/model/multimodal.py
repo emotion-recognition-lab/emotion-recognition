@@ -6,8 +6,10 @@ from typing import Callable
 
 import torch
 from loguru import logger
+from safetensors.torch import load_file
 from torch import nn
 from torch.nn.utils.rnn import pad_sequence
+from transformers import AutoConfig, AutoModel
 
 from ..cache import load_cached_tensors, save_cached_tensors
 from ..dataset import Preprocessor
@@ -126,7 +128,7 @@ class LazyMultimodalInput(ModelInput):
         ):
             pass
             # TODO: too slow
-            self.video_pixel_values = self.preprocessor.load_videos(self.video_paths)
+            # self.video_pixel_values = self.preprocessor.load_videos(self.video_paths)
 
         return super().__getattribute__(__name)
 
@@ -220,13 +222,22 @@ class MultimodalBackbone(Backbone):
         video_backbone: nn.Module | None = None,
         *,
         use_cache: bool = True,
+        is_frozen: bool = True,
+        use_peft: bool = False,
+        backbones_dir: str | Path = "./checkpoints/backbones",
     ):
-        super().__init__(text_backbone, audio_backbone, video_backbone)
+        super().__init__(
+            text_backbone,
+            audio_backbone,
+            video_backbone,
+            use_cache=use_cache,
+            is_frozen=is_frozen,
+            use_peft=use_peft,
+            backbones_dir=backbones_dir,
+        )
         self.text_backbone = self.pretrained_module(text_backbone)
         self.audio_backbone = self.pretrained_module(audio_backbone)
         self.video_backbone = self.pretrained_module(video_backbone)
-
-        self.use_cache = use_cache
 
     def compute_embs(
         self, inputs: LazyMultimodalInput
@@ -303,6 +314,29 @@ class MultimodalBackbone(Backbone):
     #         text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.compute_pooled_embs(inputs)
     #     fusion_tensor = self.tensor_fusion_layer(text_pooled_embs, audio_pooled_embs, video_pooled_embs)
     #     return fusion_tensor
+
+    @classmethod
+    def from_checkpoint(
+        cls,
+        checkpoint_path: str | Path,
+        *,
+        use_cache: bool = True,
+        is_frozen: bool = True,
+        use_peft: bool = False,
+        backbones_dir: str | Path = "./checkpoints/backbones",
+    ):
+        checkpoint_path = Path(checkpoint_path)
+        backbones: list[nn.Module] = []
+        for name in ["text_backbone", "audio_backbone", "video_backbone"]:
+            if not (checkpoint_path / name).exists():
+                logger.warning(f"{name} not found in {checkpoint_path}")
+                continue
+            config = AutoConfig.from_pretrained(checkpoint_path / name)
+            model = AutoModel.from_config(config)
+            model.load_state_dict(load_file(checkpoint_path / f"{name}.safetensors"))
+            backbones.append(model)
+
+        return cls(*backbones, use_cache=use_cache, is_frozen=is_frozen, use_peft=use_peft, backbones_dir=backbones_dir)
 
 
 class MultimodalModel(ClassifierModel):

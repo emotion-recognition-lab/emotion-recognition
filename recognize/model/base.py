@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from functools import cached_property
 from pathlib import Path
 from typing import Callable, Literal, TypeVar, overload
@@ -10,9 +11,10 @@ import torch
 from peft import LoraConfig, get_peft_model, get_peft_model_state_dict, set_peft_model_state_dict
 from peft.peft_model import PeftModel
 from pydantic import BaseModel, ConfigDict
-from safetensors.torch import save, save_file
+from safetensors.torch import load_file, save, save_file
 from torch import nn
 from torch.nn import CrossEntropyLoss
+from transformers import AutoModel
 
 ModelInputT = TypeVar("ModelInputT", bound="ModelInput")
 ClassifierModelT = TypeVar("ClassifierModelT", bound="ClassifierModel")
@@ -71,6 +73,7 @@ class Backbone(nn.Module):
     def __init__(
         self,
         *backbones: nn.Module | None,
+        use_cache: bool = True,
         is_frozen: bool = True,
         use_peft: bool = False,
         backbones_dir: str | Path = "./checkpoints/backbones",
@@ -90,7 +93,9 @@ class Backbone(nn.Module):
             )
 
         super().__init__()
+        self.backbones = backbones
         self.output_size = output_size
+        self.use_cache = use_cache
         self.use_peft = use_peft
         self.is_frozen = is_frozen
         self.backbones_dir = Path(backbones_dir)
@@ -147,8 +152,8 @@ class Backbone(nn.Module):
         model.print_trainable_parameters()
         return model
 
-    def set_state_dicts(self, peft_state_dicts: dict[str, dict[str, torch.Tensor]]):
-        for name, state_dict in peft_state_dicts.items():
+    def set_state_dicts(self, state_dicts: dict[str, dict[str, torch.Tensor]]):
+        for name, state_dict in state_dicts.items():
             module: nn.Module = getattr(self, name)
             if isinstance(module, PeftModel):
                 set_peft_model_state_dict(module, state_dict)
@@ -156,34 +161,67 @@ class Backbone(nn.Module):
                 module.load_state_dict(state_dict)
 
     def get_state_dicts(self):
+        state_dicts: dict[str, dict[str, torch.Tensor]] = {}
         peft_state_dicts: dict[str, dict[str, torch.Tensor]] = {}
         for name, module in self.named_modules():
             if not hasattr(self, name):
                 continue
             if isinstance(module, PeftModel):
                 peft_state_dicts[name] = get_peft_model_state_dict(module, save_embedding_layers=False)  # type: ignore  # noqa: PGH003
+                state_dicts[name] = module.get_base_model().state_dict()
             else:
-                peft_state_dicts[name] = module.state_dict()
-        return peft_state_dicts
+                state_dicts[name] = module.state_dict()
+        return state_dicts, peft_state_dicts
 
     def save(self):
         hash_dict: dict[str, Path] = {}
         self.backbones_dir.mkdir(parents=True, exist_ok=True)
-        for name, state_dict in self.get_state_dicts().items():
+        state_dicts, peft_state_dicts = self.get_state_dicts()
+        for name, state_dict in state_dicts.items():
             state_bytes = save(state_dict)
             hasher = hashlib.md5()
             hasher.update(state_bytes)
             model_hash = hasher.hexdigest()
-            path = Path(f"{self.backbones_dir}/{model_hash}.safetensors")
-            hash_dict[name] = path.absolute()
-            if path.exists():
+            model_path = Path(f"{self.backbones_dir}/{model_hash}.safetensors")
+            hash_dict[name] = model_path.absolute()
+            if model_path.exists():
                 continue
-            with open(path, "wb") as f:
+            with open(model_path, "wb") as f:
                 f.write(state_bytes)
+        # TODO: peft
+        # for name, state_dict in peft_state_dicts.items():
+        #     state_bytes = save(state_dict)
+        #     path = Path(f"{self.backbones_dir}/{model_hash}.safetensors")
+        #     module.base_model.config.save_pretrained("name")
+
+        #     hash_dict[name] = path.absolute()
+        #     if path.exists():
+        #         continue
+        #     with open(path, "wb") as f:
+        #         f.write(state_bytes)
+
         return hash_dict
 
-    def from_checkpoint(self, checkpoint_path: str | Path):
-        pass
+    @classmethod
+    def from_checkpoint(
+        cls,
+        checkpoint_path: str | Path,
+        *,
+        use_cache: bool = True,
+        is_frozen: bool = True,
+        use_peft: bool = False,
+        backbones_dir: str | Path = "./checkpoints/backbones",
+    ):
+        checkpoint_path = Path(checkpoint_path)
+        backbones: list[nn.Module] = []
+        for name in os.listdir(checkpoint_path):
+            with open(checkpoint_path / name / "config.json", "r") as f:
+                config = json.load(f)
+            model = AutoModel.from_config(config)
+            model.load_state_dict(load_file(checkpoint_path / f"{name}.safetensors"))
+            backbones.append(model)
+
+        return cls(*backbones, use_cache=use_cache, is_frozen=is_frozen, use_peft=use_peft, backbones_dir=backbones_dir)
 
 
 class ClassifierModel(nn.Module):
