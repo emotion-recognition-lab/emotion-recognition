@@ -22,7 +22,11 @@ from .model.base import ClassifierModel
 
 
 def save_checkpoint(
-    checkpoint_dir: Path, epoch: int, model: ClassifierModel, optimizer: torch.optim.Optimizer, stopper: EarlyStopper
+    checkpoint_dir: Path,
+    epoch: int,
+    model: ClassifierModel,
+    optimizer: torch.optim.Optimizer,
+    stopper: EarlyStopper,
 ):
     epoch_checkpoint_dir = checkpoint_dir / str(epoch)
     epoch_checkpoint_dir.mkdir(parents=True, exist_ok=True)

@@ -20,7 +20,15 @@ class MELDDataset(MultimodalDataset):
     @staticmethod
     def emotion2int(item):
         emotion = item["Emotion"]
-        str2int = {"neutral": 0, "joy": 1, "sadness": 2, "anger": 3, "fear": 4, "disgust": 5, "surprise": 6}
+        str2int = {
+            "neutral": 0,
+            "joy": 1,
+            "sadness": 2,
+            "anger": 3,
+            "fear": 4,
+            "disgust": 5,
+            "surprise": 6,
+        }
         return str2int[emotion]
 
     @staticmethod
@@ -55,7 +63,9 @@ class MELDDataset(MultimodalDataset):
 
         super().__init__(
             dataset_path,
-            pd.read_csv(f"{dataset_path}/{self.split}_sent_emo.csv", sep=",", index_col=0, header=0),
+            pd.read_csv(
+                f"{dataset_path}/{self.split}_sent_emo.csv", sep=",", index_col=0, header=0
+            ),
             preprocessor,
             num_classes=self.num_classes,
             split=split,

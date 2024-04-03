@@ -30,7 +30,10 @@ class Preprocessor:
         if self.feature_extractor is not None and os.path.exists(audio_path):
             raw_speech, sampling_rate = sf.read(audio_path)
             audio_inputs = self.feature_extractor(
-                raw_speech.mean(1), sampling_rate=sampling_rate, return_attention_mask=True, return_tensors="pt"
+                raw_speech.mean(1),
+                sampling_rate=sampling_rate,
+                return_attention_mask=True,
+                return_tensors="pt",
             )
             audio_input_values = audio_inputs["input_values"][0]
             audio_attention_mask = audio_inputs["attention_mask"][0]
@@ -62,7 +65,9 @@ class Preprocessor:
 
     def load_texts(self, texts: list[str]) -> tuple[torch.Tensor | None, torch.Tensor | None]:
         if self.tokenizer is not None:
-            text_inputs = self.tokenizer(texts, return_attention_mask=True, return_tensors="pt", padding=True)
+            text_inputs = self.tokenizer(
+                texts, return_attention_mask=True, return_tensors="pt", padding=True
+            )
             text_input_ids = text_inputs["input_ids"]
             text_attention_mask = text_inputs["attention_mask"]
         else:
@@ -70,7 +75,9 @@ class Preprocessor:
             text_attention_mask = None
         return text_input_ids, text_attention_mask
 
-    def load_audios(self, audio_paths: list[str]) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+    def load_audios(
+        self, audio_paths: list[str]
+    ) -> tuple[torch.Tensor | None, torch.Tensor | None]:
         if self.feature_extractor is None:
             return None, None
         audio_input_values_list, audio_attention_mask_list = [], []
@@ -80,7 +87,10 @@ class Preprocessor:
 
             raw_speech, sampling_rate = sf.read(audio_path)
             audio_inputs = self.feature_extractor(
-                raw_speech.mean(1), sampling_rate=sampling_rate, return_attention_mask=True, return_tensors="pt"
+                raw_speech.mean(1),
+                sampling_rate=sampling_rate,
+                return_attention_mask=True,
+                return_tensors="pt",
             )
             audio_input_values = audio_inputs["input_values"][0]
             audio_attention_mask = audio_inputs["attention_mask"][0]

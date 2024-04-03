@@ -62,7 +62,9 @@ def calculate_accuracy(predicted_list: list[int], labels_list: list[int]):
     return accuracy
 
 
-def calculate_f1_score(predicted_list: list[int], labels_list: list[int], class_weights: list[float]):
+def calculate_f1_score(
+    predicted_list: list[int], labels_list: list[int], class_weights: list[float]
+):
     num_classes = len(class_weights)
     predicted = np.array(predicted_list)
     labels = np.array(labels_list)

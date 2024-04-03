@@ -6,7 +6,12 @@ import torch
 import typer
 
 from recognize.dataset import Preprocessor
-from recognize.model import LazyMultimodalInput, LowRankFusionLayer, MultimodalBackbone, MultimodalModel
+from recognize.model import (
+    LazyMultimodalInput,
+    LowRankFusionLayer,
+    MultimodalBackbone,
+    MultimodalModel,
+)
 from recognize.utils import find_best_model, init_logger
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
@@ -23,8 +28,12 @@ def inference(checkpoint: Path = Path("."), *, log_level: str = "DEBUG"):
         f"{model_checkpoint}/backbones",
         use_cache=False,
     )
-    fusion_layer = LowRankFusionLayer([text_feature_size, audio_feature_size, video_feature_size], 16, 128)
-    model = MultimodalModel.from_checkpoint(model_checkpoint, backbone=backbone, fusion_layer=fusion_layer).cuda()
+    fusion_layer = LowRankFusionLayer(
+        [text_feature_size, audio_feature_size, video_feature_size], 16, 128
+    )
+    model = MultimodalModel.from_checkpoint(
+        model_checkpoint, backbone=backbone, fusion_layer=fusion_layer
+    ).cuda()
     model.eval()
     inputs = LazyMultimodalInput(
         preprocessor=preprocessor,

@@ -34,16 +34,28 @@ class MultimodalInput(ModelInput):
         assert isinstance(self.unique_ids, list), "unique_ids must be a list"
 
         text_input_ids = self.text_input_ids[index]
-        text_attention_mask = self.text_attention_mask[index] if self.text_attention_mask is not None else None
+        text_attention_mask = (
+            self.text_attention_mask[index] if self.text_attention_mask is not None else None
+        )
 
-        audio_input_values = self.audio_input_values[index] if self.audio_input_values is not None else None
-        audio_attention_mask = self.audio_attention_mask[index] if self.audio_attention_mask is not None else None
+        audio_input_values = (
+            self.audio_input_values[index] if self.audio_input_values is not None else None
+        )
+        audio_attention_mask = (
+            self.audio_attention_mask[index] if self.audio_attention_mask is not None else None
+        )
 
-        video_pixel_values = self.video_pixel_values[index] if self.video_pixel_values is not None else None
+        video_pixel_values = (
+            self.video_pixel_values[index] if self.video_pixel_values is not None else None
+        )
         video_head_mask = self.video_head_mask[index] if self.video_head_mask is not None else None
 
         labels = self.labels[index] if self.labels is not None else None
-        unique_ids = [self.unique_ids[i] for i in index] if isinstance(index, list) else self.unique_ids[index]
+        unique_ids = (
+            [self.unique_ids[i] for i in index]
+            if isinstance(index, list)
+            else self.unique_ids[index]
+        )
 
         return MultimodalInput(
             text_input_ids=text_input_ids,
@@ -120,7 +132,9 @@ class LazyMultimodalInput(ModelInput):
             and super().__getattribute__("audio_input_values") is None
             and self.audio_paths is not None
         ):
-            self.audio_input_values, self.audio_attention_mask = self.preprocessor.load_audios(self.audio_paths)
+            self.audio_input_values, self.audio_attention_mask = self.preprocessor.load_audios(
+                self.audio_paths
+            )
         elif (
             __name == "video_pixel_values"
             and super().__getattribute__("video_pixel_values") is None
@@ -143,16 +157,30 @@ class LazyMultimodalInput(ModelInput):
             if isinstance(index, int):
                 index = [index]
             texts = [self.texts[i] for i in index] if self.texts is not None else None
-            audio_paths = [self.audio_paths[i] for i in index] if self.audio_paths is not None else None
-            video_paths = [self.video_paths[i] for i in index] if self.video_paths is not None else None
+            audio_paths = (
+                [self.audio_paths[i] for i in index] if self.audio_paths is not None else None
+            )
+            video_paths = (
+                [self.video_paths[i] for i in index] if self.video_paths is not None else None
+            )
             labels = self.labels[index] if self.labels is not None else None
-            unique_ids = [self.unique_ids[i] for i in index] if self.unique_ids is not None else None
+            unique_ids = (
+                [self.unique_ids[i] for i in index] if self.unique_ids is not None else None
+            )
 
         text_input_ids = self.text_input_ids[index] if self.text_input_ids is not None else None
-        text_attention_mask = self.text_attention_mask[index] if self.text_attention_mask is not None else None
-        audio_input_values = self.audio_input_values[index] if self.audio_input_values is not None else None
-        audio_attention_mask = self.audio_attention_mask[index] if self.audio_attention_mask is not None else None
-        video_pixel_values = self.video_pixel_values[index] if self.video_pixel_values is not None else None
+        text_attention_mask = (
+            self.text_attention_mask[index] if self.text_attention_mask is not None else None
+        )
+        audio_input_values = (
+            self.audio_input_values[index] if self.audio_input_values is not None else None
+        )
+        audio_attention_mask = (
+            self.audio_attention_mask[index] if self.audio_attention_mask is not None else None
+        )
+        video_pixel_values = (
+            self.video_pixel_values[index] if self.video_pixel_values is not None else None
+        )
         video_head_mask = self.video_head_mask[index] if self.video_head_mask is not None else None
 
         return LazyMultimodalInput(
@@ -208,7 +236,9 @@ class LazyMultimodalInput(ModelInput):
                     itme_attr = getattr(item, field)
                     if itme_attr is None:
                         break
-                    assert isinstance(itme_attr, list), f"{field} must be a list, but got {type(itme_attr)}"
+                    assert isinstance(
+                        itme_attr, list
+                    ), f"{field} must be a list, but got {type(itme_attr)}"
                     attr.extend(itme_attr)
             field_dict[field] = attr
         return cls(**field_dict)
@@ -243,13 +273,17 @@ class MultimodalBackbone(Backbone):
         self, inputs: LazyMultimodalInput
     ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
         if self.text_backbone is not None and inputs.text_input_ids is not None:
-            text_outputs = self.text_backbone(inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
+            text_outputs = self.text_backbone(
+                inputs.text_input_ids, attention_mask=inputs.text_attention_mask
+            )
             text_embs = text_outputs.last_hidden_state[:, 0]
         else:
             text_embs = None
 
         if self.audio_backbone is not None and inputs.audio_input_values is not None:
-            audio_outputs = self.audio_backbone(inputs.audio_input_values, attention_mask=inputs.audio_attention_mask)
+            audio_outputs = self.audio_backbone(
+                inputs.audio_input_values, attention_mask=inputs.audio_attention_mask
+            )
             audio_embs = audio_outputs.last_hidden_state[:, 0]
         else:
             audio_embs = None
@@ -270,7 +304,9 @@ class MultimodalBackbone(Backbone):
 
     def cached_forward(self, inputs: LazyMultimodalInput):
         assert isinstance(inputs.unique_ids, list), "unique_ids must be a list"
-        cached_list, cached_index_list, no_cached_index_list = load_cached_tensors(inputs.unique_ids)
+        cached_list, cached_index_list, no_cached_index_list = load_cached_tensors(
+            inputs.unique_ids
+        )
         if len(no_cached_index_list) != 0:
             no_cached_inputs = inputs[no_cached_index_list]
             assert isinstance(no_cached_inputs.unique_ids, list), "unique_ids must be a list"
@@ -287,7 +323,9 @@ class MultimodalBackbone(Backbone):
                     },
                 )
 
-            cached_list, cached_index_list, no_cached_index_list = load_cached_tensors(inputs.unique_ids)
+            cached_list, cached_index_list, no_cached_index_list = load_cached_tensors(
+                inputs.unique_ids
+            )
         assert len(no_cached_index_list) == 0, "All tensors should be cached"
 
         embs_list_dict: dict[str, list[torch.Tensor]] = {}
@@ -296,8 +334,14 @@ class MultimodalBackbone(Backbone):
                 if k not in embs_list_dict:
                     embs_list_dict[k] = []
                 embs_list_dict[k].append(v)
-        embs_dict: dict[str, torch.Tensor] = {k: torch.stack(v).to(inputs.device) for k, v in embs_list_dict.items()}
-        return embs_dict.get("text_embs", None), embs_dict.get("audio_embs", None), embs_dict.get("video_embs", None)
+        embs_dict: dict[str, torch.Tensor] = {
+            k: torch.stack(v).to(inputs.device) for k, v in embs_list_dict.items()
+        }
+        return (
+            embs_dict.get("text_embs", None),
+            embs_dict.get("audio_embs", None),
+            embs_dict.get("video_embs", None),
+        )
 
     def mean_embs(self, embs_list: list[torch.Tensor | None]):
         filtered_embs_list = [emb for emb in embs_list if emb is not None]
@@ -336,7 +380,13 @@ class MultimodalBackbone(Backbone):
             model.load_state_dict(load_file(checkpoint_path / f"{name}.safetensors"))
             backbones.append(model)
 
-        return cls(*backbones, use_cache=use_cache, is_frozen=is_frozen, use_peft=use_peft, backbones_dir=backbones_dir)
+        return cls(
+            *backbones,
+            use_cache=use_cache,
+            is_frozen=is_frozen,
+            use_peft=use_peft,
+            backbones_dir=backbones_dir,
+        )
 
 
 class MultimodalModel(ClassifierModel):
@@ -379,7 +429,10 @@ class MultimodalModel(ClassifierModel):
         }
 
     def pool_embs(
-        self, text_embs: torch.Tensor | None, audio_embs: torch.Tensor | None, video_embs: torch.Tensor | None
+        self,
+        text_embs: torch.Tensor | None,
+        audio_embs: torch.Tensor | None,
+        video_embs: torch.Tensor | None,
     ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
         text_pooler, audio_pooler, video_pooler = self.poolers
 
@@ -402,7 +455,9 @@ class MultimodalModel(ClassifierModel):
 
     def forward(self, inputs: LazyMultimodalInput) -> ClassifierOutput:
         text_embs, audio_embs, video_embs = self.backbone(inputs)
-        text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.pool_embs(text_embs, audio_embs, video_embs)
+        text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.pool_embs(
+            text_embs, audio_embs, video_embs
+        )
         fusion_features = self.fusion_layer(text_pooled_embs, audio_pooled_embs, video_pooled_embs)
         return self.classify(fusion_features, inputs.labels)
 

@@ -13,7 +13,12 @@ from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer, VivitIm
 
 from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType, Preprocessor
 from recognize.evaluate import TrainingResult
-from recognize.model import LazyMultimodalInput, LowRankFusionLayer, MultimodalBackbone, MultimodalModel
+from recognize.model import (
+    LazyMultimodalInput,
+    LowRankFusionLayer,
+    MultimodalBackbone,
+    MultimodalModel,
+)
 from recognize.utils import init_logger, load_best_model, train_and_eval
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
@@ -89,7 +94,9 @@ def train(
         )
         preprocessor.save_pretrained(f"./checkpoints/{model_label}/preprocessor")
 
-    train_dataset, dev_dataset, test_dataset = provide_meld_datasets(preprocessor, label_type=label_type)
+    train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
+        preprocessor, label_type=label_type
+    )
     train_data_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
@@ -118,7 +125,9 @@ def train(
         AutoModel.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
         AutoModel.from_pretrained("facebook/wav2vec2-base-960h"),
     )
-    fusion_layer = LowRankFusionLayer([text_feature_size, audio_feature_size, video_feature_size], 16, 128)
+    fusion_layer = LowRankFusionLayer(
+        [text_feature_size, audio_feature_size, video_feature_size], 16, 128
+    )
 
     model = MultimodalModel(
         backbone,

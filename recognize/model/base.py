@@ -62,7 +62,9 @@ class Pooler(nn.Module):
         super().__init__()
         if out_features is None:
             out_features = in_features
-        self.pool = nn.Sequential(nn.Dropout(0.4), nn.Linear(in_features, out_features, bias=bias), nn.ReLU())
+        self.pool = nn.Sequential(
+            nn.Dropout(0.4), nn.Linear(in_features, out_features, bias=bias), nn.ReLU()
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         pooled_output = self.pool(x)
@@ -84,7 +86,9 @@ class Backbone(nn.Module):
         for backbone in backbones:
             if backbone is not None:
                 if output_size is not None and output_size != backbone.config.hidden_size:
-                    raise ValueError("Hidden size of text, audio and video backbones must be the same")
+                    raise ValueError(
+                        "Hidden size of text, audio and video backbones must be the same"
+                    )
                 output_size = backbone.config.hidden_size
 
         if output_size is None:
@@ -141,7 +145,11 @@ class Backbone(nn.Module):
         model = get_peft_model(
             model,  # type: ignore  # noqa: PGH003
             LoraConfig(
-                target_modules=[n for n, m in model.named_modules() if type(m) in [nn.Linear, nn.Embedding, nn.Conv2d]],
+                target_modules=[
+                    n
+                    for n, m in model.named_modules()
+                    if type(m) in [nn.Linear, nn.Embedding, nn.Conv2d]
+                ],
                 inference_mode=False,
                 r=rank,
                 lora_alpha=lora_alpha,
@@ -167,7 +175,9 @@ class Backbone(nn.Module):
             if not hasattr(self, name):
                 continue
             if isinstance(module, PeftModel):
-                peft_state_dicts[name] = get_peft_model_state_dict(module, save_embedding_layers=False)  # type: ignore  # noqa: PGH003
+                peft_state_dicts[name] = get_peft_model_state_dict(
+                    module, save_embedding_layers=False
+                )  # type: ignore  # noqa: PGH003
                 state_dicts[name] = module.get_base_model().state_dict()
             else:
                 state_dicts[name] = module.state_dict()
@@ -221,14 +231,25 @@ class Backbone(nn.Module):
             model.load_state_dict(load_file(checkpoint_path / f"{name}.safetensors"))
             backbones.append(model)
 
-        return cls(*backbones, use_cache=use_cache, is_frozen=is_frozen, use_peft=use_peft, backbones_dir=backbones_dir)
+        return cls(
+            *backbones,
+            use_cache=use_cache,
+            is_frozen=is_frozen,
+            use_peft=use_peft,
+            backbones_dir=backbones_dir,
+        )
 
 
 class ClassifierModel(nn.Module):
     __call__: Callable[..., ClassifierOutput]
 
     def __init__(
-        self, backbone: Backbone, feature_size: int, num_classes: int, *, class_weights: torch.Tensor | None = None
+        self,
+        backbone: Backbone,
+        feature_size: int,
+        num_classes: int,
+        *,
+        class_weights: torch.Tensor | None = None,
     ):
         super().__init__()
         self.backbone = backbone
@@ -279,7 +300,11 @@ class ClassifierModel(nn.Module):
 
     def save_checkpoint(self, checkpoint_path: str | Path):
         checkpoint_path = Path(checkpoint_path)
-        model_state_dict = {key: value for key, value in self.state_dict().items() if not key.startswith("backbone.")}
+        model_state_dict = {
+            key: value
+            for key, value in self.state_dict().items()
+            if not key.startswith("backbone.")
+        }
         save_file(model_state_dict, checkpoint_path / "model.safetensors")
         with open(checkpoint_path / "config.json", "w") as f:
             json.dump(self.hyperparameter, f)

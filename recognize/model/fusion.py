@@ -32,13 +32,19 @@ class TensorFusionLayer(FusionLayer):
         else:
             augmentation_zv = augmentation.broadcast_to(zl.size(0), self.video_size + 1)
 
-        assert augmentation_zl.size(1) == self.text_size + 1, f"{augmentation_zl.size(1)} != {self.text_size + 1}"
-        assert augmentation_za.size(1) == self.audio_size + 1, f"{augmentation_za.size(1)} != {self.audio_size + 1}"
-        assert augmentation_zv.size(1) == self.video_size + 1, f"{augmentation_zv.size(1)} != {self.video_size + 1}"
+        assert (
+            augmentation_zl.size(1) == self.text_size + 1
+        ), f"{augmentation_zl.size(1)} != {self.text_size + 1}"
+        assert (
+            augmentation_za.size(1) == self.audio_size + 1
+        ), f"{augmentation_za.size(1)} != {self.audio_size + 1}"
+        assert (
+            augmentation_zv.size(1) == self.video_size + 1
+        ), f"{augmentation_zv.size(1)} != {self.video_size + 1}"
 
-        fusion_tensor = torch.einsum("bi,bj,bk->bijk", augmentation_zl, augmentation_za, augmentation_zv).view(
-            zl.size(0), -1
-        )
+        fusion_tensor = torch.einsum(
+            "bi,bj,bk->bijk", augmentation_zl, augmentation_za, augmentation_zv
+        ).view(zl.size(0), -1)
         return fusion_tensor
 
 
@@ -47,7 +53,9 @@ class LowRankFusionLayer(FusionLayer):
         super().__init__(output_size)
         self.dims = dims
         self.rank = rank
-        self.low_rank_weights = nn.ParameterList([nn.Parameter(torch.randn(rank, dim, output_size)) for dim in dims])
+        self.low_rank_weights = nn.ParameterList(
+            [nn.Parameter(torch.randn(rank, dim, output_size)) for dim in dims]
+        )
         self.output_layer = nn.Linear(rank, 1)
 
     def forward(self, *inputs: torch.Tensor | None):
@@ -56,7 +64,9 @@ class LowRankFusionLayer(FusionLayer):
         ), "Number of inputs should be less than or equal to number of weights"
         # N*d x R*d*h => R*N*h ~reshape~> N*h*R -> N*h*1 ~squeeze~> N*h
         fusion_tensors = [
-            torch.matmul(i, w) for i, w in zip(inputs, self.low_rank_weights, strict=False) if i is not None
+            torch.matmul(i, w)
+            for i, w in zip(inputs, self.low_rank_weights, strict=False)
+            if i is not None
         ]
         product_tensor = torch.prod(torch.stack(fusion_tensors), dim=0)
         output = self.output_layer(product_tensor.permute(1, 2, 0)).squeeze(dim=-1)
