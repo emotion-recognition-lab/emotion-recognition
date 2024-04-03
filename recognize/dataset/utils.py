@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections import Counter
 
-import av
 import numpy as np
 
 
@@ -76,6 +75,8 @@ def sample_frame_indices(clip_len, frame_sample_rate, seg_len):  # 从视频中�
 
 
 def read_videos(video_path):
+    import av
+
     container = av.open(video_path)
     indices = sample_frame_indices(clip_len=32, frame_sample_rate=1, seg_len=container.streams.video[0].frames)
     videos = read_video_pyav(container=container, indices=indices)

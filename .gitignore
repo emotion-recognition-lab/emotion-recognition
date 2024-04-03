@@ -1,7 +1,6 @@
 __pycache__/
-outputs/
-datasets/features/
-preprocess_data/
+dist/
+
 checkpoints/
 logs/
 cache/
