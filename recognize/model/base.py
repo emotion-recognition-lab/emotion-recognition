@@ -176,8 +176,9 @@ class Backbone(nn.Module):
                 continue
             if isinstance(module, PeftModel):
                 peft_state_dicts[name] = get_peft_model_state_dict(
-                    module, save_embedding_layers=False
-                )  # type: ignore  # noqa: PGH003
+                    module,
+                    save_embedding_layers=False,  # type: ignore  # noqa: PGH003
+                )
                 state_dicts[name] = module.get_base_model().state_dict()
             else:
                 state_dicts[name] = module.state_dict()

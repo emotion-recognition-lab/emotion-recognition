@@ -401,6 +401,7 @@ class MultimodalModel(ClassifierModel):
         num_classes: int = 2,
         class_weights: torch.Tensor | None = None,
     ):
+        torch.set_float32_matmul_precision("high")
         super().__init__(
             backbone,
             fusion_layer.output_size,

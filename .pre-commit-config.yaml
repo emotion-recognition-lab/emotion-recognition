@@ -8,7 +8,6 @@ repos:
       - id: check-merge-conflict
       - id: debug-statements
       - id: end-of-file-fixer
-        exclude: reports/sections/(.)*\.typ
       - id: mixed-line-ending
       - id: trailing-whitespace
 

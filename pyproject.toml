@@ -19,8 +19,12 @@ readme = "README.md"
 license = { text = "MIT" }
 
 [project.urls]
-Homepage = "https://pypi.org/project/emotion-recognition"
+Homepage = "https://github.com/zrr1999/emotion-recognition.git"
 Repository = "https://github.com/zrr1999/emotion-recognition.git"
+
+[project.scripts]
+emotion-train = "cli.training:app"
+emotion-infer = "cli.inference:app"
 
 [tool.ruff]
 line-length = 100

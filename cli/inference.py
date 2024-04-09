@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import torch
 import typer
 
 from recognize.dataset import Preprocessor
@@ -55,5 +54,4 @@ def inference(checkpoint: Path = Path("."), *, log_level: str = "DEBUG"):
 
 
 if __name__ == "__main__":
-    torch.set_float32_matmul_precision("high")
     app()
