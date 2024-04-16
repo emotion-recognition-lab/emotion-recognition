@@ -7,8 +7,8 @@ import pandas as pd
 import torch
 from loguru import logger
 
+from ..preprocessor import Preprocessor
 from .base import DatasetSplit, MultimodalDataset
-from .preprocessor import Preprocessor
 
 
 class MELDDatasetLabelType(Enum):

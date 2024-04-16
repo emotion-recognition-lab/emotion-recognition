@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 from torch.utils.data import Dataset
 
-from .preprocessor import Preprocessor
+from ..preprocessor import Preprocessor
 
 if TYPE_CHECKING:
     from ..model import LazyMultimodalInput
@@ -45,7 +45,6 @@ class MultimodalDataset(Dataset):
         self.split = split.value
 
         self.custom_unique_id = custom_unique_id
-
         self.cache_mode = cache_mode
 
     @abstractmethod

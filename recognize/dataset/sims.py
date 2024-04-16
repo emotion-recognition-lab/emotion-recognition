@@ -6,8 +6,8 @@ from functools import cached_property
 import pandas as pd
 import torch
 
+from ..preprocessor import Preprocessor
 from .base import DatasetSplit, MultimodalDataset
-from .preprocessor import Preprocessor
 
 
 class SIMSDataset(MultimodalDataset):

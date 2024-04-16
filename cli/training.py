@@ -8,6 +8,7 @@ from typing import Optional
 import torch
 import typer
 from loguru import logger
+from pydantic import BaseModel, Field
 from torch.utils.data import DataLoader
 from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer, VivitImageProcessor
 
@@ -58,9 +59,13 @@ def clean_cache():
 def generate_model_label(modal: ModalType, freeze: bool, label_type: MELDDatasetLabelType):
     model_label = modal.value
     if label_type == MELDDatasetLabelType.SENTIMENT:
-        model_label += "--sentiment"
+        model_label += "--S"
+    else:
+        model_label += "--E"
     if freeze:
-        model_label += "--frozen"
+        model_label += "F"
+    else:
+        model_label += "T"
     return model_label
 
 
@@ -69,6 +74,16 @@ class ModalType(str, Enum):
     # AUDIO = "A"
     # VIDEO = "V"
     TEXT_AUDIO = "T+A"
+
+
+class MultimodalModelConfig(BaseModel):
+    modal: ModalType
+    freeze: bool
+    label_type: MELDDatasetLabelType
+    fusion_method: str = "low-rank-fusion"
+    backbones: list[str] = Field(
+        ["sentence-transformers/all-mpnet-base-v2", "facebook/wav2vec2-base-960h"]
+    )
 
 
 @app.command()
@@ -85,7 +100,10 @@ def train(
     batch_size = 64 if freeze else 2
     if checkpoint is not None and os.path.exists(f"./{checkpoint}/preprocessor"):
         preprocessor = Preprocessor.from_pretrained(f"./{checkpoint}/preprocessor")
-        logger.info("load preprocessor from checkpoint")
+        backbone = MultimodalBackbone.from_checkpoint(
+            f"{checkpoint}/backbones",
+        )
+        logger.info("load preprocessor and backbone from checkpoint")
     else:
         preprocessor = Preprocessor(
             AutoTokenizer.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
@@ -93,6 +111,12 @@ def train(
             VivitImageProcessor.from_pretrained("google/vivit-b-16x2-kinetics400"),
         )
         preprocessor.save_pretrained(f"./checkpoints/{model_label}/preprocessor")
+
+        backbone = MultimodalBackbone(
+            AutoModel.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
+            AutoModel.from_pretrained("facebook/wav2vec2-base-960h"),
+            AutoModel.from_pretrained("google/vit-base-patch16-224-in21k"),
+        )
 
     train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
         preprocessor, label_type=label_type
@@ -121,10 +145,6 @@ def train(
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
 
     text_feature_size, audio_feature_size, video_feature_size = 128, 16, 1
-    backbone = MultimodalBackbone(
-        AutoModel.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
-        AutoModel.from_pretrained("facebook/wav2vec2-base-960h"),
-    )
     fusion_layer = LowRankFusionLayer(
         [text_feature_size, audio_feature_size, video_feature_size], 16, 128
     )
@@ -161,5 +181,4 @@ def train(
 
 
 if __name__ == "__main__":
-    torch.set_float32_matmul_precision("high")
     app()

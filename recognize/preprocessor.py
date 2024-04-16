@@ -7,7 +7,7 @@ import soundfile as sf
 import torch
 from torch.nn.utils.rnn import pad_sequence
 
-from .utils import read_videos
+from .dataset.utils import read_videos
 
 
 class Preprocessor:

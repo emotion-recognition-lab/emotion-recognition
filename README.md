@@ -21,6 +21,20 @@ emotion-recogiition
 
 LoRA
 
+## 项目约定
+### 检查点命名
+每个训练任务的检查点对应一个文件夹，
+对于单一模态任务，文件夹命名为`{模态}--{分类任务}{训练方式}({骨干网络})`，
+对于多模态任务，文件夹命名为`{模态}--{分类任务}{训练方式}--{融合网络}({骨干网络})`。
+
+其中分类任务分为`emotion`和`sentiment`，简称如下：
+- emotion: E
+- sentiment: S
+
+训练方式分为`Full Tuning`、`LoRA` 和 `Froze Backbones`，简称如下：
+- Full Tuning: T
+- LoRA: L
+- Froze Backbones: F
 ## 实验结果
 
 ### 单一模态
