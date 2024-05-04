@@ -280,7 +280,6 @@ class ClassifierModel(nn.Module):
             loss_fct = CrossEntropyLoss(weight=self.sample_weights)
             return loss_fct(logits, labels)
 
-    @torch.compile(backend="cudagraphs")
     def classify(self, features: torch.Tensor, labels: torch.Tensor | None) -> ClassifierOutput:
         logits = self.classifier(features)
         loss = None
