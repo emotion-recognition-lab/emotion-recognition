@@ -62,7 +62,9 @@ def load_model(checkpoint_dir: Path | str, model: ClassifierModel):
         model.backbone.set_state_dicts(
             {
                 name.split(".")[0]: load_file(checkpoint_dir / f"backbones/{name}")
-                for name in os.listdir(checkpoint_dir / "backbones")
+                for name in filter(
+                    lambda x: x.endswith(".safetensors"), os.listdir(checkpoint_dir / "backbones")
+                )
             }
         )
 

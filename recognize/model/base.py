@@ -80,7 +80,6 @@ class Backbone(nn.Module):
         use_peft: bool = False,
         backbones_dir: str | Path = "./checkpoints/backbones",
     ):
-        # TODO: If text_backbone is None, output_size should be provided
         # Hidden size of text, audio and video backbones must be the same
         output_size: int | None = None
         for backbone in backbones:
@@ -281,7 +280,7 @@ class ClassifierModel(nn.Module):
             loss_fct = CrossEntropyLoss(weight=self.sample_weights)
             return loss_fct(logits, labels)
 
-    @torch.compile()
+    @torch.compile(backend="cudagraphs")
     def classify(self, features: torch.Tensor, labels: torch.Tensor | None) -> ClassifierOutput:
         logits = self.classifier(features)
         loss = None

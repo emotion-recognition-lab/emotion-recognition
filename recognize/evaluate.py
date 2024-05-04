@@ -221,8 +221,7 @@ class EarlyStopper(BaseModel):
             if key not in self.best_scores:
                 self.best_scores[key] = (float("-inf"), 0)
             if value > self.best_scores[key][0]:
-                repeat_times = self.best_scores[key][1]
-                self.best_scores[key] = (value, repeat_times)
+                self.best_scores[key] = (value, 0)
                 self.best_epoch = epoch
             else:
                 repeat_times = self.best_scores[key][1]

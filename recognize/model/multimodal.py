@@ -235,6 +235,7 @@ class LazyMultimodalInput(ModelInput):
                 for item in batch:
                     itme_attr = getattr(item, field)
                     if itme_attr is None:
+                        attr = None
                         break
                     assert isinstance(
                         itme_attr, list

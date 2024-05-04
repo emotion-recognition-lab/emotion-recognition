@@ -18,6 +18,11 @@ requires-python = ">=3.11"
 readme = "README.md"
 license = { text = "MIT" }
 
+[project.optional-dependencies]
+triton = [
+    "triton>=2.2.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/zrr1999/emotion-recognition.git"
 Repository = "https://github.com/zrr1999/emotion-recognition.git"
