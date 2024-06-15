@@ -13,6 +13,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "rich>=13.7.1",
     "soundfile>=0.12.1",
+    "whisperx>=3.1.4",
 ]
 requires-python = ">=3.11"
 readme = "README.md"
