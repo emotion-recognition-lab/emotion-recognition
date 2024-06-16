@@ -6,19 +6,19 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  id-token: write
+  actions: read
+  contents: read
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-    - name: Setup PDM
-      uses: pdm-project/setup-pdm@v3
-      with:
-        python-version: "3.11"
-    - name: Install dependencies
-      run: |
-        pdm install
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup PDM
+        uses: pdm-project/setup-pdm@v3
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          pdm install
