@@ -17,6 +17,12 @@ emotion-recogiition
 └── README.md
 ```
 
+## 快速开始
+```sh
+mkdir datasets
+ln -s /home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly datasets/MELD.AudioOnly
+```
+
 ## 相关技术
 
 LoRA

@@ -4,6 +4,7 @@ dist/
 checkpoints/
 logs/
 cache/
+datasets/
 
 .pdm-python
 result.json

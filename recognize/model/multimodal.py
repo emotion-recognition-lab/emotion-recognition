@@ -134,7 +134,11 @@ class LazyMultimodalInput(ModelInput):
     video_head_mask: torch.Tensor | None = None
 
     def __getattribute__(self, __name: str):
-        if self.texts is None and self.audio_paths is not None:
+        if (
+            __name in ["text_input_ids", "text_attention_mask"]
+            and self.texts is None
+            and self.audio_paths is not None
+        ):
             logger.debug("Texts is not provided, but audio_paths is provided, so use audio_paths")
             self.texts = [self.recoginize_audio(audio_path) for audio_path in self.audio_paths]
 
