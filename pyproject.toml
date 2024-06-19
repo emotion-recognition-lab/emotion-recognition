@@ -29,8 +29,7 @@ Homepage = "https://github.com/zrr1999/emotion-recognition.git"
 Repository = "https://github.com/zrr1999/emotion-recognition.git"
 
 [project.scripts]
-emotion-train = "cli.training:app"
-emotion-infer = "cli.inference:app"
+emotion-recognize = "recognize.cli:app"
 
 [tool.ruff]
 line-length = 100

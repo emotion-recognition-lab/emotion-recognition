@@ -9,6 +9,8 @@ import torch
 import typer
 from loguru import logger
 from pydantic import BaseModel, Field
+from rich.highlighter import NullHighlighter
+from rich.logging import RichHandler
 from torch.utils.data import DataLoader
 from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer, VivitImageProcessor
 
@@ -20,28 +22,35 @@ from recognize.model import (
     MultimodalBackbone,
     MultimodalModel,
 )
-from recognize.utils import init_logger, load_best_model, train_and_eval
+from recognize.typing import LogLevel
+from recognize.utils import find_best_model, load_best_model, train_and_eval
 
-app = typer.Typer(pretty_exceptions_show_locals=False)
+
+def init_logger(log_level: LogLevel):
+    handler = RichHandler(highlighter=NullHighlighter(), markup=True)
+    logger.remove()
+    logger.add(handler, format="{message}", level=log_level)
 
 
-def provide_meld_datasets(preprocessor, label_type=MELDDatasetLabelType.EMOTION):
+def provide_meld_datasets(
+    dataset_path: Path, preprocessor: Preprocessor, label_type=MELDDatasetLabelType.EMOTION
+):
     train_dataset = MELDDataset(
-        "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
+        dataset_path.as_posix(),
         preprocessor,
         split=DatasetSplit.TRAIN,
         label_type=label_type,
         custom_unique_id="T",
     )
     dev_dataset = MELDDataset(
-        "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
+        dataset_path.as_posix(),
         preprocessor,
         split=DatasetSplit.VALID,
         label_type=label_type,
         custom_unique_id="T",
     )
     test_dataset = MELDDataset(
-        "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly",
+        dataset_path.as_posix(),
         preprocessor,
         split=DatasetSplit.TEST,
         label_type=label_type,
@@ -86,14 +95,18 @@ class MultimodalModelConfig(BaseModel):
     )
 
 
+app = typer.Typer(pretty_exceptions_show_locals=False)
+
+
 @app.command()
 def train(
+    dataset_path: Path,
     modal: ModalType = ModalType.TEXT,
     freeze: bool = True,
     checkpoint: Optional[Path] = None,
     label_type: MELDDatasetLabelType = MELDDatasetLabelType.EMOTION,
-    log_level: str = "DEBUG",
-):
+    log_level: LogLevel = "DEBUG",
+) -> None:
     clean_cache()
     init_logger(log_level)
     model_label = generate_model_label(modal, freeze, label_type)
@@ -119,7 +132,7 @@ def train(
         )
 
     train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
-        preprocessor, label_type=label_type
+        dataset_path, preprocessor, label_type=label_type
     )
     train_data_loader = DataLoader(
         train_dataset,
@@ -178,6 +191,50 @@ def train(
     )
     logger.info(f"Test result(best model in epoch {result.best_epoch}):")
     result.print()
+
+
+@app.command()
+def inference(
+    text: str | None = None,
+    audio_path: Path | None = None,
+    video_path: Path | None = None,
+    checkpoint: Path = Path("."),
+    *,
+    log_level: LogLevel = "DEBUG",
+):
+    init_logger(log_level)
+    preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
+    model_checkpoint = f"{checkpoint}/{find_best_model(checkpoint)}"
+    text_feature_size, audio_feature_size, video_feature_size = 128, 16, 1
+
+    backbone = MultimodalBackbone.from_checkpoint(
+        f"{model_checkpoint}/backbones",
+        use_cache=False,
+    )
+    fusion_layer = LowRankFusionLayer(
+        [text_feature_size, audio_feature_size, video_feature_size], 16, 128
+    )
+    model = MultimodalModel.from_checkpoint(
+        model_checkpoint, backbone=backbone, fusion_layer=fusion_layer
+    ).cuda()
+    model.eval()
+    inputs = LazyMultimodalInput(
+        preprocessor=preprocessor,
+        # texts=["I'm feeling really good today.", "I'm feeling really good today, I'm sad."],
+        audio_paths=[
+            "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/audios/test/dia58_utt1.flac",
+            "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/audios/test/dia58_utt2.flac",
+            "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/audios/test/dia58_utt2.flac",
+        ],
+        video_paths=[
+            "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/videos/test/dia58_utt1.mp4",
+            "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/videos/test/dia58_utt1.mp4",
+            "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/videos/test/dia58_utt2.mp4",
+        ],
+    ).cuda()
+    for _ in range(100):
+        outputs = model(inputs)
+        print(outputs.logits)
 
 
 if __name__ == "__main__":

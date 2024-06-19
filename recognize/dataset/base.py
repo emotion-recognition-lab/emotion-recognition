@@ -24,7 +24,7 @@ class DatasetSplit(Enum):
 class MultimodalDataset(Dataset):
     def __init__(
         self,
-        dataset_path,
+        dataset_path: str,
         meta: pd.DataFrame,
         preprocessor: Preprocessor,
         *,

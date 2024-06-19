@@ -12,3 +12,4 @@ result.json
 *.pdf
 
 Justfile
+tools/

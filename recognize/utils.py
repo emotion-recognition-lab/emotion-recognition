@@ -5,8 +5,6 @@ from pathlib import Path
 
 import torch
 from loguru import logger
-from rich.highlighter import NullHighlighter
-from rich.logging import RichHandler
 from rich.progress import (
     BarColumn,
     Progress,
@@ -205,9 +203,3 @@ def train_and_eval(
     result.best_epoch = best_epoch
     result.save(f"{checkpoint_dir}/result.json")
     return result
-
-
-def init_logger(log_level: str):
-    handler = RichHandler(highlighter=NullHighlighter(), markup=True)
-    logger.remove()
-    logger.add(handler, format="{message}", level=log_level)

@@ -25,9 +25,7 @@ class EmotionEstimator:
             [text_feature_size, audio_feature_size, video_feature_size], 16, 128
         )
 
-        self.whisper_model = whisperx.load_model(
-            "medium", device="cuda", download_root="./public/models/whisper"
-        )
+        self.whisper_model = whisperx.load_model("medium", device="cuda")
         self.preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
         self.emotion_model = (
             MultimodalModel.from_checkpoint(
@@ -61,8 +59,6 @@ class EmotionEstimator:
 
     def extrct_text(self, audio_path: str = "tmp_audio.wav"):
         result = self.whisper_model.transcribe(audio_path, language="zh")
-        if len(result["segments"]) == 0:
-            return ""
         text = "。".join(seg["text"] for seg in result["segments"])
         text = self.cc_model.convert(text)
         logger.debug(f"Extracted text: {text}")
