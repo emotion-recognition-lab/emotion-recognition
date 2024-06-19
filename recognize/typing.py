@@ -1,5 +1,18 @@
 from __future__ import annotations
 
-from typing import Literal, TypeAlias
+from enum import Enum
 
-LogLevel: TypeAlias = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+
+class ModalType(str, Enum):
+    TEXT = "T"
+    AUDIO = "A"
+    VIDEO = "V"
+    TEXT_AUDIO = "T+A"
+
+
+class LogLevel(str, Enum):
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"

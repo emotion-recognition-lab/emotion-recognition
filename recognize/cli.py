@@ -105,7 +105,7 @@ def train(
     freeze: bool = True,
     checkpoint: Optional[Path] = None,
     label_type: MELDDatasetLabelType = MELDDatasetLabelType.EMOTION,
-    log_level: LogLevel = "DEBUG",
+    log_level: LogLevel = LogLevel.DEBUG,
 ) -> None:
     clean_cache()
     init_logger(log_level)
@@ -195,12 +195,12 @@ def train(
 
 @app.command()
 def inference(
-    text: str | None = None,
-    audio_path: Path | None = None,
-    video_path: Path | None = None,
+    text: Optional[str] = None,
+    audio_path: Optional[Path] = None,
+    video_path: Optional[Path] = None,
     checkpoint: Path = Path("."),
     *,
-    log_level: LogLevel = "DEBUG",
+    log_level: LogLevel = LogLevel.DEBUG,
 ):
     init_logger(log_level)
     preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")

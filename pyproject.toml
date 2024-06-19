@@ -8,12 +8,12 @@ dependencies = [
     "transformers>=4.38.2",
     "peft>=0.8.2",
     "safetensors>=0.4.2",
-    "cachetools>=5.3.2",
-    "loguru>=0.7.0",
-    "pydantic>=2.0.0",
-    "rich>=13.7.1",
     "soundfile>=0.12.1",
     "whisperx>=3.1.4",
+    "cachetools>=5.3.2",
+    "pydantic>=2.0.0",
+    "loguru>=0.7.0",
+    "rich>=13.7.1",
 ]
 requires-python = ">=3.11"
 readme = "README.md"
