@@ -17,15 +17,33 @@ emotion-recogiition
 └── README.md
 ```
 
-## 快速开始
-```sh
-mkdir datasets
-ln -s /home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly datasets/MELD.AudioOnly
-```
-
-## 相关技术
-
-LoRA
+## 复线方法
+1. 下载 MELD 数据集。
+2. 将原始 MELD 数据集中视频文件（mp4）中的音频以 flac 格式提取出来，并按照如下结构组织文件：
+    ```
+    MELD
+    ├── audios/
+    │   ├── dev
+    │   ├── test
+    │   └── train
+    ├── videos/
+    │   ├── dev
+    │   ├── test
+    │   └── train
+    ├── dev_sent_emo.csv
+    ├── test_sent_emo.csv
+    └── train_sent_emo.csv
+    ```
+3. 链接数据集到项目 `datasets` 文件夹。
+    ```sh
+    mkdir datasets
+    ln -s /path/to/MELD datasets/MELD
+    ```
+4. 开始训练。
+    ```sh
+    pdm run emotion-recognize train datasets/MELD --modal T --label-type sentiment
+    python recognize/cli.py train datasets/MELD --modal T --label-type sentiment
+    ```
 
 ## 项目约定
 ### 检查点命名
@@ -66,3 +84,7 @@ LoRA
 |  模态   | 骨干网络 |       训练方式        |          准确率           | 精确率 | 召回率 |        weighted-F1         |
 | :-----: | :------: | :-------------------: | :-----------------------: | :----: | :----: | :------------------------: |
 | 视频(V) |  ViViT   | Traing Classification | 49.5%(验证集十折交叉验证) |   -    |   -    | 41.36%(验证集十折交叉验证) |
+
+## 相关技术
+
+[LoRA](https://huggingface.co/docs/peft/task_guides/lora_based_methods)
