@@ -88,3 +88,9 @@ emotion-recogiition
 ## 相关技术
 
 [LoRA](https://huggingface.co/docs/peft/task_guides/lora_based_methods)
+
+## 参考文献
+### 知识蒸馏
+[KD](https://arxiv.org/pdf/2104.09044)
+[DIST](https://arxiv.org/pdf/2205.10536)
+[跨模态知识蒸馏](https://arxiv.org/pdf/2401.12987v2)

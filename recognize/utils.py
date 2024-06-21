@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Callable
 
 import torch
 from loguru import logger
@@ -99,7 +100,7 @@ def load_last_checkpoint(
     model_list = [int(model_name) for model_name in model_list if model_name.isdigit()]
     if model_list:
         model_list.sort()
-        epoch_start = int(model_list[-1])
+        epoch_start = model_list[-1]
         logger.info(f"Load last model from [blue]{checkpoint_dir}/{epoch_start}")
         load_model(f"{checkpoint_dir}/{epoch_start}", model)
     if optimizer is not None and os.path.exists(checkpoint_dir / "optimizer.pt"):
@@ -107,6 +108,28 @@ def load_last_checkpoint(
     if stopper is not None and os.path.exists(checkpoint_dir / "stopper.json"):
         stopper.load(checkpoint_dir / "stopper.json")
     return epoch_start
+
+
+@torch.compile()
+def train_epoch(
+    model: ClassifierModel,
+    optimizer: torch.optim.Optimizer,
+    train_data_loader: DataLoader,
+    update_hook: Callable[[int, float], None] | None = None,
+):
+    model.train()
+    loss_value_list = []
+    for batch_index, batch in enumerate(train_data_loader):
+        optimizer.zero_grad()
+        output = model(batch)
+        loss = output.loss
+        assert loss is not None
+        loss.backward()
+        optimizer.step()
+        loss_value_list.append(loss.item())
+        loss_value = sum(loss_value_list) / len(loss_value_list)
+        if update_hook is not None:
+            update_hook(batch_index, loss_value)
 
 
 def train_and_eval(
@@ -164,18 +187,14 @@ def train_and_eval(
             batch_index=0,
         )
         for epoch in range(epoch_start + 1, num_epochs):
-            model.train()
-            loss_value_list = []
-            for batch_index, batch in enumerate(train_data_loader):
-                optimizer.zero_grad()
-                output = model(batch)
-                loss = output.loss
-                assert loss is not None
-                loss.backward()
-                optimizer.step()
-                loss_value_list.append(loss.item())
-                loss_value = sum(loss_value_list) / len(loss_value_list)
-                progress.update(task, loss=loss_value, batch_index=batch_index + 1)
+            train_epoch(
+                model,
+                optimizer,
+                train_data_loader,
+                lambda batch_index, loss_value: progress.update(
+                    task, loss=loss_value, batch_index=batch_index + 1
+                ),
+            )
 
             if (epoch + 1) % eval_interval == 0 or epoch == num_epochs - 1:
                 result = TrainingResult.auto_compute(model, valid_data_loader)
