@@ -17,7 +17,7 @@ emotion-recogiition
 └── README.md
 ```
 
-## 复线方法
+## 复现方法
 1. 下载 MELD 数据集。
 2. 将原始 MELD 数据集中视频文件（mp4）中的音频以 flac 格式提取出来，并按照如下结构组织文件：
     ```
@@ -41,7 +41,11 @@ emotion-recogiition
     ```
 4. 开始训练。
     ```sh
+    pdm install
     pdm run emotion-recognize train datasets/MELD --modal T --label-type sentiment
+    ```
+    ```sh
+    pip install -e .
     python recognize/cli.py train datasets/MELD --modal T --label-type sentiment
     ```
 
