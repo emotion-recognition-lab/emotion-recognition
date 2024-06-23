@@ -220,21 +220,12 @@ def inference(
     model.eval()
     inputs = LazyMultimodalInput(
         preprocessor=preprocessor,
-        # texts=["I'm feeling really good today.", "I'm feeling really good today, I'm sad."],
-        audio_paths=[
-            "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/audios/test/dia58_utt1.flac",
-            "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/audios/test/dia58_utt2.flac",
-            "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/audios/test/dia58_utt2.flac",
-        ],
-        video_paths=[
-            "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/videos/test/dia58_utt1.mp4",
-            "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/videos/test/dia58_utt1.mp4",
-            "/home/zrr/datasets/OpenDataLab___MELD/raw/MELD/MELD.AudioOnly/videos/test/dia58_utt2.mp4",
-        ],
+        texts=[text] if text is not None else None,
+        audio_paths=[audio_path.as_posix()] if audio_path is not None else None,
+        video_paths=[video_path.as_posix()] if video_path is not None else None,
     ).cuda()
-    for _ in range(100):
-        outputs = model(inputs)
-        print(outputs.logits)
+    outputs = model(inputs)
+    print(outputs.logits)
 
 
 if __name__ == "__main__":

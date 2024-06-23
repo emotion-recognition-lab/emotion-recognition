@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Callable, Literal, TypeVar, overload
 
 import torch
+import whisperx
 from peft import LoraConfig, get_peft_model, get_peft_model_state_dict, set_peft_model_state_dict
 from peft.peft_model import PeftModel
 from pydantic import BaseModel, ConfigDict
@@ -15,6 +16,7 @@ from safetensors.torch import load_file, save, save_file
 from torch import nn
 from torch.nn import CrossEntropyLoss
 from transformers import AutoModel
+from whisperx.asr import FasterWhisperPipeline
 
 ModelInputT = TypeVar("ModelInputT", bound="ModelInput")
 ClassifierModelT = TypeVar("ClassifierModelT", bound="ClassifierModel")
@@ -31,6 +33,7 @@ class ClassifierOutput(ModelOutput):
 
 class ModelInput(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
+    whisper_model: FasterWhisperPipeline | None = None
 
     def cuda(self):
         for field in self.model_fields.keys():
@@ -55,6 +58,18 @@ class ModelInput(BaseModel):
             else:
                 return None
         return attr
+
+    @property
+    def device(self) -> torch.device:
+        raise NotImplementedError("device property must be implemented in subclass")
+
+    def recoginize_audio(self, audio_path: str) -> str:
+        if self.whisper_model is None:
+            # use self.device
+            self.whisper_model = whisperx.load_model("medium", device="cuda")
+        result = self.whisper_model.transcribe(audio_path)
+        text = "。".join(seg["text"] for seg in result["segments"])
+        return text
 
 
 class Pooler(nn.Module):

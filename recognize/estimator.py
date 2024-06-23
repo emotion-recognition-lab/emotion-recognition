@@ -3,7 +3,6 @@ from __future__ import annotations
 import numpy as np
 import whisperx
 from loguru import logger
-from opencc import OpenCC
 
 from recognize.dataset import Preprocessor
 from recognize.model import (
@@ -34,23 +33,22 @@ class EmotionEstimator:
             .cuda()
             .eval()
         )
-        self.cc_model = OpenCC("t2s")
 
     def emotion_estimate(
         self,
-        video_path: str = "./public/media/video.mp4",
-        audio_path: str = "./public/media/audio.wav",
+        text: str | None = None,
+        video_path: str | None = None,
+        audio_path: str | None = None,
     ) -> int:
         from recognize.model import (
             LazyMultimodalInput,
         )
 
-        text = self.extrct_text(audio_path)
         inputs = LazyMultimodalInput(
             preprocessor=self.preprocessor,
-            texts=[text],
-            # audio_paths=[audio_path],
-            video_paths=[video_path],
+            texts=[text] if text is not None else None,
+            audio_paths=[audio_path] if audio_path is not None else None,
+            video_paths=[video_path] if video_path is not None else None,
         ).cuda()
         outputs = self.emotion_model(inputs)
         emotion_level = 1 / (1 + np.exp(-outputs.logits[0][0].cpu().numpy()))
@@ -58,8 +56,7 @@ class EmotionEstimator:
         return emotion_level
 
     def extrct_text(self, audio_path: str = "tmp_audio.wav"):
-        result = self.whisper_model.transcribe(audio_path, language="zh")
+        result = self.whisper_model.transcribe(audio_path, language="zh-cn")
         text = "。".join(seg["text"] for seg in result["segments"])
-        text = self.cc_model.convert(text)
         logger.debug(f"Extracted text: {text}")
         return text

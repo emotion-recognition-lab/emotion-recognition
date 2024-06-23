@@ -5,13 +5,11 @@ from pathlib import Path
 from typing import Callable
 
 import torch
-import whisperx
 from loguru import logger
 from safetensors.torch import load_file
 from torch import nn
 from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoConfig, AutoModel
-from whisperx.asr import FasterWhisperPipeline
 
 from ..cache import load_cached_tensors, save_cached_tensors
 from ..dataset import Preprocessor
@@ -31,17 +29,6 @@ class MultimodalInput(ModelInput):
 
     labels: torch.Tensor | None = None
     unique_ids: str | list[str] = ""
-
-    whisper_model: FasterWhisperPipeline | None = None
-
-    def recoginize_audio(self, audio_path: str) -> str:
-        if self.whisper_model is None:
-            self.whisper_model = whisperx.load_model("medium", device=self.device)
-        result = self.whisper_model.transcribe(audio_path)
-        if len(result["segments"]) == 0:
-            return ""
-        text = "。".join(seg["text"] for seg in result["segments"])
-        return text
 
     def __getitem__(self, index: int | list[int] | slice) -> MultimodalInput:
         assert isinstance(self.unique_ids, list), "unique_ids must be a list"
@@ -90,6 +77,7 @@ class MultimodalInput(ModelInput):
         elif self.video_pixel_values is not None:
             return self.video_pixel_values.device
         else:
+            logger.warning("No tensor is loaded, use CPU as default")
             return torch.device("cpu")
 
     @classmethod
@@ -141,7 +129,6 @@ class LazyMultimodalInput(ModelInput):
         ):
             logger.debug("Texts is not provided, but audio_paths is provided, so use audio_paths")
             self.texts = [self.recoginize_audio(audio_path) for audio_path in self.audio_paths]
-
         if (
             __name in ["text_input_ids", "text_attention_mask"]
             and super().__getattribute__("text_input_ids") is None
