@@ -6,5 +6,4 @@ from .base import (
     ModelInputT,
     ModelOutput,
 )
-from .fusion import FusionLayer, LowRankFusionLayer, TensorFusionLayer
 from .multimodal import LazyMultimodalInput, MultimodalBackbone, MultimodalInput, MultimodalModel

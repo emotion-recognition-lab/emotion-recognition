@@ -6,10 +6,11 @@ from loguru import logger
 
 from recognize.dataset import Preprocessor
 from recognize.model import (
-    LowRankFusionLayer,
+    LazyMultimodalInput,
     MultimodalBackbone,
     MultimodalModel,
 )
+from recognize.module import LowRankFusionLayer
 
 
 class EmotionEstimator:
@@ -40,10 +41,6 @@ class EmotionEstimator:
         video_path: str | None = None,
         audio_path: str | None = None,
     ) -> int:
-        from recognize.model import (
-            LazyMultimodalInput,
-        )
-
         inputs = LazyMultimodalInput(
             preprocessor=self.preprocessor,
             texts=[text] if text is not None else None,

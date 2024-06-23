@@ -5,7 +5,7 @@
 groups = ["default"]
 strategy = ["cross_platform"]
 lock_version = "4.4.1"
-content_hash = "sha256:9348fd6d625cab59120c377891b773cf7e29e94128c9fa37ae6af257907c3741"
+content_hash = "sha256:dde8dcaa1cb5bb67f8e2c4129e2d516dfee99c06e7f6286a232df863b41253fb"
 
 [[package]]
 name = "accelerate"
@@ -2294,7 +2294,7 @@ files = [
 
 [[package]]
 name = "torch"
-version = "2.3.1+cu121"
+version = "2.3.1"
 requires_python = ">=3.8.0"
 summary = "Tensors and Dynamic neural networks in Python with strong GPU acceleration"
 dependencies = [

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -18,10 +19,10 @@ from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType, P
 from recognize.evaluate import TrainingResult
 from recognize.model import (
     LazyMultimodalInput,
-    LowRankFusionLayer,
     MultimodalBackbone,
     MultimodalModel,
 )
+from recognize.module import LowRankFusionLayer
 from recognize.typing import LogLevel
 from recognize.utils import find_best_model, load_best_model, train_and_eval
 
@@ -226,6 +227,28 @@ def inference(
     ).cuda()
     outputs = model(inputs)
     print(outputs.logits)
+
+
+@app.command()
+def generate_inference_checkpoints(
+    checkpoint: Path,
+    inference_checkpoint: Path,
+    log_level: LogLevel = LogLevel.DEBUG,
+):
+    init_logger(log_level)
+    if inference_checkpoint.exists():
+        logger.warning(f"{inference_checkpoint} already exists, will be overwritten")
+        shutil.rmtree(inference_checkpoint)
+
+    inference_checkpoint.mkdir(parents=True, exist_ok=True)
+    best_epoch = find_best_model(checkpoint)
+    shutil.copytree(checkpoint / "preprocessor", inference_checkpoint / "preprocessor")
+    for subpath in (checkpoint / f"{best_epoch}").glob("*"):
+        if subpath.is_file():
+            shutil.copy2(subpath, inference_checkpoint / subpath.name)
+        else:
+            shutil.copytree(subpath, inference_checkpoint / subpath.name)
+    logger.info(f"Inference checkpoints generated: [blue]{inference_checkpoint}")
 
 
 if __name__ == "__main__":

@@ -13,8 +13,8 @@ from transformers import AutoConfig, AutoModel
 
 from ..cache import load_cached_tensors, save_cached_tensors
 from ..dataset import Preprocessor
+from ..module.fusion import FusionLayer
 from .base import Backbone, ClassifierModel, ClassifierOutput, ModelInput, Pooler
-from .fusion import FusionLayer
 
 
 class MultimodalInput(ModelInput):
