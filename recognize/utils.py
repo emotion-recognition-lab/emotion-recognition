@@ -110,7 +110,11 @@ def load_last_checkpoint(
     return epoch_start
 
 
-@torch.compile()
+def init_torch():
+    torch.set_float32_matmul_precision("high")
+
+
+# @torch.compile()
 def train_epoch(
     model: ClassifierModel,
     optimizer: torch.optim.Optimizer,

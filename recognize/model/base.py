@@ -5,7 +5,6 @@ import json
 import os
 from functools import cached_property
 from pathlib import Path
-from typing import Callable, Literal, TypeVar, overload
 
 import torch
 import whisperx
@@ -16,10 +15,12 @@ from safetensors.torch import load_file, save, save_file
 from torch import nn
 from torch.nn import CrossEntropyLoss
 from transformers import AutoModel
+from typing_extensions import Callable, Literal, Sequence, TypeVar, overload
 from whisperx.asr import FasterWhisperPipeline
 
 ModelInputT = TypeVar("ModelInputT", bound="ModelInput")
 ClassifierModelT = TypeVar("ClassifierModelT", bound="ClassifierModel")
+ModuleT = TypeVar("ModuleT", bound=nn.Module)
 
 
 class ModelOutput(BaseModel):
@@ -28,6 +29,7 @@ class ModelOutput(BaseModel):
 
 class ClassifierOutput(ModelOutput):
     logits: torch.Tensor
+    embeddings: torch.Tensor | None = None
     loss: torch.Tensor | None = None
 
 
@@ -50,7 +52,7 @@ class ModelInput(BaseModel):
         return self
 
     @staticmethod
-    def merge(batch: list[ModelInputT], attr_name: str):
+    def merge(batch: Sequence[ModelInputT], attr_name: str):
         attr: list[torch.Tensor] = []
         for item in batch:
             if getattr(item, attr_name) is not None:
@@ -89,7 +91,7 @@ class Pooler(nn.Module):
 class Backbone(nn.Module):
     def __init__(
         self,
-        *backbones: nn.Module | None,
+        backbones: Sequence[ModuleT | None],
         use_cache: bool = True,
         is_frozen: bool = True,
         use_peft: bool = False,
@@ -157,7 +159,7 @@ class Backbone(nn.Module):
         bias: Literal["none", "all", "lora_only"] = "all",
     ):
         model = get_peft_model(
-            model,  # type: ignore  # noqa: PGH003
+            model,  # type: ignore
             LoraConfig(
                 target_modules=[
                     n
@@ -191,7 +193,7 @@ class Backbone(nn.Module):
             if isinstance(module, PeftModel):
                 peft_state_dicts[name] = get_peft_model_state_dict(
                     module,
-                    save_embedding_layers=False,  # type: ignore  # noqa: PGH003
+                    save_embedding_layers=False,  # type: ignore
                 )
                 state_dicts[name] = module.get_base_model().state_dict()
             else:
@@ -247,7 +249,7 @@ class Backbone(nn.Module):
             backbones.append(model)
 
         return cls(
-            *backbones,
+            backbones,
             use_cache=use_cache,
             is_frozen=is_frozen,
             use_peft=use_peft,

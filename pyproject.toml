@@ -37,7 +37,7 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["F", "I", "B", "C4", "PGH", "RUF", "W", "YTT"]
-ignore = ["F841"]
+ignore = ["F841", "PGH003"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["recognize"]
