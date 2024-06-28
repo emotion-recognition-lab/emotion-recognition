@@ -7,17 +7,15 @@ from typing import TYPE_CHECKING
 import pandas as pd
 from torch.utils.data import Dataset
 
-from ..preprocessor import Preprocessor
-
 if TYPE_CHECKING:
-    from ..model import LazyMultimodalInput
+    from ..model import MultimodalInput
+    from ..preprocessor import Preprocessor
 
 
 class DatasetSplit(Enum):
     TRAIN = "train"
     VALID = "valid"
     TEST = "test"
-
     DEV = "dev"  # meld dataset
 
 
@@ -48,7 +46,7 @@ class MultimodalDataset(Dataset):
         self.cache_mode = cache_mode
 
     @abstractmethod
-    def __getitem__(self, index: int) -> LazyMultimodalInput: ...
+    def __getitem__(self, index: int) -> MultimodalInput: ...
 
     def __len__(self):
         return len(self.meta)

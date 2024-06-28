@@ -200,7 +200,6 @@ def inference(
     audio_path: Optional[Path] = None,
     video_path: Optional[Path] = None,
     checkpoint: Path = Path("."),
-    *,
     log_level: LogLevel = LogLevel.DEBUG,
 ):
     init_logger(log_level)

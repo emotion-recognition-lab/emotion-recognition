@@ -5,8 +5,12 @@ from pathlib import Path
 import torch
 from safetensors.torch import load_file, save_file
 
+from .typing import StateDict
 
-def load_cached_tensors(unique_ids: list[str]):
+
+def load_cached_tensors(
+    unique_ids: list[str],
+) -> tuple[list[StateDict], list[int], list[int]]:
     no_cache_index_list: list[int] = []
     cache_index_list: list[int] = []
     cache_list: list[dict[str, torch.Tensor]] = []

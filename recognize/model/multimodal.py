@@ -249,15 +249,14 @@ class MultimodalBackbone(Backbone):
             with torch.no_grad():
                 text_embs, audio_embs, video_embs = self.compute_embs(no_cached_inputs)
 
-            if self.is_frozen:
-                save_cached_tensors(
-                    no_cached_inputs.unique_ids,
-                    {
-                        "text_embs": text_embs,
-                        "audio_embs": audio_embs,
-                        "video_embs": video_embs,
-                    },
-                )
+            save_cached_tensors(
+                no_cached_inputs.unique_ids,
+                {
+                    "text_embs": text_embs,
+                    "audio_embs": audio_embs,
+                    "video_embs": video_embs,
+                },
+            )
 
             cached_list, cached_index_list, no_cached_index_list = load_cached_tensors(
                 inputs.unique_ids

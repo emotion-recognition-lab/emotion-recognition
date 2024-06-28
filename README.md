@@ -24,13 +24,13 @@ emotion-recogiition
    ```
    MELD
    ├── audios/
-   │   ├── dev
-   │   ├── test
-   │   └── train
+   │   ├── dev/
+   │   ├── test/
+   │   └── train/
    ├── videos/
-   │   ├── dev
-   │   ├── test
-   │   └── train
+   │   ├── dev/
+   │   ├── test/
+   │   └── train/
    ├── dev_sent_emo.csv
    ├── test_sent_emo.csv
    └── train_sent_emo.csv
@@ -49,6 +49,13 @@ emotion-recogiition
    pip install -e .
    python recognize/cli.py train datasets/MELD --modal T --label-type sentiment
    ```
+
+## 机制介绍
+
+### 特征缓存机制
+由于当特征提取模块冻结时，相同输入的特征提取模块的输出不会发生变化，因此可以将特征提取模块的输出缓存下来，以减少重复计算。
+`safetensors` 是 `huggingface` 推出的一个储存和分发张量的格式，相比于其他格式，`safetensors` 拥有更好的性能。
+
 
 ## 项目约定
 

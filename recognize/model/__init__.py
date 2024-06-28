@@ -1,6 +1,5 @@
 from .base import (
     ClassifierModel,
-    ClassifierModelT,
     ClassifierOutput,
     ModelInput,
     ModelInputT,
