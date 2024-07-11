@@ -240,9 +240,7 @@ class MultimodalBackbone(Backbone):
 
     def cached_forward(self, inputs: MultimodalInput):
         assert isinstance(inputs.unique_ids, list), "unique_ids must be a list"
-        cached_list, cached_index_list, no_cached_index_list = load_cached_tensors(
-            inputs.unique_ids
-        )
+        cached_list, _, no_cached_index_list = load_cached_tensors(inputs.unique_ids)
         if len(no_cached_index_list) != 0:
             no_cached_inputs = inputs[no_cached_index_list]
             assert isinstance(no_cached_inputs.unique_ids, list), "unique_ids must be a list"
@@ -258,9 +256,7 @@ class MultimodalBackbone(Backbone):
                 },
             )
 
-            cached_list, cached_index_list, no_cached_index_list = load_cached_tensors(
-                inputs.unique_ids
-            )
+            cached_list, _, no_cached_index_list = load_cached_tensors(inputs.unique_ids)
         assert len(no_cached_index_list) == 0, "All tensors should be cached"
 
         embs_list_dict: dict[str, list[torch.Tensor]] = {}
