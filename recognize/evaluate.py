@@ -35,7 +35,10 @@ def calculate_class_weights(data_loader: DataLoader, num_classes: int = 30) -> l
     return class_weights
 
 
-def __confusion_matrix(y_true, y_pred, num_classes: int):
+def confusion_matrix(model: ClassifierModel, data_loader: DataLoader):
+    y_true, y_pred = get_outputs(model, data_loader)
+
+    num_classes = model.num_classes
     if num_classes == 1:
         num_classes = 2
     matrix = [[0] * num_classes for _ in range(num_classes)]
@@ -44,11 +47,6 @@ def __confusion_matrix(y_true, y_pred, num_classes: int):
         matrix[true_label][pred_label] += 1
 
     return matrix
-
-
-def confusion_matrix(model: ClassifierModel, data_loader: DataLoader):
-    y_true, y_pred = get_outputs(model, data_loader)
-    return __confusion_matrix(y_true, y_pred, model.num_classes)
 
 
 def calculate_accuracy(predicted_list: list[int], labels_list: list[int]):

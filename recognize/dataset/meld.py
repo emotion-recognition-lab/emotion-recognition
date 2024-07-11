@@ -44,7 +44,7 @@ class MELDDataset(MultimodalDataset):
         *,
         split: DatasetSplit = DatasetSplit.TRAIN,
         label_type: MELDDatasetLabelType = MELDDatasetLabelType.EMOTION,
-        custom_unique_id: str = "",
+        custom_unique_id: str = "MELD",
     ):
         if split == DatasetSplit.DEV:
             logger.warning("DEV split is deprecated. Using VALID split instead.")
@@ -93,7 +93,7 @@ class MELDDataset(MultimodalDataset):
         video_path = f"{self.dataset_path}/videos/{self.split}/dia{dia_id}_utt{utt_id}.mp4"
         return LazyMultimodalInput(
             preprocessor=self.preprocessor,
-            unique_ids=[f"{self.custom_unique_id}--{self.split}_{index}"],
+            unique_ids=[f"{self.custom_unique_id}--{self.split}_{utt_id}_{dia_id}"],
             texts=[item["Utterance"]],
             audio_paths=[audio_path],
             video_paths=[video_path],
