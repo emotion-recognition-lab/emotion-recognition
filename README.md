@@ -6,9 +6,25 @@
 emotion-recogiition
 ├── recognize/
 │   ├── dataset/
+│   │   ├── base.py
+│   │   ├── ...
+│   │   └── meld.py
 │   ├── model/
-│   ├── ...
-│   └── cache.py
+│   │   ├── base.py
+│   │   ├── text.py
+│   │   ├── ...
+│   │   └── multimodal.py
+│   ├── module/
+│   │   ├── fusion.py
+│   │   ├── loss.py
+│   │   └── utils.py
+│   ├── cache.py
+│   ├── cli.py
+│   ├── typing.py
+│   ├── estimate.py
+│   ├── evaluate.py
+│   ├── preprocess.py
+│   └── utils.py
 ├── training/
 │   ├── ...
 │   └── text_bert.py

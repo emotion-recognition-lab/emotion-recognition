@@ -108,7 +108,6 @@ def train(
     label_type: MELDDatasetLabelType = MELDDatasetLabelType.EMOTION,
     log_level: LogLevel = LogLevel.DEBUG,
 ) -> None:
-    clean_cache()
     init_logger(log_level)
     model_label = generate_model_label(modal, freeze, label_type)
     batch_size = 64 if freeze else 2

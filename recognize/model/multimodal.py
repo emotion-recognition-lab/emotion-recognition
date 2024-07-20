@@ -239,24 +239,26 @@ class MultimodalBackbone(Backbone):
             return self.compute_embs(inputs)
 
     def cached_forward(self, inputs: MultimodalInput):
-        assert isinstance(inputs.unique_ids, list), "unique_ids must be a list"
-        cached_list, _, no_cached_index_list = load_cached_tensors(inputs.unique_ids)
+        assert inputs.unique_ids is not None, "unique_ids must be a list"
+        cached_list, _, no_cached_index_list = load_cached_tensors(
+            inputs.unique_ids, cache_dir=f"./cache/{self.hash}"
+        )
         if len(no_cached_index_list) != 0:
             no_cached_inputs = inputs[no_cached_index_list]
-            assert isinstance(no_cached_inputs.unique_ids, list), "unique_ids must be a list"
+            assert no_cached_inputs.unique_ids is not None
             with torch.no_grad():
-                text_embs, audio_embs, video_embs = self.compute_embs(no_cached_inputs)
+                embs_tuple = self.compute_embs(no_cached_inputs)
 
             save_cached_tensors(
                 no_cached_inputs.unique_ids,
-                {
-                    "text_embs": text_embs,
-                    "audio_embs": audio_embs,
-                    "video_embs": video_embs,
-                },
+                {f"{i}": embs for i, embs in enumerate(embs_tuple)},
+                cache_dir=f"./cache/{self.hash}",
             )
 
-            cached_list, _, no_cached_index_list = load_cached_tensors(inputs.unique_ids)
+            cached_list, _, no_cached_index_list = load_cached_tensors(
+                inputs.unique_ids,
+                cache_dir=f"./cache/{self.hash}",
+            )
         assert len(no_cached_index_list) == 0, "All tensors should be cached"
 
         embs_list_dict: dict[str, list[torch.Tensor]] = {}
@@ -268,11 +270,7 @@ class MultimodalBackbone(Backbone):
         embs_dict: dict[str, torch.Tensor] = {
             k: torch.stack(v).to(inputs.device) for k, v in embs_list_dict.items()
         }
-        return (
-            embs_dict.get("text_embs", None),
-            embs_dict.get("audio_embs", None),
-            embs_dict.get("video_embs", None),
-        )
+        return tuple(embs_dict.get(f"{i}", None) for i in range(3))
 
     def mean_embs(self, embs_list: list[torch.Tensor | None]):
         filtered_embs_list = [emb for emb in embs_list if emb is not None]

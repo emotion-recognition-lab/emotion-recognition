@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import os
+import pickle
+import zlib
 from functools import cached_property
 from pathlib import Path
+from typing import Generic, Self
 
 import torch
 import whisperx
+from loguru import logger
 from peft import LoraConfig, get_peft_model, get_peft_model_state_dict, set_peft_model_state_dict
 from peft.peft_model import PeftModel
 from pydantic import BaseModel, ConfigDict
@@ -15,12 +20,10 @@ from safetensors.torch import load_file, save, save_file
 from torch import nn
 from torch.nn import CrossEntropyLoss
 from transformers import AutoModel
-from typing_extensions import Callable, Literal, Sequence, TypeVar, overload
+from typing_extensions import Callable, Literal, Sequence, overload
 from whisperx.asr import FasterWhisperPipeline
 
-ModelInputT = TypeVar("ModelInputT", bound="ModelInput")
-ClassifierModelT = TypeVar("ClassifierModelT", bound="ClassifierModel")
-ModuleT = TypeVar("ModuleT", bound=nn.Module)
+from recognize.typing import ModelInputT, ModuleT, StateDicts
 
 
 class ModelOutput(BaseModel):
@@ -88,7 +91,7 @@ class Pooler(nn.Module):
         return pooled_output
 
 
-class Backbone(nn.Module):
+class Backbone(nn.Module, Generic[ModelInputT]):
     def __init__(
         self,
         backbones: Sequence[ModuleT | None],
@@ -126,6 +129,9 @@ class Backbone(nn.Module):
     def unfreeze(self):
         self.is_frozen = False
 
+    def compute_embs(self, inputs: ModelInputT) -> tuple[torch.Tensor | None, ...] | torch.Tensor:
+        raise NotImplementedError("compute_embs method must be implemented in subclass")
+
     @overload
     def pretrained_module(self, module: nn.Module) -> nn.Module: ...
 
@@ -157,7 +163,7 @@ class Backbone(nn.Module):
         lora_alpha: int = 128,
         lora_dropout: float = 0.1,
         bias: Literal["none", "all", "lora_only"] = "all",
-    ):
+    ) -> nn.Module:
         model = get_peft_model(
             model,  # type: ignore
             LoraConfig(
@@ -184,7 +190,7 @@ class Backbone(nn.Module):
             else:
                 module.load_state_dict(state_dict)
 
-    def get_state_dicts(self):
+    def get_state_dicts(self) -> tuple[StateDicts, StateDicts]:
         state_dicts: dict[str, dict[str, torch.Tensor]] = {}
         peft_state_dicts: dict[str, dict[str, torch.Tensor]] = {}
         for name, module in self.named_modules():
@@ -200,8 +206,20 @@ class Backbone(nn.Module):
                 state_dicts[name] = module.state_dict()
         return state_dicts, peft_state_dicts
 
+    @cached_property
+    def hash(self):
+        if not self.is_frozen:
+            self.is_frozen = True
+            logger.warning("Model is not frozen, freezing model for hashing")
+        bytes_dict: dict[str, bytes] = {}
+        state_dicts, peft_state_dicts = self.get_state_dicts()
+        for name, state_dict in itertools.chain(state_dicts.items(), peft_state_dicts.items()):
+            bytes_dict[name] = save(state_dict)
+        serialized_dict = pickle.dumps(bytes_dict)
+        return f"{zlib.crc32(serialized_dict):08x}"
+
     def save(self):
-        hash_dict: dict[str, Path] = {}
+        state_path_dict: dict[str, Path] = {}
         self.backbones_dir.mkdir(parents=True, exist_ok=True)
         state_dicts, peft_state_dicts = self.get_state_dicts()
         for name, state_dict in state_dicts.items():
@@ -210,7 +228,7 @@ class Backbone(nn.Module):
             hasher.update(state_bytes)
             model_hash = hasher.hexdigest()
             model_path = Path(f"{self.backbones_dir}/{model_hash}.safetensors")
-            hash_dict[name] = model_path.absolute()
+            state_path_dict[name] = model_path.absolute()
             if model_path.exists():
                 continue
             with open(model_path, "wb") as f:
@@ -227,7 +245,7 @@ class Backbone(nn.Module):
         #     with open(path, "wb") as f:
         #         f.write(state_bytes)
 
-        return hash_dict
+        return state_path_dict
 
     @classmethod
     def from_checkpoint(
@@ -238,7 +256,7 @@ class Backbone(nn.Module):
         is_frozen: bool = True,
         use_peft: bool = False,
         backbones_dir: str | Path = "./checkpoints/backbones",
-    ):
+    ) -> Self:
         checkpoint_path = Path(checkpoint_path)
         backbones: list[nn.Module] = []
         for name in os.listdir(checkpoint_path):
@@ -310,7 +328,7 @@ class ClassifierModel(nn.Module):
             "feature_size": self.feature_size,
         }
 
-    @cached_property
+    @property
     def hyperparameter(self):
         return self.get_hyperparameter()
 
