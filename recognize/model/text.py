@@ -11,7 +11,6 @@ from torch import nn
 from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoConfig, AutoModel
 
-from ..cache import load_cached_tensors, save_cached_tensors
 from ..dataset import Preprocessor
 from .base import Backbone, ClassifierModel, ClassifierOutput, ModelInput, Pooler
 
@@ -124,7 +123,7 @@ class LazyTextInput(TextInput):
         return cls(**field_dict)
 
 
-class TextBackbone(Backbone):
+class TextBackbone(Backbone[TextInput]):
     def __init__(
         self,
         text_backbone: nn.Module,
@@ -143,7 +142,7 @@ class TextBackbone(Backbone):
         )
         self.text_backbone = self.pretrained_module(text_backbone)
 
-    def compute_embs(self, inputs: TextInput) -> torch.Tensor:
+    def compute_embs(self, inputs: TextInput) -> tuple[torch.Tensor]:
         text_outputs = self.text_backbone(
             inputs.text_input_ids, attention_mask=inputs.text_attention_mask
         )
@@ -152,44 +151,11 @@ class TextBackbone(Backbone):
 
     def forward(self, inputs: TextInput):
         if self.is_frozen and self.use_cache and inputs.unique_ids is not None:
-            return self.cached_forward(inputs)
+            embs = self.cached_forward(inputs)[0]
+            assert embs is not None, "text_embs should not be None"
+            return embs
         else:
-            return self.compute_embs(inputs)
-
-    def cached_forward(self, inputs: TextInput):
-        assert isinstance(inputs.unique_ids, list), "unique_ids must be a list"
-        cached_list, cached_index_list, no_cached_index_list = load_cached_tensors(
-            inputs.unique_ids
-        )
-        if len(no_cached_index_list) != 0:
-            no_cached_inputs = inputs[no_cached_index_list]
-            assert isinstance(no_cached_inputs.unique_ids, list), "unique_ids must be a list"
-            with torch.no_grad():
-                text_embs, audio_embs, video_embs = self.compute_embs(no_cached_inputs)
-
-            if self.is_frozen:
-                save_cached_tensors(
-                    no_cached_inputs.unique_ids,
-                    {
-                        "text_embs": text_embs,
-                    },
-                )
-
-            cached_list, cached_index_list, no_cached_index_list = load_cached_tensors(
-                inputs.unique_ids
-            )
-        assert len(no_cached_index_list) == 0, "All tensors should be cached"
-
-        embs_list_dict: dict[str, list[torch.Tensor]] = {}
-        for cache in cached_list:
-            for k, v in cache.items():
-                if k not in embs_list_dict:
-                    embs_list_dict[k] = []
-                embs_list_dict[k].append(v)
-        embs_dict: dict[str, torch.Tensor] = {
-            k: torch.stack(v).to(inputs.device) for k, v in embs_list_dict.items()
-        }
-        return embs_dict.get("text_embs", None)
+            return self.compute_embs(inputs)[0]
 
     @classmethod
     def from_checkpoint(

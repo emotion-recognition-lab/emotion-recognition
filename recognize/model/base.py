@@ -24,7 +24,7 @@ from typing_extensions import Callable, Literal, Sequence, overload
 from whisperx.asr import FasterWhisperPipeline
 
 from ..cache import load_cached_tensors, save_cached_tensors
-from ..typing import ModelInputT, ModuleT, StateDicts
+from ..typing import BackboneT, ModelInputT, ModuleT, StateDicts
 
 
 class ModelOutput(BaseModel):
@@ -42,19 +42,22 @@ class ModelInput(BaseModel):
     whisper_model: FasterWhisperPipeline | None = None
     unique_ids: list[str] | None = None  # TODO: maybe better name
 
-    def cuda(self):
+    def cuda(self) -> Self:
         for field in self.model_fields.keys():
             field_value = getattr(self, field)
             if isinstance(field_value, torch.Tensor):
                 setattr(self, field, field_value.cuda())
         return self
 
-    def pin_memory(self):
+    def pin_memory(self) -> Self:
         for field in self.model_fields.keys():
             field_value = getattr(self, field)
             if isinstance(field_value, torch.Tensor):
                 setattr(self, field, field_value.pin_memory().cuda())
         return self
+
+    def __getitem__(self, index: int | list[int] | slice) -> Self:
+        raise NotImplementedError("__getitem__ method must be implemented in subclass")
 
     @staticmethod
     def merge(batch: Sequence[ModelInputT], attr_name: str):
@@ -97,6 +100,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
     def __init__(
         self,
         backbones: Sequence[ModuleT | None],
+        embedding_num: int = 1,
         use_cache: bool = True,
         is_frozen: bool = True,
         use_peft: bool = False,
@@ -120,6 +124,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         super().__init__()
         self.backbones = backbones
         self.output_size = output_size
+        self.embedding_num = embedding_num
         self.use_cache = use_cache
         self.use_peft = use_peft
         self.is_frozen = is_frozen
@@ -131,7 +136,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
     def unfreeze(self):
         self.is_frozen = False
 
-    def compute_embs(self, inputs: ModelInputT) -> tuple[torch.Tensor | None, ...] | torch.Tensor:
+    def compute_embs(self, inputs: ModelInputT) -> tuple[torch.Tensor | None, ...]:
         raise NotImplementedError("compute_embs method must be implemented in subclass")
 
     def load_cache(self, inputs: ModelInputT) -> tuple[list[dict[str, torch.Tensor]], list[int]]:
@@ -150,6 +155,30 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             {f"{i}": embs for i, embs in enumerate(embs_tuple)},
             cache_dir=f"./cache/{self.hash}",
         )
+
+    def merge_cache(
+        self, cached_list: list[dict[str, torch.Tensor]], device: torch.device
+    ) -> tuple[torch.Tensor | None, ...]:
+        embs_list_dict: dict[str, list[torch.Tensor]] = {}
+        for cache in cached_list:
+            for k, v in cache.items():
+                if k not in embs_list_dict:
+                    embs_list_dict[k] = []
+                embs_list_dict[k].append(v)
+        embs_dict: dict[str, torch.Tensor] = {
+            k: torch.stack(v).to(device) for k, v in embs_list_dict.items()
+        }
+        return tuple(embs_dict.get(f"{i}", None) for i in range(self.embedding_num))
+
+    def cached_forward(self, inputs: ModelInputT):
+        cached_list, no_cached_index_list = self.load_cache(inputs)
+        if len(no_cached_index_list) != 0:
+            no_cached_inputs = inputs[no_cached_index_list]
+            self.save_cache(no_cached_inputs)
+            cached_list, no_cached_index_list = self.load_cache(inputs)
+        assert len(no_cached_index_list) == 0, "All tensors should be cached"
+
+        return self.merge_cache(cached_list, inputs.device)
 
     @overload
     def pretrained_module(self, module: nn.Module) -> nn.Module: ...
@@ -294,12 +323,12 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         )
 
 
-class ClassifierModel(nn.Module):
+class ClassifierModel(nn.Module, Generic[BackboneT]):
     __call__: Callable[..., ClassifierOutput]
 
     def __init__(
         self,
-        backbone: Backbone,
+        backbone: BackboneT,
         feature_size: int,
         num_classes: int,
         *,

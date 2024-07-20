@@ -11,7 +11,6 @@ from torch import nn
 from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoConfig, AutoModel
 
-from ..cache import load_cached_tensors, save_cached_tensors
 from ..dataset import Preprocessor
 from ..module.fusion import FusionLayer
 from .base import Backbone, ClassifierModel, ClassifierOutput, ModelInput, Pooler
@@ -191,6 +190,7 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
     ):
         super().__init__(
             (text_backbone, audio_backbone, video_backbone),
+            embedding_num=3,
             use_cache=use_cache,
             is_frozen=is_frozen,
             use_peft=use_peft,
@@ -233,38 +233,6 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
             return self.cached_forward(inputs)
         else:
             return self.compute_embs(inputs)
-
-    def load_cache(self, inputs: ModelInput) -> tuple[list[dict[str, torch.Tensor]], list[int]]:
-        assert inputs.unique_ids is not None, "unique_ids must be a list"
-        cached_list, _, no_cached_index_list = load_cached_tensors(
-            inputs.unique_ids, cache_dir=f"./cache/{self.hash}"
-        )
-        return cached_list, no_cached_index_list
-
-    def save_cache(self, no_cached_inputs: MultimodalInput) -> None:
-        assert no_cached_inputs.unique_ids is not None
-        with torch.no_grad():
-            embs_tuple = self.compute_embs(no_cached_inputs)
-        save_cached_tensors(
-            no_cached_inputs.unique_ids,
-            {f"{i}": embs for i, embs in enumerate(embs_tuple)},
-            cache_dir=f"./cache/{self.hash}",
-        )
-
-    def merge_cache(
-        self, cached_list: list[dict[str, torch.Tensor]], device: torch.device
-    ) -> tuple[torch.Tensor | None, ...]:
-        embs_list_dict: dict[str, list[torch.Tensor]] = {}
-        for cache in cached_list:
-            for k, v in cache.items():
-                if k not in embs_list_dict:
-                    embs_list_dict[k] = []
-                embs_list_dict[k].append(v)
-        embs_dict: dict[str, torch.Tensor] = {
-            k: torch.stack(v).to(device) for k, v in embs_list_dict.items()
-        }
-        # TODO: support any length of embs
-        return tuple(embs_dict.get(f"{i}", None) for i in range(3))
 
     def cached_forward(self, inputs: MultimodalInput) -> tuple[torch.Tensor | None, ...]:
         cached_list, no_cached_index_list = self.load_cache(inputs)
@@ -322,7 +290,7 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
         )
 
 
-class MultimodalModel(ClassifierModel):
+class MultimodalModel(ClassifierModel[MultimodalBackbone]):
     def __init__(
         self,
         backbone: MultimodalBackbone,

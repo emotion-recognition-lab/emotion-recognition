@@ -7,12 +7,13 @@ import torch
 from torch import nn
 
 if TYPE_CHECKING:
-    from .model.base import ClassifierModel, ModelInput
+    from .model.base import Backbone, ClassifierModel, ModelInput
 
 
 StateDict: TypeAlias = dict[str, torch.Tensor]
 StateDicts: TypeAlias = dict[str, StateDict]
 ModelInputT = TypeVar("ModelInputT", bound="ModelInput")
+BackboneT = TypeVar("BackboneT", bound="Backbone")
 ClassifierModelT = TypeVar("ClassifierModelT", bound="ClassifierModel")
 ModuleT = TypeVar("ModuleT", bound=nn.Module)
 

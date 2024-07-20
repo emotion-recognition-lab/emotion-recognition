@@ -76,7 +76,7 @@ def sample_frame_indices(clip_len, frame_sample_rate, seg_len):  # 从视频中�
     # return indices  #返回采样后的帧 索引列表
 
 
-def read_videos(video_path):
+def read_videos(video_path: str):
     import av
 
     container = av.open(video_path)
