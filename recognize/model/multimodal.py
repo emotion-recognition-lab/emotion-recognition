@@ -28,7 +28,6 @@ class MultimodalInput(ModelInput):
     video_head_mask: torch.Tensor | None = None
 
     labels: torch.Tensor | None = None
-    unique_ids: list[str] | None = None
 
     def __getitem__(self, index: int | list[int] | slice) -> MultimodalInput:
         text_input_ids = self.text_input_ids[index] if self.text_input_ids is not None else None
@@ -50,15 +49,12 @@ class MultimodalInput(ModelInput):
 
         if self.unique_ids is None:
             unique_ids = None
-        else:
-            if isinstance(index, list):
-                unique_ids = [self.unique_ids[i] for i in index]
-            elif isinstance(index, int):
-                unique_ids = [self.unique_ids[index]]
-            elif isinstance(index, slice):
-                unique_ids = self.unique_ids[index]
-            else:
-                raise ValueError(f"Unsupported index type {type(index)}")
+        elif isinstance(index, list):
+            unique_ids = [self.unique_ids[i] for i in index]
+        elif isinstance(index, int):
+            unique_ids = [self.unique_ids[index]]
+        elif isinstance(index, slice):
+            unique_ids = self.unique_ids[index]
 
         return MultimodalInput(
             text_input_ids=text_input_ids,
@@ -238,29 +234,26 @@ class MultimodalBackbone(Backbone):
         else:
             return self.compute_embs(inputs)
 
-    def cached_forward(self, inputs: MultimodalInput):
+    def load_cache(self, inputs: ModelInput) -> tuple[list[dict[str, torch.Tensor]], list[int]]:
         assert inputs.unique_ids is not None, "unique_ids must be a list"
         cached_list, _, no_cached_index_list = load_cached_tensors(
             inputs.unique_ids, cache_dir=f"./cache/{self.hash}"
         )
-        if len(no_cached_index_list) != 0:
-            no_cached_inputs = inputs[no_cached_index_list]
-            assert no_cached_inputs.unique_ids is not None
-            with torch.no_grad():
-                embs_tuple = self.compute_embs(no_cached_inputs)
+        return cached_list, no_cached_index_list
 
-            save_cached_tensors(
-                no_cached_inputs.unique_ids,
-                {f"{i}": embs for i, embs in enumerate(embs_tuple)},
-                cache_dir=f"./cache/{self.hash}",
-            )
+    def save_cache(self, no_cached_inputs: MultimodalInput) -> None:
+        assert no_cached_inputs.unique_ids is not None
+        with torch.no_grad():
+            embs_tuple = self.compute_embs(no_cached_inputs)
+        save_cached_tensors(
+            no_cached_inputs.unique_ids,
+            {f"{i}": embs for i, embs in enumerate(embs_tuple)},
+            cache_dir=f"./cache/{self.hash}",
+        )
 
-            cached_list, _, no_cached_index_list = load_cached_tensors(
-                inputs.unique_ids,
-                cache_dir=f"./cache/{self.hash}",
-            )
-        assert len(no_cached_index_list) == 0, "All tensors should be cached"
-
+    def merge_cache(
+        self, cached_list: list[dict[str, torch.Tensor]], device: torch.device
+    ) -> tuple[torch.Tensor | None, ...]:
         embs_list_dict: dict[str, list[torch.Tensor]] = {}
         for cache in cached_list:
             for k, v in cache.items():
@@ -268,9 +261,20 @@ class MultimodalBackbone(Backbone):
                     embs_list_dict[k] = []
                 embs_list_dict[k].append(v)
         embs_dict: dict[str, torch.Tensor] = {
-            k: torch.stack(v).to(inputs.device) for k, v in embs_list_dict.items()
+            k: torch.stack(v).to(device) for k, v in embs_list_dict.items()
         }
+        # TODO: support any length of embs
         return tuple(embs_dict.get(f"{i}", None) for i in range(3))
+
+    def cached_forward(self, inputs: MultimodalInput) -> tuple[torch.Tensor | None, ...]:
+        cached_list, no_cached_index_list = self.load_cache(inputs)
+        if len(no_cached_index_list) != 0:
+            no_cached_inputs = inputs[no_cached_index_list]
+            self.save_cache(no_cached_inputs)
+            cached_list, no_cached_index_list = self.load_cache(inputs)
+        assert len(no_cached_index_list) == 0, "All tensors should be cached"
+
+        return self.merge_cache(cached_list, inputs.device)
 
     def mean_embs(self, embs_list: list[torch.Tensor | None]):
         filtered_embs_list = [emb for emb in embs_list if emb is not None]

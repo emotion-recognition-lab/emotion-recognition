@@ -39,6 +39,7 @@ class ClassifierOutput(ModelOutput):
 class ModelInput(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     whisper_model: FasterWhisperPipeline | None = None
+    unique_ids: list[str] | None = None  # TODO: maybe better name
 
     def cuda(self):
         for field in self.model_fields.keys():
@@ -233,17 +234,17 @@ class Backbone(nn.Module, Generic[ModelInputT]):
                 continue
             with open(model_path, "wb") as f:
                 f.write(state_bytes)
-        # TODO: peft
-        # for name, state_dict in peft_state_dicts.items():
-        #     state_bytes = save(state_dict)
-        #     path = Path(f"{self.backbones_dir}/{model_hash}.safetensors")
-        #     module.base_model.config.save_pretrained("name")
-
-        #     hash_dict[name] = path.absolute()
-        #     if path.exists():
-        #         continue
-        #     with open(path, "wb") as f:
-        #         f.write(state_bytes)
+        for name, state_dict in peft_state_dicts.items():
+            state_bytes = save(state_dict)
+            hasher = hashlib.md5()
+            hasher.update(state_bytes)
+            model_hash = hasher.hexdigest()
+            model_path = Path(f"{self.backbones_dir}/peft_{model_hash}.safetensors")
+            state_path_dict[f"peft_{name}"] = model_path.absolute()
+            if model_path.exists():
+                continue
+            with open(model_path, "wb") as f:
+                f.write(state_bytes)
 
         return state_path_dict
 
