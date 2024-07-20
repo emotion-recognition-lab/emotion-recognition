@@ -177,7 +177,7 @@ class LazyMultimodalInput(MultimodalInput):
         return cls(**field_dict)
 
 
-class MultimodalBackbone(Backbone):
+class MultimodalBackbone(Backbone[MultimodalInput]):
     def __init__(
         self,
         text_backbone: nn.Module | None = None,

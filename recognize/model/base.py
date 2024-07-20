@@ -23,7 +23,8 @@ from transformers import AutoModel
 from typing_extensions import Callable, Literal, Sequence, overload
 from whisperx.asr import FasterWhisperPipeline
 
-from recognize.typing import ModelInputT, ModuleT, StateDicts
+from ..cache import load_cached_tensors, save_cached_tensors
+from ..typing import ModelInputT, ModuleT, StateDicts
 
 
 class ModelOutput(BaseModel):
@@ -132,6 +133,23 @@ class Backbone(nn.Module, Generic[ModelInputT]):
 
     def compute_embs(self, inputs: ModelInputT) -> tuple[torch.Tensor | None, ...] | torch.Tensor:
         raise NotImplementedError("compute_embs method must be implemented in subclass")
+
+    def load_cache(self, inputs: ModelInputT) -> tuple[list[dict[str, torch.Tensor]], list[int]]:
+        assert inputs.unique_ids is not None, "unique_ids must be a list"
+        cached_list, _, no_cached_index_list = load_cached_tensors(
+            inputs.unique_ids, cache_dir=f"./cache/{self.hash}"
+        )
+        return cached_list, no_cached_index_list
+
+    def save_cache(self, no_cached_inputs: ModelInputT) -> None:
+        assert no_cached_inputs.unique_ids is not None
+        with torch.no_grad():
+            embs_tuple = self.compute_embs(no_cached_inputs)
+        save_cached_tensors(
+            no_cached_inputs.unique_ids,
+            {f"{i}": embs for i, embs in enumerate(embs_tuple)},
+            cache_dir=f"./cache/{self.hash}",
+        )
 
     @overload
     def pretrained_module(self, module: nn.Module) -> nn.Module: ...
