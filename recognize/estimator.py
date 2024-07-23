@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import numpy as np
-import whisperx
 from loguru import logger
 
 from recognize.dataset import Preprocessor
@@ -15,6 +14,8 @@ from recognize.module import LowRankFusionLayer
 
 class EmotionEstimator:
     def __init__(self, checkpoint: str = "./public/models/emotion/"):
+        import whisperx
+
         model_checkpoint = f"{checkpoint}/"
         text_feature_size, audio_feature_size, video_feature_size = 128, 16, 1
         backbone = MultimodalBackbone.from_checkpoint(
