@@ -26,7 +26,9 @@ class EmotionEstimator:
             [text_feature_size, audio_feature_size, video_feature_size], 16, 128
         )
 
-        self.whisper_model = whisperx.load_model("medium", device="cuda")
+        self.whisper_model = whisperx.load_model(
+            "medium", device="cuda", download_root=f"{checkpoint}/whisperx"
+        )
         self.preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
         self.emotion_model = (
             MultimodalModel.from_checkpoint(
