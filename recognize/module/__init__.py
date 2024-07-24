@@ -1,1 +1,1 @@
-from .fusion import FusionLayer, LowRankFusionLayer, TensorFusionLayer
+from .fusion import FusionLayer, LowRankFusionLayer, TensorFusionLayer, gen_fusion_layer

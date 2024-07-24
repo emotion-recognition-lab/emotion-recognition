@@ -244,21 +244,13 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
 
         return self.merge_cache(cached_list, inputs.device)
 
-    def mean_embs(self, embs_list: list[torch.Tensor | None]):
-        filtered_embs_list = [emb for emb in embs_list if emb is not None]
-        return sum(filtered_embs_list) / len(filtered_embs_list)
+    # def mean_embs(self, embs_list: list[torch.Tensor | None]):
+    #     filtered_embs_list = [emb for emb in embs_list if emb is not None]
+    #     return sum(filtered_embs_list) / len(filtered_embs_list)
 
     # def forward(self, inputs: MultimodalInput):
     #     text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.compute_pooled_embs(inputs)
     #     return self.mean_embs([text_pooled_embs, audio_pooled_embs, video_pooled_embs])
-
-    # def forward(self, inputs: MultimodalInput):
-    #     if self.is_frozen:
-    #         text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.cached_compute_pooled_embs(inputs)
-    #     else:
-    #         text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.compute_pooled_embs(inputs)
-    #     fusion_tensor = self.tensor_fusion_layer(text_pooled_embs, audio_pooled_embs, video_pooled_embs)
-    #     return fusion_tensor
 
     @classmethod
     def from_checkpoint(
@@ -295,10 +287,8 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
         self,
         backbone: MultimodalBackbone,
         fusion_layer: FusionLayer,
+        feature_sizes: Sequence[int],
         *,
-        text_feature_size: int = 128,
-        audio_feature_size: int = 16,
-        video_feature_size: int = 1,
         num_classes: int = 2,
         class_weights: torch.Tensor | None = None,
     ):
@@ -308,24 +298,16 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
             num_classes=num_classes,
             class_weights=class_weights,
         )
-        self.text_feature_size = text_feature_size
-        self.audio_feature_size = audio_feature_size
-        self.video_feature_size = video_feature_size
+        self.feature_size = list(feature_sizes)
 
         self.poolers = nn.ModuleList(
-            [
-                Pooler(self.backbone.output_size, text_feature_size),
-                Pooler(self.backbone.output_size, audio_feature_size),
-                Pooler(self.backbone.output_size, video_feature_size),
-            ]
+            [Pooler(self.backbone.output_size, feature_size) for feature_size in feature_sizes]
         )
         self.fusion_layer = fusion_layer
 
     def get_hyperparameter(self):
         return {
-            "text_feature_size": self.text_feature_size,
-            "audio_feature_size": self.audio_feature_size,
-            "video_feature_size": self.video_feature_size,
+            "feature_size": self.feature_size,
             "num_classes": self.num_classes,
         }
 
@@ -334,25 +316,13 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
         text_embs: torch.Tensor | None,
         audio_embs: torch.Tensor | None,
         video_embs: torch.Tensor | None,
-    ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
-        text_pooler, audio_pooler, video_pooler = self.poolers
-
-        if text_embs is not None:
-            text_pooled_embs = text_pooler(text_embs)
-        else:
-            text_pooled_embs = None
-
-        if audio_embs is not None:
-            audio_pooled_embs = audio_pooler(audio_embs)
-        else:
-            audio_pooled_embs = None
-
-        if video_embs is not None:
-            video_pooled_embs = video_pooler(video_embs)
-        else:
-            video_pooled_embs = None
-
-        return text_pooled_embs, audio_pooled_embs, video_pooled_embs
+    ) -> tuple[torch.Tensor | None, ...]:
+        embs_list = [text_embs, audio_embs, video_embs]
+        pool_embs_list = [
+            pooler(embs) if embs is not None else None
+            for pooler, embs in zip(self.poolers, embs_list, strict=False)
+        ]
+        return tuple(pool_embs_list)
 
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
         text_embs, audio_embs, video_embs = self.backbone(inputs)

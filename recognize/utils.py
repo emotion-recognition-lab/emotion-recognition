@@ -157,6 +157,7 @@ def train_and_eval(
         test_data_loader = valid_data_loader
     if model_label is None:
         model_label = f"{model.__class__.__name__}-{id(model)}"
+    # TODO: use checkpoint_dir
     checkpoint_dir = Path(f"./checkpoints/{model_label}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     logger.add(f"./logs/{model_label}.txt")

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from enum import Enum
 from functools import cached_property
+from typing import Literal
 
 import pandas as pd
 import torch
@@ -10,10 +10,7 @@ from loguru import logger
 from ..preprocessor import Preprocessor
 from .base import DatasetSplit, MultimodalDataset
 
-
-class MELDDatasetLabelType(Enum):
-    EMOTION = "emotion"
-    SENTIMENT = "sentiment"
+MELDDatasetLabelType = Literal["emotion", "sentiment"]
 
 
 class MELDDataset(MultimodalDataset):
@@ -43,19 +40,19 @@ class MELDDataset(MultimodalDataset):
         preprocessor: Preprocessor,
         *,
         split: DatasetSplit = DatasetSplit.TRAIN,
-        label_type: MELDDatasetLabelType = MELDDatasetLabelType.EMOTION,
+        label_type: MELDDatasetLabelType = "emotion",
         custom_unique_id: str = "MELD",
     ):
         if split == DatasetSplit.DEV:
             logger.warning("DEV split is deprecated. Using VALID split instead.")
             split = DatasetSplit.VALID
         self.split = "dev" if split == DatasetSplit.VALID else split.value
-        self.label_type = label_type.value
+        self.label_type = label_type
 
-        if label_type == MELDDatasetLabelType.EMOTION:
+        if label_type == "emotion":
             self.label2int = self.emotion2int
             self.num_classes = 7
-        elif label_type == MELDDatasetLabelType.SENTIMENT:
+        elif label_type == "sentiment":
             self.label2int = self.sentiment2int
             self.num_classes = 3
         else:

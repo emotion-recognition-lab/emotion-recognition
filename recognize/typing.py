@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from enum import Enum
-from typing import TYPE_CHECKING, TypeAlias, TypeVar
+from typing import TYPE_CHECKING, Literal, TypeAlias
 
 import torch
 from torch import nn
+from typing_extensions import TypeVar
 
 if TYPE_CHECKING:
     from .model.base import Backbone, ClassifierModel, ModelInput
@@ -17,17 +17,7 @@ BackboneT = TypeVar("BackboneT", bound="Backbone")
 ClassifierModelT = TypeVar("ClassifierModelT", bound="ClassifierModel")
 ModuleT = TypeVar("ModuleT", bound=nn.Module)
 
-
-class ModalType(str, Enum):
-    TEXT = "T"
-    AUDIO = "A"
-    VIDEO = "V"
-    TEXT_AUDIO = "T+A"
+ModalType = Literal["T", "A", "V"]
 
 
-class LogLevel(str, Enum):
-    DEBUG = "DEBUG"
-    INFO = "INFO"
-    WARNING = "WARNING"
-    ERROR = "ERROR"
-    CRITICAL = "CRITICAL"
+LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]

@@ -1,28 +1,34 @@
 from __future__ import annotations
 
 import os
-from enum import Enum
 from pathlib import Path
 from typing import Optional
 
 import torch
 import typer
 from loguru import logger
-from pydantic import BaseModel, Field
 from rich.highlighter import NullHighlighter
 from rich.logging import RichHandler
 from torch.utils.data import DataLoader
-from transformers import AutoFeatureExtractor, AutoModel, AutoTokenizer, VivitImageProcessor
+from transformers import (
+    AutoFeatureExtractor,
+    AutoImageProcessor,
+    AutoModel,
+    AutoTokenizer,
+    VivitImageProcessor,
+)
 
+from recognize.config import load_config
 from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType, Preprocessor
 from recognize.evaluate import TrainingResult
 from recognize.model import (
     LazyMultimodalInput,
     MultimodalBackbone,
     MultimodalModel,
+    UnimodalModel,
 )
-from recognize.module import LowRankFusionLayer
-from recognize.typing import LogLevel
+from recognize.module.fusion import gen_fusion_layer
+from recognize.typing import LogLevel, ModalType
 from recognize.utils import find_best_model, load_best_model, train_and_eval
 
 
@@ -33,7 +39,7 @@ def init_logger(log_level: LogLevel):
 
 
 def provide_meld_datasets(
-    dataset_path: Path, preprocessor: Preprocessor, label_type=MELDDatasetLabelType.EMOTION
+    dataset_path: Path, preprocessor: Preprocessor, label_type: MELDDatasetLabelType = "emotion"
 ):
     train_dataset = MELDDataset(
         dataset_path.as_posix(),
@@ -65,9 +71,9 @@ def clean_cache():
         os.unlink(file_path)
 
 
-def generate_model_label(modal: ModalType, freeze: bool, label_type: MELDDatasetLabelType):
-    model_label = modal.value
-    if label_type == MELDDatasetLabelType.SENTIMENT:
+def generate_model_label(modal: list[ModalType], freeze: bool, label_type: str):
+    model_label = "+".join(modal)
+    if label_type == "sentiment":
         model_label += "--S"
     else:
         model_label += "--E"
@@ -78,37 +84,22 @@ def generate_model_label(modal: ModalType, freeze: bool, label_type: MELDDataset
     return model_label
 
 
-class ModalType(str, Enum):
-    TEXT = "T"
-    # AUDIO = "A"
-    # VIDEO = "V"
-    TEXT_AUDIO = "T+A"
-
-
-class MultimodalModelConfig(BaseModel):
-    modal: ModalType
-    freeze: bool
-    label_type: MELDDatasetLabelType
-    fusion_method: str = "low-rank-fusion"
-    backbones: list[str] = Field(
-        ["sentence-transformers/all-mpnet-base-v2", "facebook/wav2vec2-base-960h"]
-    )
-
-
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 @app.command()
 def train(
-    dataset_path: Path,
-    modal: ModalType = ModalType.TEXT,
-    freeze: bool = True,
+    config_path: Path = Path("configs/default.toml"),
     checkpoint: Optional[Path] = None,
-    label_type: MELDDatasetLabelType = MELDDatasetLabelType.EMOTION,
-    log_level: LogLevel = LogLevel.DEBUG,
 ) -> None:
-    init_logger(log_level)
-    model_label = generate_model_label(modal, freeze, label_type)
+    config = load_config(config_path)
+    init_logger(config.log_level)
+    freeze = config.model.freeze_backbone
+    label_type = config.dataset.label_type
+    backbones = config.model.backbones
+    modals = config.model.modals
+
+    model_label = generate_model_label(modals, freeze, label_type)
     batch_size = 64 if freeze else 2
     if checkpoint is not None and os.path.exists(f"./{checkpoint}/preprocessor"):
         preprocessor = Preprocessor.from_pretrained(f"./{checkpoint}/preprocessor")
@@ -117,21 +108,33 @@ def train(
         )
         logger.info("load preprocessor and backbone from checkpoint")
     else:
+        assert len(backbones) == len(
+            modals
+        ), "The number of backbones and modals should be the same"
         preprocessor = Preprocessor(
-            AutoTokenizer.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
-            AutoFeatureExtractor.from_pretrained("facebook/wav2vec2-base-960h"),
-            VivitImageProcessor.from_pretrained("google/vivit-b-16x2-kinetics400"),
+            *[
+                AutoTokenizer.from_pretrained(model_name)
+                if modal == "T"
+                else VivitImageProcessor.from_pretrained(model_name)
+                if modal == "V"
+                else AutoFeatureExtractor.from_pretrained(model_name)
+                if modal == "A"
+                else AutoImageProcessor.from_pretrained(model_name)
+                for modal, model_name in zip(modals, backbones, strict=True)
+            ],
         )
         preprocessor.save_pretrained(f"./checkpoints/{model_label}/preprocessor")
+        config_link = Path(f"./checkpoints/{model_label}/config.toml")
+        if not config_link.exists():
+            logger.info(f"Create config link: {config_link}")
+            config_link.symlink_to(config_path.absolute())
 
         backbone = MultimodalBackbone(
-            AutoModel.from_pretrained("sentence-transformers/all-mpnet-base-v2"),
-            AutoModel.from_pretrained("facebook/wav2vec2-base-960h"),
-            AutoModel.from_pretrained("google/vit-base-patch16-224-in21k"),
+            *[AutoModel.from_pretrained(model_name) for model_name in backbones]
         )
 
     train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
-        dataset_path, preprocessor, label_type=label_type
+        config.dataset.path, preprocessor, label_type=label_type
     )
     train_data_loader = DataLoader(
         train_dataset,
@@ -156,20 +159,22 @@ def train(
     )
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
 
-    text_feature_size, audio_feature_size, video_feature_size = 128, 16, 1
-    fusion_layer = LowRankFusionLayer(
-        [text_feature_size, audio_feature_size, video_feature_size], 16, 128
-    )
-
-    model = MultimodalModel(
-        backbone,
-        fusion_layer,
-        text_feature_size=text_feature_size,
-        audio_feature_size=audio_feature_size,
-        video_feature_size=video_feature_size,
-        num_classes=train_dataset.num_classes,
-        class_weights=class_weights,
-    ).cuda()
+    if config.model.fusion is None:
+        model = UnimodalModel(
+            backbone,
+            feature_size=config.model.feature_sizes[0],
+            num_classes=train_dataset.num_classes,
+            class_weights=class_weights,
+        ).cuda()
+    else:
+        fusion_layer = gen_fusion_layer(config.model.fusion)
+        model = MultimodalModel(
+            backbone,
+            fusion_layer,
+            feature_sizes=config.model.feature_sizes,
+            num_classes=train_dataset.num_classes,
+            class_weights=class_weights,
+        ).cuda()
 
     if not freeze:
         model.unfreeze_backbone()
@@ -198,23 +203,24 @@ def inference(
     audio_path: Optional[Path] = None,
     video_path: Optional[Path] = None,
     checkpoint: Path = Path("."),
-    log_level: LogLevel = LogLevel.DEBUG,
 ):
-    init_logger(log_level)
+    config = load_config(f"{checkpoint}/config.toml")
+    init_logger(config.log_level)
+
     preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
     model_checkpoint = f"{checkpoint}/{find_best_model(checkpoint)}"
-    text_feature_size, audio_feature_size, video_feature_size = 128, 16, 1
 
     backbone = MultimodalBackbone.from_checkpoint(
         f"{model_checkpoint}/backbones",
         use_cache=False,
     )
-    fusion_layer = LowRankFusionLayer(
-        [text_feature_size, audio_feature_size, video_feature_size], 16, 128
-    )
-    model = MultimodalModel.from_checkpoint(
-        model_checkpoint, backbone=backbone, fusion_layer=fusion_layer
-    ).cuda()
+    if config.model.fusion is None:
+        model = UnimodalModel.from_checkpoint(model_checkpoint, backbone=backbone).cuda()
+    else:
+        fusion_layer = gen_fusion_layer(config.model.fusion)
+        model = MultimodalModel.from_checkpoint(
+            model_checkpoint, backbone=backbone, fusion_layer=fusion_layer
+        ).cuda()
     model.eval()
     inputs = LazyMultimodalInput(
         preprocessor=preprocessor,
@@ -223,7 +229,8 @@ def inference(
         video_paths=[video_path.as_posix()] if video_path is not None else None,
     ).cuda()
     outputs = model(inputs)
-    print(outputs.logits)
+    print("Predicted logits:", outputs.logits)
+    print("Predicted labels:", torch.argmax(outputs.logits, dim=-1).item())
 
 
 if __name__ == "__main__":

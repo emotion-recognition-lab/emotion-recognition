@@ -6,3 +6,4 @@ from .base import (
     ModelOutput,
 )
 from .multimodal import LazyMultimodalInput, MultimodalBackbone, MultimodalInput, MultimodalModel
+from .unimodal import UnimodalModel

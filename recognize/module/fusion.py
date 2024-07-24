@@ -71,3 +71,15 @@ class LowRankFusionLayer(FusionLayer):
         product_tensor = torch.prod(torch.stack(fusion_tensors), dim=0)
         output = self.output_layer(product_tensor.permute(1, 2, 0)).squeeze(dim=-1)
         return output
+
+
+def gen_fusion_layer(fusion: str) -> FusionLayer:
+    fusion = eval(
+        fusion,
+        {
+            "TensorFusionLayer": TensorFusionLayer,
+            "LowRankFusionLayer": LowRankFusionLayer,
+        },
+    )
+    assert isinstance(fusion, FusionLayer), f"{fusion} is not a FusionLayer"
+    return fusion

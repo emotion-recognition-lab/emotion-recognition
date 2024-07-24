@@ -4,8 +4,8 @@ version = "0.1.0"
 description = ""
 authors = [{ name = "Zhan Rongrui", email = "2742392377@qq.com" }]
 dependencies = [
-    "torch>=2.2.2",
-    "transformers>=4.38.2",
+    "torch>=2.3.1",
+    "transformers>=4.43.1",
     "peft>=0.8.2",
     "safetensors>=0.4.2",
     "soundfile>=0.12.1",
@@ -50,6 +50,11 @@ quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+
+[[tool.pdm.source]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu121"
+include_packages = ["torch", "torchvision", "torchaudio"]
 
 [tool.pdm.build]
 includes = ["recognize"]
