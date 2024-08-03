@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Generic, Mapping, Self
 
 import torch
-import whisperx
+from faster_whisper import WhisperModel
 from loguru import logger
 from peft import LoraConfig, get_peft_model, get_peft_model_state_dict, set_peft_model_state_dict
 from peft.peft_model import PeftModel
@@ -21,7 +21,6 @@ from torch import nn
 from torch.nn import CrossEntropyLoss
 from transformers import AutoModel
 from typing_extensions import Callable, Literal, Sequence, overload
-from whisperx.asr import FasterWhisperPipeline
 
 from ..cache import load_cached_tensors, save_cached_tensors
 from ..typing import BackboneT, ModelInputT, StateDicts
@@ -39,7 +38,7 @@ class ClassifierOutput(ModelOutput):
 
 class ModelInput(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    whisper_model: FasterWhisperPipeline | None = None
+    whisper_model: WhisperModel | None = None
     unique_ids: list[str] | None = None  # TODO: maybe better name
 
     def cuda(self) -> Self:
@@ -76,9 +75,16 @@ class ModelInput(BaseModel):
     def recoginize_audio(self, audio_path: str) -> str:
         if self.whisper_model is None:
             # use self.device
-            self.whisper_model = whisperx.load_model("medium", device="cuda")
-        result = self.whisper_model.transcribe(audio_path)
-        text = "。".join(seg["text"] for seg in result["segments"])
+            self.whisper_model = WhisperModel(
+                "medium",
+                device="cuda",
+                compute_type="float16",
+            )
+        segments, _ = self.whisper_model.transcribe(
+            audio_path, language="zh", initial_prompt="简体"
+        )
+        text = "。".join(seg.text for seg in segments)
+        logger.info(f"Recognized text: {text}")
         return text
 
 
