@@ -9,7 +9,7 @@ datasets/
 .pdm-python
 result.json
 
-*.pdf
+docs
 
 Justfile
 tools/

@@ -1,0 +1,16 @@
+log_level = "DEBUG"
+
+[model]
+modals = ["T", "A", "V"]
+feature_sizes = [768, 768, 768]
+backbones = [
+    "roberta-large",
+    "facebook/wav2vec2-base-960h",
+    "google/vivit-b-16x2-kinetics400",
+]
+fusion = "LowRankFusionLayer([768, 768, 768], 16, 128)"
+freeze_backbone = true
+
+[dataset]
+path = "datasets/MELD"
+label-type = "emotion"
