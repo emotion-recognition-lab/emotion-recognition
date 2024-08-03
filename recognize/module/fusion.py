@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Callable
+
 import torch
 from torch import nn
 from torch.nn.parameter import Parameter
@@ -9,6 +11,8 @@ class FusionLayer(nn.Module):
     def __init__(self, output_size: int):
         super().__init__()
         self.output_size = output_size
+
+    __call__: Callable[..., torch.Tensor]
 
 
 class TensorFusionLayer(FusionLayer):
