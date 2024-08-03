@@ -8,14 +8,14 @@ import pickle
 import zlib
 from functools import cached_property
 from pathlib import Path
-from typing import Generic, Self
+from typing import Generic, Mapping, Self
 
 import torch
 import whisperx
 from loguru import logger
 from peft import LoraConfig, get_peft_model, get_peft_model_state_dict, set_peft_model_state_dict
 from peft.peft_model import PeftModel
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from safetensors.torch import load_file, save, save_file
 from torch import nn
 from torch.nn import CrossEntropyLoss
@@ -24,7 +24,7 @@ from typing_extensions import Callable, Literal, Sequence, overload
 from whisperx.asr import FasterWhisperPipeline
 
 from ..cache import load_cached_tensors, save_cached_tensors
-from ..typing import BackboneT, ModelInputT, ModuleT, StateDicts
+from ..typing import BackboneT, ModelInputT, StateDicts
 
 
 class ModelOutput(BaseModel):
@@ -33,7 +33,7 @@ class ModelOutput(BaseModel):
 
 class ClassifierOutput(ModelOutput):
     logits: torch.Tensor
-    embeddings: torch.Tensor | None = None
+    pooler_output: tuple[torch.Tensor | None, ...] = Field(default_factory=tuple)
     loss: torch.Tensor | None = None
 
 
@@ -90,6 +90,11 @@ class Pooler(nn.Module):
         self.pool = nn.Sequential(
             nn.Dropout(0.4), nn.Linear(in_features, out_features, bias=bias), nn.ReLU()
         )
+        # self.pool = nn.Sequential(
+        #     nn.Dropout(0.4),
+        #     nn.Linear(in_features, out_features, bias=bias),
+        #     nn.Sigmoid(),
+        # )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         pooled_output = self.pool(x)
@@ -99,7 +104,7 @@ class Pooler(nn.Module):
 class Backbone(nn.Module, Generic[ModelInputT]):
     def __init__(
         self,
-        backbones: Sequence[ModuleT | None],
+        backbones: Mapping[str, nn.Module | None],
         embedding_num: int = 1,
         use_cache: bool = True,
         is_frozen: bool = True,
@@ -108,7 +113,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
     ):
         # Hidden size of text, audio and video backbones must be the same
         output_size: int | None = None
-        for backbone in backbones:
+        for backbone in backbones.values():
             if backbone is not None:
                 if output_size is not None and output_size != backbone.config.hidden_size:
                     raise ValueError(
@@ -122,12 +127,18 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             )
 
         super().__init__()
-        self.backbones = backbones
         self.output_size = output_size
         self.embedding_num = embedding_num
         self.use_cache = use_cache
         self.use_peft = use_peft
         self.is_frozen = is_frozen
+        self.backbones = nn.ModuleDict(
+            {
+                name: self.pretrained_module(module)
+                for name, module in backbones.items()
+                if module is not None
+            }
+        )
         self.backbones_dir = Path(backbones_dir)
 
     def freeze(self):
@@ -232,7 +243,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
 
     def set_state_dicts(self, state_dicts: dict[str, dict[str, torch.Tensor]]):
         for name, state_dict in state_dicts.items():
-            module: nn.Module = getattr(self, name)
+            module = self.backbones[name]
             if isinstance(module, PeftModel):
                 set_peft_model_state_dict(module, state_dict)
             else:
@@ -241,9 +252,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
     def get_state_dicts(self) -> tuple[StateDicts, StateDicts]:
         state_dicts: dict[str, dict[str, torch.Tensor]] = {}
         peft_state_dicts: dict[str, dict[str, torch.Tensor]] = {}
-        for name, module in self.named_modules():
-            if not hasattr(self, name):
-                continue
+        for name, module in self.backbones.items():
             if isinstance(module, PeftModel):
                 peft_state_dicts[name] = get_peft_model_state_dict(
                     module,
@@ -306,21 +315,23 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         backbones_dir: str | Path = "./checkpoints/backbones",
     ) -> Self:
         checkpoint_path = Path(checkpoint_path)
-        backbones: list[nn.Module] = []
+        backbones: dict[str, nn.Module] = {}
+        state_dicts: dict[str, dict[str, torch.Tensor]] = {}
         for name in os.listdir(checkpoint_path):
             with open(checkpoint_path / name / "config.json", "r") as f:
                 config = json.load(f)
             model = AutoModel.from_config(config)
-            model.load_state_dict(load_file(checkpoint_path / f"{name}.safetensors"))
-            backbones.append(model)
-
-        return cls(
+            state_dicts[name] = load_file(checkpoint_path / f"{name}.safetensors")
+            backbones[name] = model
+        self = cls(
             backbones,
             use_cache=use_cache,
             is_frozen=is_frozen,
             use_peft=use_peft,
             backbones_dir=backbones_dir,
         )
+        self.set_state_dicts(state_dicts)
+        return self
 
 
 class ClassifierModel(nn.Module, Generic[BackboneT]):

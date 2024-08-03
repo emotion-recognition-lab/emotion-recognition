@@ -136,8 +136,8 @@ class LazyMultimodalInput(MultimodalInput):
             and self.video_paths is not None
         ):
             pass
-            # TODO: too slow
-            # self.video_pixel_values = self.preprocessor.load_videos(self.video_paths)
+            # TODO: load video too slow
+            self.video_pixel_values = self.preprocessor.load_videos(self.video_paths)
 
         return super().__getattribute__(__name)
 
@@ -189,39 +189,39 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
         backbones_dir: str | Path = "./checkpoints/backbones",
     ):
         super().__init__(
-            (text_backbone, audio_backbone, video_backbone),
+            {
+                "text_backbone": text_backbone,
+                "audio_backbone": audio_backbone,
+                "video_backbone": video_backbone,
+            },
             embedding_num=3,
             use_cache=use_cache,
             is_frozen=is_frozen,
             use_peft=use_peft,
             backbones_dir=backbones_dir,
         )
-        a = self.backbones
-        self.text_backbone = self.pretrained_module(text_backbone)
-        self.audio_backbone = self.pretrained_module(audio_backbone)
-        self.video_backbone = self.pretrained_module(video_backbone)
 
     def compute_embs(
         self, inputs: MultimodalInput
     ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
-        if self.text_backbone is not None and inputs.text_input_ids is not None:
-            text_outputs = self.text_backbone(
+        if "text_backbone" in self.backbones and inputs.text_input_ids is not None:
+            text_outputs = self.backbones["text_backbone"](
                 inputs.text_input_ids, attention_mask=inputs.text_attention_mask
             )
             text_embs = text_outputs.last_hidden_state[:, 0]
         else:
             text_embs = None
 
-        if self.audio_backbone is not None and inputs.audio_input_values is not None:
-            audio_outputs = self.audio_backbone(
+        if "audio_backbone" in self.backbones and inputs.audio_input_values is not None:
+            audio_outputs = self.backbones["audio_backbone"](
                 inputs.audio_input_values, attention_mask=inputs.audio_attention_mask
             )
             audio_embs = audio_outputs.last_hidden_state[:, 0]
         else:
             audio_embs = None
 
-        if self.video_backbone is not None and inputs.video_pixel_values is not None:
-            video_outputs = self.video_backbone(inputs.video_pixel_values)
+        if "video_backbone" in self.backbones and inputs.video_pixel_values is not None:
+            video_outputs = self.backbones["video_backbone"](inputs.video_pixel_values)
             video_embs = video_outputs.last_hidden_state[:, 0]
         else:
             video_embs = None
@@ -326,10 +326,8 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
 
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
         text_embs, audio_embs, video_embs = self.backbone(inputs)
-        text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.pool_embs(
-            text_embs, audio_embs, video_embs
-        )
-        fusion_features = self.fusion_layer(text_pooled_embs, audio_pooled_embs, video_pooled_embs)
+        pooled_embs_tuple = self.pool_embs(text_embs, audio_embs, video_embs)
+        fusion_features = self.fusion_layer(*pooled_embs_tuple)
         return self.classify(fusion_features, inputs.labels)
 
     @classmethod
