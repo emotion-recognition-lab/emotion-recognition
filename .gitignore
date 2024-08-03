@@ -7,6 +7,7 @@ cache/
 datasets/
 
 .pdm-python
+.python-version
 result.json
 
 docs

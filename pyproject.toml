@@ -4,22 +4,25 @@ version = "0.1.0"
 description = ""
 authors = [{ name = "Zhan Rongrui", email = "2742392377@qq.com" }]
 dependencies = [
-    "torch>=2.3.1",
     "transformers>=4.43.1",
+    "torch>=2.3.1",
     "peft>=0.8.2",
     "safetensors>=0.4.2",
     "soundfile>=0.12.1",
-    "whisperx>=3.1.4",
+    "faster-whisper>=1.0.3",
     "cachetools>=5.3.2",
     "pydantic>=2.0.0",
     "loguru>=0.7.0",
+    "typer>=0.12.0",
     "rich>=13.7.1",
+    "toml>=0.10.0",
 ]
 requires-python = ">=3.11"
 readme = "README.md"
 license = { text = "MIT" }
 
 [project.optional-dependencies]
+train = ["pandas>=2.0.0"]
 triton = ["triton>=2.2.0"]
 
 [project.urls]
@@ -51,10 +54,8 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
-[[tool.pdm.source]]
-name = "pytorch"
-url = "https://download.pytorch.org/whl/cu121"
-include_packages = ["torch", "torchvision", "torchaudio"]
+[tool.uv]
+extra-index-url = ["https://download.pytorch.org/whl/cu121"]
 
 [tool.pdm.build]
 includes = ["recognize"]

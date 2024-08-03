@@ -14,8 +14,6 @@ from recognize.module import LowRankFusionLayer
 
 class EmotionEstimator:
     def __init__(self, checkpoint: str = "./public/models/emotion/"):
-        from faster_whisper import WhisperModel
-
         model_checkpoint = f"{checkpoint}/"
         text_feature_size, audio_feature_size, video_feature_size = 128, 16, 1
         backbone = MultimodalBackbone.from_checkpoint(
@@ -25,8 +23,6 @@ class EmotionEstimator:
         fusion_layer = LowRankFusionLayer(
             [text_feature_size, audio_feature_size, video_feature_size], 16, 128
         )
-
-        self.whisper_model = WhisperModel("medium", device="cuda", compute_type="float16")
 
         self.preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
         self.emotion_model = (
