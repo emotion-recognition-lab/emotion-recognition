@@ -9,11 +9,12 @@ from loguru import logger
 from safetensors.torch import load_file
 from torch import nn
 from torch.nn.utils.rnn import pad_sequence
-from transformers import AutoConfig, AutoModel
 
-from ..dataset import Preprocessor
-from ..module.fusion import FusionLayer
-from .base import Backbone, ClassifierModel, ClassifierOutput, ModelInput, Pooler
+from recognize.dataset import Preprocessor
+from recognize.module.basic import Pooler
+from recognize.module.fusion import FusionLayer
+
+from .base import Backbone, ClassifierModel, ClassifierOutput, ModelInput
 
 
 class MultimodalInput(ModelInput):
@@ -262,6 +263,8 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
         use_peft: bool = False,
         backbones_dir: str | Path = "./checkpoints/backbones",
     ):
+        from transformers import AutoConfig, AutoModel
+
         checkpoint_path = Path(checkpoint_path)
         backbones: list[nn.Module] = []
         for name in ["text_backbone", "audio_backbone", "video_backbone"]:

@@ -6,7 +6,9 @@ from typing import Callable
 
 import torch
 
-from .base import ClassifierModel, ClassifierOutput, Pooler
+from recognize.module.basic import Pooler
+
+from .base import ClassifierModel, ClassifierOutput
 from .multimodal import MultimodalBackbone, MultimodalInput
 
 

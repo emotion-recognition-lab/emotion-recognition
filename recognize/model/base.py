@@ -19,11 +19,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from safetensors.torch import load_file, save, save_file
 from torch import nn
 from torch.nn import CrossEntropyLoss
-from transformers import AutoModel
 from typing_extensions import Callable, Literal, Sequence, overload
 
-from ..cache import load_cached_tensors, save_cached_tensors
-from ..typing import BackboneT, ModelInputT, StateDicts
+from recognize.cache import load_cached_tensors, save_cached_tensors
+from recognize.typing import BackboneT, ModelInputT, StateDicts
 
 
 class ModelOutput(BaseModel):
@@ -79,6 +78,7 @@ class ModelInput(BaseModel):
                 "medium",
                 device="cuda",
                 compute_type="float16",
+                download_root=os.environ.get("WHISPER_DOWNLOAD_ROOT", None),
             )
         segments, _ = self.whisper_model.transcribe(
             audio_path, language="zh", initial_prompt="简体"
@@ -86,25 +86,6 @@ class ModelInput(BaseModel):
         text = "。".join(seg.text for seg in segments)
         logger.info(f"Recognized text: {text}")
         return text
-
-
-class Pooler(nn.Module):
-    def __init__(self, in_features: int, out_features: int | None = None, bias: bool = True):
-        super().__init__()
-        if out_features is None:
-            out_features = in_features
-        self.pool = nn.Sequential(
-            nn.Dropout(0.4), nn.Linear(in_features, out_features, bias=bias), nn.ReLU()
-        )
-        # self.pool = nn.Sequential(
-        #     nn.Dropout(0.4),
-        #     nn.Linear(in_features, out_features, bias=bias),
-        #     nn.Sigmoid(),
-        # )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        pooled_output = self.pool(x)
-        return pooled_output
 
 
 class Backbone(nn.Module, Generic[ModelInputT]):
@@ -320,6 +301,8 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         use_peft: bool = False,
         backbones_dir: str | Path = "./checkpoints/backbones",
     ) -> Self:
+        from transformers import AutoModel
+
         checkpoint_path = Path(checkpoint_path)
         backbones: dict[str, nn.Module] = {}
         state_dicts: dict[str, dict[str, torch.Tensor]] = {}
@@ -374,11 +357,11 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
 
     def compute_loss(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         if self.num_classes == 1:
-            loss_fct = nn.MSELoss()
-            return loss_fct(logits.view(-1), labels.float())
+            loss_fn = nn.MSELoss()
+            return loss_fn(logits.view(-1), labels.float())
         else:
-            loss_fct = CrossEntropyLoss(weight=self.sample_weights)
-            return loss_fct(logits, labels)
+            loss_fn = CrossEntropyLoss(weight=self.sample_weights)
+            return loss_fn(logits, labels)
 
     def classify(self, features: torch.Tensor, labels: torch.Tensor | None) -> ClassifierOutput:
         logits = self.classifier(features)

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import numpy as np
-from loguru import logger
 
 from recognize.dataset import Preprocessor
 from recognize.model import (
@@ -49,10 +48,3 @@ class EmotionEstimator:
         emotion_level = 1 / (1 + np.exp(-outputs.logits[0][0].cpu().numpy()))
         emotion_level = 50 + emotion_level * 50
         return emotion_level
-
-    def extrct_text(self, audio_path: str = "tmp_audio.wav"):
-        print(123123123)
-        segments, info = self.whisper_model.transcribe(audio_path, language="zh-cn")
-        text = "。".join(seg.text for seg in segments)
-        logger.debug(f"Extracted text: {text}")
-        return text

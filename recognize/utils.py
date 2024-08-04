@@ -15,7 +15,6 @@ from rich.progress import (
 )
 from safetensors.torch import load_file
 from torch.utils.data import DataLoader
-from transformers import get_linear_schedule_with_warmup
 
 from .evaluate import EarlyStopper, TrainingResult
 from .model.base import ClassifierModel
@@ -105,7 +104,7 @@ def load_last_checkpoint(
         logger.info(f"Load last model from [blue]{checkpoint_dir}/{epoch_start}")
         load_model(f"{checkpoint_dir}/{epoch_start}", model)
     if optimizer is not None and os.path.exists(checkpoint_dir / "optimizer.pt"):
-        optimizer.load_state_dict(torch.load(checkpoint_dir / "optimizer.pt"))
+        optimizer.load_state_dict(torch.load(checkpoint_dir / "optimizer.pt", weights_only=True))
     if stopper is not None and os.path.exists(checkpoint_dir / "stopper.json"):
         stopper.load(checkpoint_dir / "stopper.json")
     return epoch_start
@@ -113,6 +112,8 @@ def load_last_checkpoint(
 
 def init_torch():
     torch.set_float32_matmul_precision("high")
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 # @torch.compile()
@@ -126,11 +127,14 @@ def train_epoch(
     model.train()
     loss_value_list = []
     for batch_index, batch in enumerate(train_data_loader):
-        optimizer.zero_grad()
         output = model(batch)
         loss = output.loss
         assert loss is not None
+        # TODO: refactor step
+        optimizer.zero_grad()
         loss.backward()
+        # TODO: max_norm use config
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
         optimizer.step()
         scheduler.step()
         loss_value_list.append(loss.item())
@@ -151,6 +155,8 @@ def train_and_eval(
     model_label: str | None = None,
     eval_interval: int = 1,
 ):
+    from transformers import get_linear_schedule_with_warmup
+
     if optimizer is None:
         parameters = filter(lambda p: p.requires_grad, model.parameters())
         optimizer = torch.optim.AdamW(parameters, lr=1e-6, weight_decay=0.01)
@@ -220,6 +226,7 @@ def train_and_eval(
 
                 progress.update(task, f1_score=test_f1_score, accuracy=test_accuracy)
                 if stopper.best_epoch != best_epoch:
+                    # TODO: maybe model is not better in test set?
                     best_epoch = stopper.best_epoch
                     result.best_epoch = best_epoch
                     save_checkpoint(checkpoint_dir, epoch, model, optimizer, stopper)
@@ -249,7 +256,6 @@ def distill_epoch(
     student_model.train()
     loss_value_list = []
     for batch_index, batch in enumerate(train_data_loader):
-        optimizer.zero_grad()
         with torch.no_grad():
             teacher_embs = teacher_model.backbone(batch)[0]
             teacher_pooled_embs = teacher_model.pool_embs(teacher_embs)
@@ -269,6 +275,7 @@ def distill_epoch(
             # + FeatureLoss()(student_pooled_embs_tuple[2], teacher_pooled_embs)
             + student_output.loss
         )
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         loss_value_list.append(loss.item())
@@ -292,7 +299,7 @@ def train_and_eval_distill(
 ):
     if optimizer is None:
         parameters = filter(lambda p: p.requires_grad, model.parameters())
-        optimizer = torch.optim.AdamW(parameters, lr=1e-5, weight_decay=0.1)
+        optimizer = torch.optim.AdamW(parameters, lr=1e-5, weight_decay=0.01)
     if stopper is None:
         stopper = EarlyStopper()
     if test_data_loader is None:
