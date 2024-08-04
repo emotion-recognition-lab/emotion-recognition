@@ -25,7 +25,7 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 def generate_inference_checkpoints(
     checkpoint: Path,
     inference_checkpoint: Path,
-    log_level: LogLevel = LogLevel.DEBUG,
+    log_level: LogLevel = "DEBUG",
 ):
     init_logger(log_level)
     if inference_checkpoint.exists():

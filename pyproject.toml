@@ -30,23 +30,27 @@ Homepage = "https://github.com/zrr1999/emotion-recognition.git"
 Repository = "https://github.com/zrr1999/emotion-recognition.git"
 
 [project.scripts]
-emotion-recognize = "cli.recognize:app"
-emotion-tool = "cli.tool:app"
+emotion-recognize = "cli.cli_recognize:app"
+emotion-tool = "cli.cli_tool:app"
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["F", "I", "B", "C4", "PGH", "RUF", "W", "YTT"]
+select = ["F", "I", "B", "C4", "PGH", "RUF", "W", "YTT", "TID"]
 ignore = ["F841", "PGH003"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "I002"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["recognize"]
 required-imports = ["from __future__ import annotations"]
 
-[tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401", "I002"]
+[tool.ruff.lint.flake8-tidy-imports]
+# banned-module-level-imports = ["torch", "transformers"]
+banned-module-level-imports = ["transformers"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -56,6 +60,7 @@ line-ending = "auto"
 
 [tool.uv]
 extra-index-url = ["https://download.pytorch.org/whl/cu121"]
+dev-dependencies = ["memray", "viztracer"]
 
 [tool.pdm.build]
 includes = ["recognize"]

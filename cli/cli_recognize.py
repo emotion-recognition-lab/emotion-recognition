@@ -10,13 +10,6 @@ from loguru import logger
 from rich.highlighter import NullHighlighter
 from rich.logging import RichHandler
 from torch.utils.data import DataLoader
-from transformers import (
-    AutoFeatureExtractor,
-    AutoImageProcessor,
-    AutoModel,
-    AutoTokenizer,
-    VivitImageProcessor,
-)
 
 from recognize.config import load_config
 from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType, Preprocessor
@@ -38,7 +31,7 @@ def init_logger(log_level: LogLevel):
     logger.add(handler, format="{message}", level=log_level)
 
 
-def seed_everything(seed):
+def seed_everything(seed: int = 666):
     import random
 
     import numpy as np
@@ -46,10 +39,6 @@ def seed_everything(seed):
     random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
     np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
 
 
 def provide_meld_datasets(
@@ -114,6 +103,10 @@ def distill(
     Generally, you can use the one corresponding to the student model,
     as the student model typically has more modalities.
     """
+    from transformers import (
+        AutoModel,
+    )
+
     config = load_config(config_path)
     init_logger(config.log_level)
     config_freeze = config.model.freeze_backbone
@@ -217,6 +210,14 @@ def train(
     config_path: Path = Path("configs/default.toml"),
     checkpoint: Optional[Path] = None,
 ) -> None:
+    from transformers import (
+        AutoFeatureExtractor,
+        AutoImageProcessor,
+        AutoModel,
+        AutoTokenizer,
+        VivitImageProcessor,
+    )
+
     config = load_config(config_path)
     init_logger(config.log_level)
     freeze = config.model.freeze_backbone
@@ -318,7 +319,7 @@ def train(
     result: TrainingResult = train_and_eval(
         model,
         train_data_loader,
-        dev_data_loader,
+        test_data_loader,
         test_data_loader,
         num_epochs=200,
         model_label=model_label,
