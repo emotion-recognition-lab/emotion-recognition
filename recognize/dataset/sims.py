@@ -6,7 +6,8 @@ from functools import cached_property
 import pandas as pd
 import torch
 
-from ..preprocessor import Preprocessor
+from recognize.preprocessor import Preprocessor
+
 from .base import DatasetSplit, MultimodalDataset
 
 
@@ -42,7 +43,7 @@ class SIMSDataset(MultimodalDataset):
         return float(sentiment)
 
     def __getitem__(self, index: int):
-        from ..model import LazyMultimodalInput
+        from recognize.model import LazyMultimodalInput
 
         item = self.meta.iloc[index]
         label = self.label2int(item)

@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import numpy as np
 
-from recognize.dataset import Preprocessor
 from recognize.model import (
     LazyMultimodalInput,
     MultimodalBackbone,
     MultimodalModel,
 )
 from recognize.module import LowRankFusionLayer
+from recognize.preprocessor import Preprocessor
 
 
 class EmotionEstimator:

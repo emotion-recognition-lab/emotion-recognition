@@ -12,7 +12,7 @@ from rich.logging import RichHandler
 from torch.utils.data import DataLoader
 
 from recognize.config import load_config
-from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType, Preprocessor
+from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType
 from recognize.evaluate import TrainingResult
 from recognize.model import (
     LazyMultimodalInput,
@@ -21,6 +21,7 @@ from recognize.model import (
     UnimodalModel,
 )
 from recognize.module.fusion import gen_fusion_layer
+from recognize.preprocessor import Preprocessor
 from recognize.typing import LogLevel, ModalType
 from recognize.utils import find_best_model, load_best_model, train_and_eval, train_and_eval_distill
 

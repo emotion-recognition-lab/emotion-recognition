@@ -8,8 +8,8 @@ import pandas as pd
 from torch.utils.data import Dataset
 
 if TYPE_CHECKING:
-    from ..model import MultimodalInput
-    from ..preprocessor import Preprocessor
+    from recognize.model import MultimodalInput
+    from recognize.preprocessor import Preprocessor
 
 
 class DatasetSplit(Enum):
