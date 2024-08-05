@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import pandas as pd
 import torch
 from loguru import logger
 
-from ..preprocessor import Preprocessor
 from .base import DatasetSplit, MultimodalDataset
+
+if TYPE_CHECKING:
+    from recognize.preprocessor import Preprocessor
+
 
 MELDDatasetLabelType = Literal["emotion", "sentiment"]
 
@@ -70,6 +73,21 @@ class MELDDataset(MultimodalDataset):
         )
         self.split = "dev" if split == DatasetSplit.VALID else split.value
 
+        self._generate_session()
+
+    def _generate_session(self):
+        unique_speakers = self.meta["Speaker"].unique().tolist()
+        renamed_speakers = [f"<s{i}>" for i in range(len(unique_speakers))]
+        speaker_map = dict(zip(unique_speakers, renamed_speakers, strict=True))
+        self.meta["Speaker"] = self.meta["Speaker"].map(speaker_map)
+
+        self.meta["Session"] = ""
+        for _, group in self.meta.groupby("Dialogue_ID"):
+            session_parts = []
+            for idx, row in group.iterrows():
+                session_parts.append(f"{row['Speaker']} {row['Utterance']}")
+                self.meta.at[idx, "Session"] = " ".join(session_parts)
+
     @cached_property
     def class_weights(self) -> list[float]:
         labels = self.meta.apply(self.label2int, axis=1)
@@ -78,20 +96,27 @@ class MELDDataset(MultimodalDataset):
         class_weights = [class_count / total_samples for class_count in class_counts]
         return class_weights
 
+    @cached_property
+    def speakers(self) -> list[str]:
+        return self.meta["Speaker"].unique().tolist()
+
     def __getitem__(self, index: int):
-        from ..model import LazyMultimodalInput
+        from recognize.model import LazyMultimodalInput
 
         item = self.meta.iloc[index]
         label = self.label2int(item)
 
         utt_id = item["Utterance_ID"]
         dia_id = item["Dialogue_ID"]
+        speaker = item["Speaker"]
+        session = item["Session"]
+        text = f"{session} </s> Now {speaker} feels"
         audio_path = f"{self.dataset_path}/audios/{self.split}/dia{dia_id}_utt{utt_id}.flac"
         video_path = f"{self.dataset_path}/videos/{self.split}/dia{dia_id}_utt{utt_id}.mp4"
         return LazyMultimodalInput(
             preprocessor=self.preprocessor,
             unique_ids=[f"{self.custom_unique_id}--{self.split}_{utt_id}_{dia_id}"],
-            texts=[item["Utterance"]],
+            texts=[text],
             audio_paths=[audio_path],
             video_paths=[video_path],
             labels=torch.tensor([label], dtype=torch.int64),

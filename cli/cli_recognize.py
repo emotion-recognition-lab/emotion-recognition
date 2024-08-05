@@ -236,17 +236,21 @@ def train(
         assert len(backbones) == len(
             modals
         ), "The number of backbones and modals should be the same"
+
+        preprocessors = []
+        for modal, model_name in zip(modals, backbones, strict=True):
+            if modal == "T":
+                tokenizer = AutoTokenizer.from_pretrained(model_name)
+                preprocessors.append(tokenizer)
+            elif modal == "V":
+                preprocessors.append(VivitImageProcessor.from_pretrained(model_name))
+            elif modal == "A":
+                preprocessors.append(AutoFeatureExtractor.from_pretrained(model_name))
+            else:
+                preprocessors.append(AutoImageProcessor.from_pretrained(model_name))
+
         preprocessor = Preprocessor(
-            *[
-                AutoTokenizer.from_pretrained(model_name)
-                if modal == "T"
-                else VivitImageProcessor.from_pretrained(model_name)
-                if modal == "V"
-                else AutoFeatureExtractor.from_pretrained(model_name)
-                if modal == "A"
-                else AutoImageProcessor.from_pretrained(model_name)
-                for modal, model_name in zip(modals, backbones, strict=True)
-            ],
+            *preprocessors,
         )
         preprocessor.save_pretrained(f"./checkpoints/{model_label}/preprocessor")
 
@@ -290,6 +294,13 @@ def train(
         pin_memory=True,
     )
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
+    if preprocessor.tokenizer is not None:
+        preprocessor.tokenizer.add_special_tokens(
+            {
+                "additional_special_tokens": train_dataset.speakers  # type: ignore
+            }
+        )
+        backbone.backbones["text_backbone"].resize_token_embeddings(len(preprocessor.tokenizer))
 
     if config.model.fusion is None:
         model = UnimodalModel(
@@ -320,7 +331,7 @@ def train(
     result: TrainingResult = train_and_eval(
         model,
         train_data_loader,
-        test_data_loader,
+        dev_data_loader,
         test_data_loader,
         num_epochs=200,
         model_label=model_label,

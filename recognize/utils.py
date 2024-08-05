@@ -99,8 +99,7 @@ def load_last_checkpoint(
     epoch_start = -1
     model_list = [int(model_name) for model_name in model_list if model_name.isdigit()]
     if model_list:
-        model_list.sort()
-        epoch_start = model_list[-1]
+        epoch_start = max(model_list)
         logger.info(f"Load last model from [blue]{checkpoint_dir}/{epoch_start}")
         load_model(f"{checkpoint_dir}/{epoch_start}", model)
     if optimizer is not None and os.path.exists(checkpoint_dir / "optimizer.pt"):

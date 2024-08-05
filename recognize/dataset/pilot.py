@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from functools import cached_property
+from typing import TYPE_CHECKING
 
 import pandas as pd
 import torch
 from loguru import logger
 
-from recognize.preprocessor import Preprocessor
+if TYPE_CHECKING:
+    from recognize.preprocessor import Preprocessor
 
 from .base import DatasetSplit, MultimodalDataset
 

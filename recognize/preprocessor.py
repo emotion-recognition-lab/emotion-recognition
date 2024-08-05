@@ -12,15 +12,18 @@ from .dataset.utils import read_videos
 
 class Preprocessor:
     def __init__(self, tokenizer=None, feature_extractor=None, image_processor=None):
+        if tokenizer is not None:
+            tokenizer.truncation_side = "left"
+            tokenizer.padding_side = "left"
         self.tokenizer = tokenizer
         self.feature_extractor = feature_extractor
         self.image_processor = image_processor
 
     def load_text(self, text: str) -> tuple[torch.Tensor | None, torch.Tensor | None]:
         if self.tokenizer is not None:
-            text_inputs = self.tokenizer(text, return_attention_mask=True, return_tensors="pt")
-            text_input_ids = text_inputs["input_ids"][0]
-            text_attention_mask = text_inputs["attention_mask"][0]
+            tokenized = self.tokenizer.tokenize(text)[-self.tokenizer.model_max_length :]
+            text_input_ids = torch.tensor(self.tokenizer.convert_tokens_to_ids(tokenized))
+            text_attention_mask = torch.ones(len(text_input_ids))
         else:
             text_input_ids = None
             text_attention_mask = None
@@ -66,7 +69,11 @@ class Preprocessor:
     def load_texts(self, texts: list[str]) -> tuple[torch.Tensor | None, torch.Tensor | None]:
         if self.tokenizer is not None:
             text_inputs = self.tokenizer(
-                texts, return_attention_mask=True, return_tensors="pt", padding=True
+                texts,
+                return_attention_mask=True,
+                return_tensors="pt",
+                truncation=True,
+                padding=True,
             )
             text_input_ids = text_inputs["input_ids"]
             text_attention_mask = text_inputs["attention_mask"]
