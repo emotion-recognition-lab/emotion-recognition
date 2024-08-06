@@ -14,45 +14,48 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 from safetensors.torch import load_file
+from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
+from recognize.trainer import Trainer
+
 from .evaluate import EarlyStopper, TrainingResult
-from .model.base import ClassifierModel
+from .model.base import Backbone, ClassifierModel
 from .module.loss import FeatureLoss, LogitLoss
 
 
 def save_checkpoint(
     checkpoint_dir: Path,
     epoch: int,
-    model: ClassifierModel,
-    optimizer: torch.optim.Optimizer,
+    model: ClassifierModel[Backbone],
+    optimizer: Optimizer,
     stopper: EarlyStopper,
 ):
     epoch_checkpoint_dir = checkpoint_dir / str(epoch)
     epoch_checkpoint_dir.mkdir(parents=True, exist_ok=True)
     model.save_checkpoint(epoch_checkpoint_dir)
 
-    epoch_backbones_dir = epoch_checkpoint_dir / "backbones"
-    original_backbones_dir = checkpoint_dir / "backbones"
+    epoch_encoder_dir = epoch_checkpoint_dir / "backbones"
+    original_encoder_dir = checkpoint_dir / "backbones"
     if model.backbone.is_frozen:
         # save and link original backbone state_dict
-        if not original_backbones_dir.exists():
-            original_backbones_dir.mkdir(parents=True)
+        if not original_encoder_dir.exists():
+            original_encoder_dir.mkdir(parents=True)
             for name, path in model.backbone.save().items():
-                config_path = original_backbones_dir / name
-                model.backbone.get_submodule(name).config.save_pretrained(config_path)
-                (original_backbones_dir / f"{name}.safetensors").symlink_to(path)
+                config_path = original_encoder_dir / name
+                model.backbone.backbones[name].config.save_pretrained(config_path)
+                (original_encoder_dir / f"{name}.safetensors").symlink_to(path)
     else:
         # save and link backbone state_dict
-        epoch_backbones_dir.mkdir(parents=True, exist_ok=True)
+        epoch_encoder_dir.mkdir(parents=True, exist_ok=True)
         for name, path in model.backbone.save().items():
-            config_path = epoch_backbones_dir / name
+            config_path = epoch_encoder_dir / name
             model.backbone.backbones[name].config.save_pretrained(config_path)
-            (epoch_backbones_dir / f"{name}.safetensors").symlink_to(path)
+            (epoch_encoder_dir / f"{name}.safetensors").symlink_to(path)
 
-        original_backbones_dir.unlink(missing_ok=True)
-        original_backbones_dir.symlink_to(
-            epoch_backbones_dir.relative_to(original_backbones_dir.parent),
+        original_encoder_dir.unlink(missing_ok=True)
+        original_encoder_dir.symlink_to(
+            epoch_encoder_dir.relative_to(original_encoder_dir.parent),
             target_is_directory=True,
         )
 
@@ -72,9 +75,6 @@ def find_best_model(checkpoint_dir: Path | str) -> int:
     if os.path.exists(f"{checkpoint_dir}/stopper.json"):
         stopper = EarlyStopper.from_file(f"{checkpoint_dir}/stopper.json")
         best_epoch = stopper.best_epoch
-    elif os.path.exists(f"{checkpoint_dir}/result.json"):
-        with open(f"{checkpoint_dir}/result.json", "r") as f:
-            best_epoch = TrainingResult.model_validate_json(f.read()).best_epoch
     else:
         logger.warning(f"No stopper or result file found in [blue]{checkpoint_dir}")
         best_epoch = -1
@@ -91,7 +91,7 @@ def load_best_model(checkpoint_dir: Path | str, model: ClassifierModel) -> int:
 def load_last_checkpoint(
     checkpoint_dir: Path | str,
     model: ClassifierModel,
-    optimizer: torch.optim.Optimizer | None = None,
+    optimizer: Optimizer | None = None,
     stopper: EarlyStopper | None = None,
 ) -> int:
     checkpoint_dir = Path(checkpoint_dir)
@@ -109,35 +109,37 @@ def load_last_checkpoint(
     return epoch_start
 
 
-def init_torch():
-    torch.set_float32_matmul_precision("high")
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+def get_trainer(
+    model: ClassifierModel,
+    num_warmup_steps: int,
+    num_training_steps: int,
+):
+    from transformers import get_linear_schedule_with_warmup
+
+    parameters = filter(lambda p: p.requires_grad, model.parameters())
+    optimizer = torch.optim.AdamW(parameters, lr=1e-6, weight_decay=0.01)
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=num_warmup_steps,
+        num_training_steps=num_training_steps,
+    )
+
+    return Trainer(model, optimizer, scheduler)
 
 
 # @torch.compile()
 def train_epoch(
     model: ClassifierModel,
-    optimizer: torch.optim.Optimizer,
-    scheduler: torch.optim.lr_scheduler.LambdaLR,
+    trainer: Trainer,
     train_data_loader: DataLoader,
     update_hook: Callable[[int, float], None] | None = None,
 ):
     model.train()
-    loss_value_list = []
+    trainer.clear_losses()
     for batch_index, batch in enumerate(train_data_loader):
         output = model(batch)
         loss = output.loss
-        assert loss is not None
-        # TODO: refactor step
-        optimizer.zero_grad()
-        loss.backward()
-        # TODO: max_norm use config
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 10)
-        optimizer.step()
-        scheduler.step()
-        loss_value_list.append(loss.item())
-        loss_value = sum(loss_value_list) / len(loss_value_list)
+        loss_value = trainer.step(loss)
         if update_hook is not None:
             update_hook(batch_index, loss_value)
 
@@ -148,22 +150,12 @@ def train_and_eval(
     valid_data_loader: DataLoader,
     test_data_loader: DataLoader | None = None,
     *,
-    optimizer: torch.optim.Optimizer | None = None,
     stopper: EarlyStopper | None = None,
     num_epochs: int = 100,
     model_label: str | None = None,
     eval_interval: int = 1,
 ):
-    from transformers import get_linear_schedule_with_warmup
-
-    if optimizer is None:
-        parameters = filter(lambda p: p.requires_grad, model.parameters())
-        optimizer = torch.optim.AdamW(parameters, lr=1e-6, weight_decay=0.01)
-    scheduler = get_linear_schedule_with_warmup(
-        optimizer,
-        num_warmup_steps=len(train_data_loader),
-        num_training_steps=len(train_data_loader) * num_epochs,
-    )
+    trainer = get_trainer(model, len(train_data_loader), len(train_data_loader) * num_epochs)
 
     if stopper is None:
         stopper = EarlyStopper()
@@ -179,7 +171,7 @@ def train_and_eval(
     epoch_start = load_last_checkpoint(
         checkpoint_dir,
         model,
-        optimizer,
+        trainer.optimizer,
         stopper,
     )
 
@@ -207,8 +199,7 @@ def train_and_eval(
         for epoch in range(epoch_start + 1, num_epochs):
             train_epoch(
                 model,
-                optimizer,
-                scheduler,
+                trainer,
                 train_data_loader,
                 lambda batch_index, loss_value: progress.update(
                     task, loss=loss_value, batch_index=batch_index + 1
@@ -220,40 +211,37 @@ def train_and_eval(
                 test_f1_score = result.f1_score
                 test_accuracy = result.accuracy
                 if stopper.update(epoch=epoch, f1=test_f1_score):
-                    save_checkpoint(checkpoint_dir, epoch, model, optimizer, stopper)
+                    save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
                     break
 
                 progress.update(task, f1_score=test_f1_score, accuracy=test_accuracy)
                 if stopper.best_epoch != best_epoch:
                     # TODO: maybe model is not better in test set?
                     best_epoch = stopper.best_epoch
-                    result.best_epoch = best_epoch
-                    save_checkpoint(checkpoint_dir, epoch, model, optimizer, stopper)
+                    save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
                     logger.info(
                         f"Epoch {best_epoch}: Better model found [red](Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%)",
                     )
                 if epoch == num_epochs - 1:
-                    save_checkpoint(checkpoint_dir, epoch, model, optimizer, stopper)
+                    save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
 
             progress.update(task, advance=1)
 
     load_model(checkpoint_dir / str(best_epoch), model)
     result = TrainingResult.auto_compute(model, test_data_loader)
-    result.best_epoch = best_epoch
-    result.save(f"{checkpoint_dir}/result.json")
     return result
 
 
 def distill_epoch(
     teacher_model: ClassifierModel,
     student_model: ClassifierModel,
-    optimizer: torch.optim.Optimizer,
+    trainer: Trainer,
     train_data_loader: DataLoader,
     update_hook: Callable[[int, float], None] | None = None,
 ):
     teacher_model.eval()
     student_model.train()
-    loss_value_list = []
+    trainer.clear_losses()
     for batch_index, batch in enumerate(train_data_loader):
         with torch.no_grad():
             teacher_embs = teacher_model.backbone(batch)[0]
@@ -274,11 +262,8 @@ def distill_epoch(
             # + FeatureLoss()(student_pooled_embs_tuple[2], teacher_pooled_embs)
             + student_output.loss
         )
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        loss_value_list.append(loss.item())
-        loss_value = sum(loss_value_list) / len(loss_value_list)
+
+        loss_value = trainer.step(loss)
         if update_hook is not None:
             update_hook(batch_index, loss_value)
 
@@ -290,15 +275,13 @@ def train_and_eval_distill(
     valid_data_loader: DataLoader,
     test_data_loader: DataLoader | None = None,
     *,
-    optimizer: torch.optim.Optimizer | None = None,
     stopper: EarlyStopper | None = None,
     num_epochs: int = 100,
     model_label: str | None = None,
+    eval_valid: bool = True,
     eval_interval: int = 1,
 ):
-    if optimizer is None:
-        parameters = filter(lambda p: p.requires_grad, model.parameters())
-        optimizer = torch.optim.AdamW(parameters, lr=1e-5, weight_decay=0.01)
+    trainer = get_trainer(model, len(train_data_loader), len(train_data_loader) * num_epochs)
     if stopper is None:
         stopper = EarlyStopper()
     if test_data_loader is None:
@@ -313,7 +296,7 @@ def train_and_eval_distill(
     epoch_start = load_last_checkpoint(
         checkpoint_dir,
         model,
-        optimizer,
+        trainer.optimizer,
         stopper,
     )
 
@@ -342,7 +325,7 @@ def train_and_eval_distill(
             distill_epoch(
                 teacher_model,
                 model,
-                optimizer,
+                trainer,
                 train_data_loader,
                 lambda batch_index, loss_value: progress.update(
                     task, loss=loss_value, batch_index=batch_index + 1
@@ -354,24 +337,21 @@ def train_and_eval_distill(
                 test_f1_score = result.f1_score
                 test_accuracy = result.accuracy
                 if stopper.update(epoch=epoch, f1=test_f1_score):
-                    save_checkpoint(checkpoint_dir, epoch, model, optimizer, stopper)
+                    save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
                     break
 
                 progress.update(task, f1_score=test_f1_score, accuracy=test_accuracy)
                 if stopper.best_epoch != best_epoch:
                     best_epoch = stopper.best_epoch
-                    result.best_epoch = best_epoch
-                    save_checkpoint(checkpoint_dir, epoch, model, optimizer, stopper)
+                    save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
                     logger.info(
                         f"Epoch {best_epoch}: Better model found [red](Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%)",
                     )
                 if epoch == num_epochs - 1:
-                    save_checkpoint(checkpoint_dir, epoch, model, optimizer, stopper)
+                    save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
 
             progress.update(task, advance=1)
 
     load_model(checkpoint_dir / str(best_epoch), model)
     result = TrainingResult.auto_compute(model, test_data_loader)
-    result.best_epoch = best_epoch
-    result.save(f"{checkpoint_dir}/result.json")
     return result

@@ -13,4 +13,4 @@ freeze_backbone = true
 
 [dataset]
 path = "datasets/MELD"
-label-type = "emotion"
+label_type = "emotion"

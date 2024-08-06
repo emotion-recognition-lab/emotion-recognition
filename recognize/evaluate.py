@@ -162,7 +162,6 @@ class TrainingResult(BaseModel):
     f1_score: float = 0
 
     confusion_matrix: list[list[int]] | None = None
-    best_epoch: int = 0
 
     def save(self, path: str):
         with open(path, "w") as f:

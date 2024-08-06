@@ -182,7 +182,7 @@ def distill(
     backbone = MultimodalBackbone(
         *[AutoModel.from_pretrained(model_name) for model_name in config_backbones]
     )
-    backbone.text_backbone = teacher_backbone.text_backbone
+    backbone.backbones["text"] = teacher_backbone.backbones["text"]
     fusion_layer = gen_fusion_layer(config_fusion)
     model = MultimodalModel(
         backbone,
@@ -252,7 +252,6 @@ def train(
         preprocessor = Preprocessor(
             *preprocessors,
         )
-        preprocessor.save_pretrained(f"./checkpoints/{model_label}/preprocessor")
 
     if os.path.exists(f"./{checkpoint}/backbones"):
         backbone = MultimodalBackbone.from_checkpoint(f"./{checkpoint}/backbones")
@@ -294,13 +293,15 @@ def train(
         pin_memory=True,
     )
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
-    if preprocessor.tokenizer is not None:
+    if checkpoint is None and preprocessor.tokenizer is not None:
         preprocessor.tokenizer.add_special_tokens(
             {
                 "additional_special_tokens": train_dataset.speakers  # type: ignore
             }
         )
-        backbone.backbones["text_backbone"].resize_token_embeddings(len(preprocessor.tokenizer))
+        backbone.backbones["text"].resize_token_embeddings(len(preprocessor.tokenizer))
+    if not os.path.exists(f"./checkpoints/{model_label}/preprocessor"):
+        preprocessor.save_pretrained(f"./checkpoints/{model_label}/preprocessor")
 
     if config.model.fusion is None:
         model = UnimodalModel(
@@ -336,7 +337,8 @@ def train(
         num_epochs=200,
         model_label=model_label,
     )
-    logger.info(f"Test result(best model in epoch {result.best_epoch}):")
+    best_epoch = find_best_model(checkpoint_dir)
+    logger.info(f"Test result(best model in epoch {best_epoch}):")
     result.print()
 
 

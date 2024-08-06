@@ -19,9 +19,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from safetensors.torch import load_file, save, save_file
 from torch import nn
 from torch.nn import CrossEntropyLoss
-from typing_extensions import Callable, Literal, Sequence, overload
+from typing_extensions import Callable, Literal, Sequence, deprecated, overload
 
 from recognize.cache import load_cached_tensors, save_cached_tensors
+from recognize.module.basic import Pooler
 from recognize.typing import BackboneT, ModelInputT, StateDicts
 
 
@@ -91,42 +92,50 @@ class ModelInput(BaseModel):
 class Backbone(nn.Module, Generic[ModelInputT]):
     def __init__(
         self,
-        backbones: Mapping[str, nn.Module | None],
-        embedding_num: int = 1,
+        # TODO: change to dict[str, tuple[nn.Module, int]]
+        encoders: Mapping[str, tuple[nn.Module | None, int]],
+        encoder_num: int = 1,
         use_cache: bool = True,
         is_frozen: bool = True,
         use_peft: bool = False,
-        backbones_dir: str | Path = "./checkpoints/backbones",
+        encoder_dir: str | Path = "./checkpoints/backbones",
     ):
-        # Hidden size of text, audio and video backbones must be the same
-        output_size: int | None = None
-        for backbone in backbones.values():
-            if backbone is not None:
-                if output_size is not None and output_size != backbone.config.hidden_size:
-                    raise ValueError(
-                        "Hidden size of text, audio and video backbones must be the same"
-                    )
-                output_size = backbone.config.hidden_size
-
-        if output_size is None:
-            raise ValueError(
-                "output_size must be provided if text_backbone, audio_backbone and video_backbone are None"
-            )
-
         super().__init__()
-        self.output_size = output_size
-        self.embedding_num = embedding_num
+        self.encoder_dir = Path(encoder_dir)
+        self.hidden_nums = {
+            name: module.config.hidden_size
+            for name, (module, _) in encoders.items()
+            if module is not None
+        }
+        self.feature_sizes = {
+            name: feature_size for name, (module, feature_size) in encoders.items()
+        }
+        self.encoder_num = encoder_num
         self.use_cache = use_cache
         self.use_peft = use_peft
         self.is_frozen = is_frozen
-        self.backbones = nn.ModuleDict(
+        self.encoders = nn.ModuleDict(
             {
                 name: self.pretrained_module(module)
-                for name, module in backbones.items()
+                for name, (module, _) in encoders.items()
                 if module is not None
             }
         )
-        self.backbones_dir = Path(backbones_dir)
+        self.poolers = nn.ModuleDict(
+            {
+                name: Pooler(module.config.hidden_size, feature_size)
+                for name, (module, feature_size) in encoders.items()
+                if module is not None
+            }
+        )
+
+    @property
+    @deprecated(
+        "`backbones` is deprecated and will be removed in the next release. Please use `encoders` instead.",
+        category=FutureWarning,
+    )
+    def backbones(self):
+        return self.encoders
 
     def freeze(self):
         self.is_frozen = True
@@ -134,8 +143,18 @@ class Backbone(nn.Module, Generic[ModelInputT]):
     def unfreeze(self):
         self.is_frozen = False
 
-    def compute_embs(self, inputs: ModelInputT) -> tuple[torch.Tensor | None, ...]:
+    def compute_embs(self, inputs: ModelInputT) -> dict[str, torch.Tensor | None]:
         raise NotImplementedError("compute_embs method must be implemented in subclass")
+
+    def pool_embs(
+        self,
+        embs_dict: dict[str, torch.Tensor | None],
+    ) -> dict[str, torch.Tensor]:
+        return {
+            name: self.poolers[name](embs)
+            for name in self.poolers
+            if (embs := embs_dict.get(name)) is not None
+        }
 
     def load_cache(self, inputs: ModelInputT) -> tuple[list[dict[str, torch.Tensor]], list[int]]:
         assert inputs.unique_ids is not None, "unique_ids must be a list"
@@ -148,15 +167,16 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         assert no_cached_inputs.unique_ids is not None
         with torch.no_grad():
             embs_tuple = self.compute_embs(no_cached_inputs)
+            pooler_output = self.pool_embs(embs_tuple)
         save_cached_tensors(
             no_cached_inputs.unique_ids,
-            {f"{i}": embs for i, embs in enumerate(embs_tuple)},
+            dict(pooler_output.items()),
             cache_dir=f"./cache/{self.hash}",
         )
 
     def merge_cache(
         self, cached_list: list[dict[str, torch.Tensor]], device: torch.device
-    ) -> tuple[torch.Tensor | None, ...]:
+    ) -> dict[str, torch.Tensor]:
         embs_list_dict: dict[str, list[torch.Tensor]] = {}
         for cache in cached_list:
             for k, v in cache.items():
@@ -166,9 +186,14 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         embs_dict: dict[str, torch.Tensor] = {
             k: torch.stack(v).to(device) for k, v in embs_list_dict.items()
         }
-        return tuple(embs_dict.get(f"{i}", None) for i in range(self.embedding_num))
+        return embs_dict
 
-    def cached_forward(self, inputs: ModelInputT):
+    def direct_forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
+        embs_tuple = self.compute_embs(inputs)
+        pooler_output = self.pool_embs(embs_tuple)
+        return pooler_output
+
+    def cached_forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
         cached_list, no_cached_index_list = self.load_cache(inputs)
         if len(no_cached_index_list) != 0:
             no_cached_inputs = inputs[no_cached_index_list]
@@ -177,6 +202,12 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         assert len(no_cached_index_list) == 0, "All tensors should be cached"
 
         return self.merge_cache(cached_list, inputs.device)
+
+    def forward(self, inputs: ModelInputT):
+        if self.is_frozen and self.use_cache and inputs.unique_ids is not None:
+            return self.cached_forward(inputs)
+        else:
+            return self.direct_forward(inputs)
 
     @overload
     def pretrained_module(self, module: nn.Module) -> nn.Module: ...
@@ -264,14 +295,14 @@ class Backbone(nn.Module, Generic[ModelInputT]):
 
     def save(self):
         state_path_dict: dict[str, Path] = {}
-        self.backbones_dir.mkdir(parents=True, exist_ok=True)
+        self.encoder_dir.mkdir(parents=True, exist_ok=True)
         state_dicts, peft_state_dicts = self.get_state_dicts()
         for name, state_dict in state_dicts.items():
             state_bytes = save(state_dict)
             hasher = hashlib.md5()
             hasher.update(state_bytes)
             model_hash = hasher.hexdigest()
-            model_path = Path(f"{self.backbones_dir}/{model_hash}.safetensors")
+            model_path = Path(f"{self.encoder_dir}/{model_hash}.safetensors")
             state_path_dict[name] = model_path.absolute()
             if model_path.exists():
                 continue
@@ -282,7 +313,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             hasher = hashlib.md5()
             hasher.update(state_bytes)
             model_hash = hasher.hexdigest()
-            model_path = Path(f"{self.backbones_dir}/peft_{model_hash}.safetensors")
+            model_path = Path(f"{self.encoder_dir}/peft_{model_hash}.safetensors")
             state_path_dict[f"peft_{name}"] = model_path.absolute()
             if model_path.exists():
                 continue
@@ -299,12 +330,12 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         use_cache: bool = True,
         is_frozen: bool = True,
         use_peft: bool = False,
-        backbones_dir: str | Path = "./checkpoints/backbones",
+        encoder_dir: str | Path = "./checkpoints/backbones",
     ) -> Self:
         from transformers import AutoModel
 
         checkpoint_path = Path(checkpoint_path)
-        backbones: dict[str, nn.Module] = {}
+        backbones: dict[str, tuple[nn.Module, int]] = {}
         state_dicts: dict[str, dict[str, torch.Tensor]] = {}
         for name in os.listdir(checkpoint_path):
             with open(checkpoint_path / name / "config.json", "r") as f:
@@ -317,7 +348,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             use_cache=use_cache,
             is_frozen=is_frozen,
             use_peft=use_peft,
-            backbones_dir=backbones_dir,
+            encoder_dir=encoder_dir,
         )
         self.set_state_dicts(state_dicts)
         return self

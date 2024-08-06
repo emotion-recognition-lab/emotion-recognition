@@ -10,7 +10,6 @@ from safetensors.torch import load_file
 from torch import nn
 from torch.nn.utils.rnn import pad_sequence
 
-from recognize.module.basic import Pooler
 from recognize.module.fusion import FusionLayer
 from recognize.preprocessor import Preprocessor
 
@@ -184,66 +183,53 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
         audio_backbone: nn.Module | None = None,
         video_backbone: nn.Module | None = None,
         *,
+        feature_sizes: tuple[int, int, int] = (768, 768, 768),
         use_cache: bool = True,
         is_frozen: bool = True,
         use_peft: bool = False,
-        backbones_dir: str | Path = "./checkpoints/backbones",
+        encoder_dir: str | Path = "./checkpoints/backbones",
     ):
         super().__init__(
             {
-                "text_backbone": text_backbone,
-                "audio_backbone": audio_backbone,
-                "video_backbone": video_backbone,
+                "text": (text_backbone, feature_sizes[0]),
+                "audio": (audio_backbone, feature_sizes[1]),
+                "video": (video_backbone, feature_sizes[2]),
             },
-            embedding_num=3,
+            encoder_num=3,
             use_cache=use_cache,
             is_frozen=is_frozen,
             use_peft=use_peft,
-            backbones_dir=backbones_dir,
+            encoder_dir=encoder_dir,
         )
 
-    def compute_embs(
-        self, inputs: MultimodalInput
-    ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
-        if "text_backbone" in self.backbones and inputs.text_input_ids is not None:
-            text_outputs = self.backbones["text_backbone"](
+    def compute_embs(self, inputs: MultimodalInput) -> dict[str, torch.Tensor | None]:
+        if "text" in self.backbones and inputs.text_input_ids is not None:
+            text_outputs = self.backbones["text"](
                 inputs.text_input_ids, attention_mask=inputs.text_attention_mask
             )
             text_embs = text_outputs.last_hidden_state[:, 0]
         else:
             text_embs = None
 
-        if "audio_backbone" in self.backbones and inputs.audio_input_values is not None:
-            audio_outputs = self.backbones["audio_backbone"](
+        if "audio" in self.backbones and inputs.audio_input_values is not None:
+            audio_outputs = self.backbones["audio"](
                 inputs.audio_input_values, attention_mask=inputs.audio_attention_mask
             )
             audio_embs = audio_outputs.last_hidden_state[:, 0]
         else:
             audio_embs = None
 
-        if "video_backbone" in self.backbones and inputs.video_pixel_values is not None:
-            video_outputs = self.backbones["video_backbone"](inputs.video_pixel_values)
+        if "video" in self.backbones and inputs.video_pixel_values is not None:
+            video_outputs = self.backbones["video"](inputs.video_pixel_values)
             video_embs = video_outputs.last_hidden_state[:, 0]
         else:
             video_embs = None
 
-        return text_embs, audio_embs, video_embs
-
-    def forward(self, inputs: MultimodalInput):
-        if self.is_frozen and self.use_cache and inputs.unique_ids is not None:
-            return self.cached_forward(inputs)
-        else:
-            return self.compute_embs(inputs)
-
-    def cached_forward(self, inputs: MultimodalInput) -> tuple[torch.Tensor | None, ...]:
-        cached_list, no_cached_index_list = self.load_cache(inputs)
-        if len(no_cached_index_list) != 0:
-            no_cached_inputs = inputs[no_cached_index_list]
-            self.save_cache(no_cached_inputs)
-            cached_list, no_cached_index_list = self.load_cache(inputs)
-        assert len(no_cached_index_list) == 0, "All tensors should be cached"
-
-        return self.merge_cache(cached_list, inputs.device)
+        return {
+            "text": text_embs,
+            "audio": audio_embs,
+            "video": video_embs,
+        }
 
     # def mean_embs(self, embs_list: list[torch.Tensor | None]):
     #     filtered_embs_list = [emb for emb in embs_list if emb is not None]
@@ -261,13 +247,13 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
         use_cache: bool = True,
         is_frozen: bool = True,
         use_peft: bool = False,
-        backbones_dir: str | Path = "./checkpoints/backbones",
+        encoder_dir: str | Path = "./checkpoints/backbones",
     ):
         from transformers import AutoConfig, AutoModel
 
         checkpoint_path = Path(checkpoint_path)
         backbones: list[nn.Module] = []
-        for name in ["text_backbone", "audio_backbone", "video_backbone"]:
+        for name in ["text", "audio", "video"]:
             if not (checkpoint_path / name).exists():
                 logger.warning(f"{name} not found in {checkpoint_path}")
                 continue
@@ -281,7 +267,7 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
             use_cache=use_cache,
             is_frozen=is_frozen,
             use_peft=use_peft,
-            backbones_dir=backbones_dir,
+            encoder_dir=encoder_dir,
         )
 
 
@@ -301,36 +287,19 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
             num_classes=num_classes,
             class_weights=class_weights,
         )
-        self.feature_size = list(feature_sizes)
-
-        self.poolers = nn.ModuleList(
-            [Pooler(self.backbone.output_size, feature_size) for feature_size in feature_sizes]
-        )
+        self.feature_sizes = list(feature_sizes)
         self.fusion_layer = fusion_layer
 
     def get_hyperparameter(self):
         return {
-            "feature_size": self.feature_size,
+            "feature_sizes": self.feature_sizes,
             "num_classes": self.num_classes,
         }
 
-    def pool_embs(
-        self,
-        text_embs: torch.Tensor | None,
-        audio_embs: torch.Tensor | None,
-        video_embs: torch.Tensor | None,
-    ) -> tuple[torch.Tensor | None, ...]:
-        embs_list = [text_embs, audio_embs, video_embs]
-        pool_embs_list = [
-            pooler(embs) if embs is not None else None
-            for pooler, embs in zip(self.poolers, embs_list, strict=False)
-        ]
-        return tuple(pool_embs_list)
-
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
-        text_embs, audio_embs, video_embs = self.backbone(inputs)
-        pooled_embs_tuple = self.pool_embs(text_embs, audio_embs, video_embs)
-        fusion_features = self.fusion_layer(*pooled_embs_tuple)
+        embs_dict = self.backbone(inputs)
+        # TODO: dict to tuple maybe wrong
+        fusion_features = self.fusion_layer(*(embs_dict[k] for k in sorted(embs_dict)))
         return self.classify(fusion_features, inputs.labels)
 
     @classmethod

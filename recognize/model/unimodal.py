@@ -6,8 +6,6 @@ from typing import Callable
 
 import torch
 
-from recognize.module.basic import Pooler
-
 from .base import ClassifierModel, ClassifierOutput
 from .multimodal import MultimodalBackbone, MultimodalInput
 
@@ -28,7 +26,6 @@ class UnimodalModel(ClassifierModel[MultimodalBackbone]):
             class_weights=class_weights,
         )
         self.feature_size = feature_size
-        self.pooler = Pooler(self.backbone.output_size, feature_size)
 
     def get_hyperparameter(self):
         return {
@@ -36,15 +33,8 @@ class UnimodalModel(ClassifierModel[MultimodalBackbone]):
             "num_classes": self.num_classes,
         }
 
-    def pool_embs(
-        self,
-        embs: torch.Tensor,
-    ) -> torch.Tensor:
-        return self.pooler(embs)
-
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
-        embs = self.backbone(inputs)[0]
-        pooled_embs = self.pool_embs(embs)
+        pooled_embs = self.backbone(inputs)["text"]
         return self.classify(pooled_embs, inputs.labels)
 
     @classmethod
