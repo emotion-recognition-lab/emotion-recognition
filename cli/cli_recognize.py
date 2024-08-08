@@ -149,7 +149,6 @@ def distill(
     )
 
     config = load_config(config_path)
-    init_logger(config.log_level)
     config_freeze = config.model.freeze_backbone
     config_label_type = config.dataset.label_type
     config_encoders = config.model.encoders
@@ -157,7 +156,9 @@ def distill(
     config_feature_sizes = config.model.feature_sizes
     config_fusion = config.model.fusion
 
-    model_label = f"distill--{generate_model_label(config_modals, config_freeze, config_label_type)}"
+    init_logger(config.log_level)
+
+    model_label = f"distill--{config.generate_model_label()}"
     batch_size = 64 if config_freeze else 2
 
     assert os.path.exists(f"./{teacher_checkpoint}/preprocessor")
@@ -273,7 +274,7 @@ def train(
     config_feature_sizes = config.model.feature_sizes
     modals = config.model.modals
 
-    model_label = generate_model_label(modals, freeze, label_type)
+    model_label = config.generate_model_label()
     batch_size = 64 if freeze else 2
 
     if os.path.exists(f"./checkpoints/{model_label}/preprocessor"):
@@ -286,7 +287,7 @@ def train(
     preprocessor = generate_preprocessor(encoders, modals, preprocessor_checkpoint=preprocessor_checkpoint)
     if os.path.exists(f"./{checkpoint}/backbones"):
         backbone = MultimodalBackbone.from_checkpoint(f"./{checkpoint}/backbones")
-        logger.info(f"load backbone({backbone.hash}) from checkpoint")
+        logger.info(f"Load backbone({backbone.hash}) from checkpoint")
     else:
         backbone = MultimodalBackbone(
             {
@@ -360,7 +361,7 @@ def train(
     if checkpoint is not None and not os.path.exists(f"./checkpoints/{model_label}/stopper.json"):
         load_best_model(checkpoint, model)
         result = TrainingResult.auto_compute(model, test_data_loader)
-        logger.info("Test result(best model):")
+        logger.info("Test result in best model:")
         result.print()
 
     result: TrainingResult = train_and_eval(
@@ -371,8 +372,7 @@ def train(
         num_epochs=200,
         model_label=model_label,
     )
-    best_epoch = find_best_model(checkpoint_dir)
-    logger.info(f"Test result(best model in epoch {best_epoch}):")
+    logger.info("Test result in best model:")
     result.print()
 
 

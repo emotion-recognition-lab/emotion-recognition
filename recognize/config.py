@@ -32,6 +32,18 @@ class Config(BaseModel):
     model: ModelConfig
     dataset: DatasetConfig = Field(default_factory=DatasetConfig)
 
+    def generate_model_label(self):
+        model_label = "+".join(self.model.modals)
+        if self.dataset.label_type == "sentiment":
+            model_label += "--S"
+        else:
+            model_label += "--E"
+        if self.model.freeze_backbone:
+            model_label += "F"
+        else:
+            model_label += "T"
+        return model_label
+
 
 def load_dict_from_path(path: Path) -> dict[str, Any]:
     if not path.exists():

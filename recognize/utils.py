@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 from pathlib import Path
+from typing import Literal
 
 import torch
 from loguru import logger
@@ -83,7 +84,7 @@ def load_model(checkpoint_dir: Path | str, model: ClassifierModel):
     model_state_dict = load_file(checkpoint_dir / "model.safetensors")
     model.load_state_dict(model_state_dict, strict=False)
     if (checkpoint_dir / "backbones").exists():
-        model.backbone = model.backbone.from_checkpoint(checkpoint_dir / "backbones")
+        model.backbone = model.backbone.from_checkpoint(checkpoint_dir / "backbones").cuda()
 
 
 def find_best_model(checkpoint_dir: Path | str) -> int:
@@ -119,6 +120,7 @@ def load_last_checkpoint(
 
 def get_trainer(
     model: ClassifierModel,
+    data_loaders: dict[Literal["train", "valid", "test"], DataLoader],
     num_warmup_steps: int,
     num_training_steps: int,
 ):
@@ -132,7 +134,7 @@ def get_trainer(
         num_training_steps=num_training_steps,
     )
 
-    return Trainer(model, optimizer, scheduler)
+    return Trainer(model, data_loaders, optimizer, scheduler)
 
 
 # @torch.compile()
@@ -163,7 +165,12 @@ def train_and_eval(
     model_label: str | None = None,
     eval_interval: int = 1,
 ):
-    trainer = get_trainer(model, len(train_data_loader), len(train_data_loader) * num_epochs)
+    trainer = get_trainer(
+        model,
+        {"train": train_data_loader, "valid": valid_data_loader, "test": test_data_loader or valid_data_loader},
+        len(train_data_loader),
+        len(train_data_loader) * num_epochs,
+    )
 
     if stopper is None:
         stopper = EarlyStopper()
@@ -214,7 +221,7 @@ def train_and_eval(
             )
 
             if (epoch + 1) % eval_interval == 0 or epoch == num_epochs - 1:
-                result = trainer.eval(valid_data_loader)
+                result = trainer.eval("valid")
                 valid_f1_score = result.f1_score
                 valid_accuracy = result.accuracy
                 if stopper.update(epoch=epoch, f1=valid_f1_score):
@@ -237,7 +244,7 @@ def train_and_eval(
             progress.update(task, advance=1)
 
     load_model(checkpoint_dir / str(best_epoch), model)
-    result = trainer.eval(test_data_loader)
+    result = trainer.eval("test")
     return result
 
 
@@ -286,7 +293,12 @@ def train_and_eval_distill(
     model_label: str | None = None,
     eval_interval: int = 1,
 ):
-    trainer = get_trainer(model, len(train_data_loader), len(train_data_loader) * num_epochs)
+    trainer = get_trainer(
+        model,
+        {"train": train_data_loader, "valid": valid_data_loader, "test": test_data_loader or valid_data_loader},
+        len(train_data_loader),
+        len(train_data_loader) * num_epochs,
+    )
     if stopper is None:
         stopper = EarlyStopper()
     if test_data_loader is None:
@@ -337,7 +349,7 @@ def train_and_eval_distill(
             )
 
             if (epoch + 1) % eval_interval == 0 or epoch == num_epochs - 1:
-                result = trainer.eval(test_data_loader)
+                result = trainer.eval("valid")
                 test_f1_score = result.f1_score
                 test_accuracy = result.accuracy
                 if stopper.update(epoch=epoch, f1=test_f1_score):
@@ -358,5 +370,5 @@ def train_and_eval_distill(
             progress.update(task, advance=1)
 
     load_model(checkpoint_dir / str(best_epoch), model)
-    result = trainer.eval(test_data_loader)
+    result = trainer.eval("test")
     return result

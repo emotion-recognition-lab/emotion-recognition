@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 from loguru import logger
@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
+from typing_extensions import deprecated
 
 from recognize.evaluate import TrainingResult, calculate_accuracy_and_f1_score
 
@@ -64,12 +65,14 @@ class Trainer:
     def __init__(
         self,
         model: ClassifierModel,
+        data_loaders: dict[Literal["train", "valid", "test"], DataLoader],
         optimizer: Optimizer,
         scheduler: LambdaLR | None = None,
         *,
         max_grad_norm: float | None = None,
     ):
         self.model = model
+        self.data_loaders = data_loaders
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.max_grad_norm = max_grad_norm
@@ -78,9 +81,14 @@ class Trainer:
     def clear_losses(self):
         self.losses.clear()
 
+    @deprecated("Use `training_step` instead")
     def step(self, loss: torch.Tensor | None) -> float:
+        return self.training_step(loss)
+
+    def training_step(self, loss: torch.Tensor | None) -> float:
         if loss is None:
             return -1
+
         self.losses.append(loss.item())
 
         self.optimizer.zero_grad()
@@ -93,7 +101,12 @@ class Trainer:
 
         return sum(self.losses) / len(self.losses)
 
-    def eval(self, data_loader: DataLoader):
+    def fit(self) -> TrainingResult:
+        logger.warning("Trainer.fit is not implemented!")
+        return self.eval("train")
+
+    def eval(self, key: Literal["train", "valid", "test"]) -> TrainingResult:
+        data_loader = self.data_loaders[key]
         accuracy, f1_score = calculate_accuracy_and_f1_score(self.model, data_loader)
         return TrainingResult(
             accuracy=accuracy,
