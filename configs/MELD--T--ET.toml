@@ -3,7 +3,7 @@ log_level = "INFO"
 [model]
 modals = ["T"]
 feature_sizes = [768]
-backbones = ["roberta-large"]
+encoders = ["roberta-large"]
 freeze_backbone = false
 
 [dataset]

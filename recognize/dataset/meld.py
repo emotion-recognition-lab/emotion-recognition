@@ -63,9 +63,7 @@ class MELDDataset(MultimodalDataset):
 
         super().__init__(
             dataset_path,
-            pd.read_csv(
-                f"{dataset_path}/{self.split}_sent_emo.csv", sep=",", index_col=0, header=0
-            ),
+            pd.read_csv(f"{dataset_path}/{self.split}_sent_emo.csv", sep=",", index_col=0, header=0),
             preprocessor,
             num_classes=self.num_classes,
             split=split,

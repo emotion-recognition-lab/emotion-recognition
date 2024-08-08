@@ -64,15 +64,14 @@ def sample_frame_indices(clip_len, frame_sample_rate, seg_len):  # 从视频中�
         end_idx = np.random.randint(converted_len, seg_len)  # 随机选择一帧作为采样的最后一帧
         start_idx = end_idx - converted_len  # 采样序列的开始帧
         indices = np.linspace(start_idx, end_idx, num=clip_len)  # 生成采样帧的索引
-        indices = np.clip(indices, start_idx, end_idx - 1).astype(
-            np.int64
-        )  # 确保采样的最后一帧索引不超过 end_idx -1
+        indices = np.clip(indices, start_idx, end_idx - 1).astype(np.int64)  # 确保采样的最后一帧索引不超过 end_idx -1
         # print(indices)
     return indices  # 返回采样后的帧 索引列表
     # end_idx = np.random.randint(converted_len, seg_len)  #随机选择一帧作为采样的最后一帧
     # start_idx = end_idx - converted_len  #采样序列的开始帧
     # indices = np.linspace(start_idx, end_idx, num=clip_len)  #生成采样帧的索引
-    # indices = np.clip(indices, start_idx, end_idx - 1).astype(np.int64)  #确保采样的最后一帧索引不超过 end_idx -1
+    # indices = np.clip(indices, start_idx, end_idx - 1).astype(np.int64)
+    # #确保采样的最后一帧索引不超过 end_idx -1
     # return indices  #返回采样后的帧 索引列表
 
 
@@ -80,8 +79,6 @@ def read_videos(video_path: str):
     import av
 
     container = av.open(video_path)
-    indices = sample_frame_indices(
-        clip_len=32, frame_sample_rate=1, seg_len=container.streams.video[0].frames
-    )
+    indices = sample_frame_indices(clip_len=32, frame_sample_rate=1, seg_len=container.streams.video[0].frames)
     videos = read_video_pyav(container=container, indices=indices)
-    return list(videos)
+    return videos

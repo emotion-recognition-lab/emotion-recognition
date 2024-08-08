@@ -23,7 +23,12 @@ from recognize.model import (
 from recognize.module.fusion import gen_fusion_layer
 from recognize.preprocessor import Preprocessor
 from recognize.typing import LogLevel, ModalType
-from recognize.utils import find_best_model, load_best_model, train_and_eval, train_and_eval_distill
+from recognize.utils import (
+    find_best_model,
+    load_best_model,
+    train_and_eval,
+    train_and_eval_distill,
+)
 
 
 def init_logger(log_level: LogLevel):
@@ -42,9 +47,7 @@ def seed_everything(seed: int = 666):
     np.random.seed(seed)
 
 
-def provide_meld_datasets(
-    dataset_path: Path, preprocessor: Preprocessor, label_type: MELDDatasetLabelType = "emotion"
-):
+def provide_meld_datasets(dataset_path: Path, preprocessor: Preprocessor, label_type: MELDDatasetLabelType = "emotion"):
     train_dataset = MELDDataset(
         dataset_path.as_posix(),
         preprocessor,
@@ -90,6 +93,42 @@ def generate_model_label(modal: list[ModalType], freeze: bool, label_type: str):
     return model_label
 
 
+modal2name = {
+    "T": "text",
+    "V": "video",
+    "A": "audio",
+}
+
+
+def generate_preprocessor(encoders: list[str], modals: list[ModalType], preprocessor_checkpoint: Path | None = None):
+    from transformers import (
+        AutoFeatureExtractor,
+        AutoImageProcessor,
+        AutoTokenizer,
+        VivitImageProcessor,
+    )
+
+    assert len(encoders) == len(modals), "The number of encoders and modals should be the same"
+
+    if preprocessor_checkpoint is not None:
+        preprocessor = Preprocessor.from_pretrained(preprocessor_checkpoint)
+        logger.info(f"Load preprocessor from [blue]./{preprocessor_checkpoint}[/]")
+    else:
+        preprocessor = Preprocessor()
+
+    for modal, model_name in zip(modals, encoders, strict=True):
+        if modal == "T":
+            preprocessor.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        elif modal == "A":
+            preprocessor.feature_extractor = AutoFeatureExtractor.from_pretrained(model_name)
+        elif modal == "V":
+            preprocessor.image_processor = VivitImageProcessor.from_pretrained(model_name)
+        else:
+            preprocessor.image_processor = AutoImageProcessor.from_pretrained(model_name)
+
+    return preprocessor
+
+
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
@@ -97,6 +136,7 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 def distill(
     teacher_checkpoint: Path,
     config_path: Path = Path("configs/default.toml"),
+    checkpoint: Optional[Path] = None,
 ) -> None:
     """
     When using knowledge distillation,
@@ -112,25 +152,28 @@ def distill(
     init_logger(config.log_level)
     config_freeze = config.model.freeze_backbone
     config_label_type = config.dataset.label_type
-    config_backbones = config.model.backbones
+    config_encoders = config.model.encoders
     config_modals = config.model.modals
+    config_feature_sizes = config.model.feature_sizes
     config_fusion = config.model.fusion
 
-    model_label = (
-        f"distill--{generate_model_label(config_modals, config_freeze, config_label_type)}"
-    )
+    model_label = f"distill--{generate_model_label(config_modals, config_freeze, config_label_type)}"
     batch_size = 64 if config_freeze else 2
 
     assert os.path.exists(f"./{teacher_checkpoint}/preprocessor")
     assert config_fusion is not None
 
-    preprocessor = Preprocessor.from_pretrained(f"./{teacher_checkpoint}/preprocessor")
-    Path(f"./checkpoints/{model_label}").mkdir(exist_ok=True)
-    symlink(
-        f"./{teacher_checkpoint}/preprocessor",
-        f"./checkpoints/{model_label}/preprocessor",
-        target_is_directory=True,
+    preprocessor = generate_preprocessor(
+        config_encoders,
+        config_modals,
+        preprocessor_checkpoint=Path(f"./{teacher_checkpoint}/preprocessor"),
     )
+
+    Path(f"./checkpoints/{model_label}").mkdir(exist_ok=True)
+    preprocessor_dir = Path(f"./checkpoints/{model_label}/preprocessor")
+    if not preprocessor_dir.exists():
+        preprocessor.save_pretrained(preprocessor_dir)
+
     symlink(
         config_path,
         f"./checkpoints/{model_label}/config.toml",
@@ -138,7 +181,7 @@ def distill(
     teacher_backbone = MultimodalBackbone.from_checkpoint(
         f"{teacher_checkpoint}/backbones",
     )
-    logger.info("load preprocessor and backbone from checkpoint")
+    logger.info("load backbone from checkpoint")
 
     train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
         config.dataset.path, preprocessor, label_type=config_label_type
@@ -180,9 +223,15 @@ def distill(
         result.print()
 
     backbone = MultimodalBackbone(
-        *[AutoModel.from_pretrained(model_name) for model_name in config_backbones]
+        {
+            modal2name[modal]: (AutoModel.from_pretrained(model_name), feature_size)
+            for modal, model_name, feature_size in zip(
+                config_modals, config_encoders, config_feature_sizes, strict=True
+            )
+        }
     )
-    backbone.backbones["text"] = teacher_backbone.backbones["text"]
+    backbone.encoders["text"] = teacher_backbone.encoders["text"]
+    backbone.poolers["text"] = teacher_backbone.poolers["text"]
     fusion_layer = gen_fusion_layer(config_fusion)
     model = MultimodalModel(
         backbone,
@@ -212,53 +261,38 @@ def train(
     checkpoint: Optional[Path] = None,
 ) -> None:
     from transformers import (
-        AutoFeatureExtractor,
-        AutoImageProcessor,
         AutoModel,
-        AutoTokenizer,
-        VivitImageProcessor,
     )
 
     config = load_config(config_path)
     init_logger(config.log_level)
     freeze = config.model.freeze_backbone
     label_type = config.dataset.label_type
-    backbones = config.model.backbones
+    encoders = config.model.encoders
+    encoders = config.model.encoders
+    config_feature_sizes = config.model.feature_sizes
     modals = config.model.modals
 
     model_label = generate_model_label(modals, freeze, label_type)
     batch_size = 64 if freeze else 2
 
-    if os.path.exists(f"./{checkpoint}/preprocessor"):
-        preprocessor = Preprocessor.from_pretrained(f"./{checkpoint}/preprocessor")
-        logger.info("load preprocessor from checkpoint")
+    if os.path.exists(f"./checkpoints/{model_label}/preprocessor"):
+        preprocessor_checkpoint = Path(f"./checkpoints/{model_label}/preprocessor")
+    elif os.path.exists(f"./{checkpoint}/preprocessor"):
+        preprocessor_checkpoint = Path(f"./{checkpoint}/preprocessor")
     else:
-        assert len(backbones) == len(
-            modals
-        ), "The number of backbones and modals should be the same"
+        preprocessor_checkpoint = None
 
-        preprocessors = []
-        for modal, model_name in zip(modals, backbones, strict=True):
-            if modal == "T":
-                tokenizer = AutoTokenizer.from_pretrained(model_name)
-                preprocessors.append(tokenizer)
-            elif modal == "V":
-                preprocessors.append(VivitImageProcessor.from_pretrained(model_name))
-            elif modal == "A":
-                preprocessors.append(AutoFeatureExtractor.from_pretrained(model_name))
-            else:
-                preprocessors.append(AutoImageProcessor.from_pretrained(model_name))
-
-        preprocessor = Preprocessor(
-            *preprocessors,
-        )
-
+    preprocessor = generate_preprocessor(encoders, modals, preprocessor_checkpoint=preprocessor_checkpoint)
     if os.path.exists(f"./{checkpoint}/backbones"):
         backbone = MultimodalBackbone.from_checkpoint(f"./{checkpoint}/backbones")
-        logger.info("load backbone from checkpoint")
+        logger.info(f"load backbone({backbone.hash}) from checkpoint")
     else:
         backbone = MultimodalBackbone(
-            *[AutoModel.from_pretrained(model_name) for model_name in backbones]
+            {
+                modal2name[modal]: (AutoModel.from_pretrained(model_name), feature_size)
+                for modal, model_name, feature_size in zip(modals, encoders, config_feature_sizes, strict=True)
+            }
         )
 
     checkpoint_dir = Path(f"./checkpoints/{model_label}")
@@ -293,13 +327,13 @@ def train(
         pin_memory=True,
     )
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
-    if checkpoint is None and preprocessor.tokenizer is not None:
+    if checkpoint is None and not os.path.exists(f"./{checkpoint}/preprocessor") and preprocessor.tokenizer is not None:
         preprocessor.tokenizer.add_special_tokens(
             {
                 "additional_special_tokens": train_dataset.speakers  # type: ignore
             }
         )
-        backbone.backbones["text"].resize_token_embeddings(len(preprocessor.tokenizer))
+        backbone.encoders["text"].resize_token_embeddings(len(preprocessor.tokenizer))
     if not os.path.exists(f"./checkpoints/{model_label}/preprocessor"):
         preprocessor.save_pretrained(f"./checkpoints/{model_label}/preprocessor")
 
@@ -360,9 +394,7 @@ def inference(
         model = UnimodalModel.from_checkpoint(model_checkpoint, backbone=backbone).cuda()
     else:
         fusion_layer = gen_fusion_layer(config.model.fusion)
-        model = MultimodalModel.from_checkpoint(
-            model_checkpoint, backbone=backbone, fusion_layer=fusion_layer
-        ).cuda()
+        model = MultimodalModel.from_checkpoint(model_checkpoint, backbone=backbone, fusion_layer=fusion_layer).cuda()
     model.eval()
     inputs = LazyMultimodalInput(
         preprocessor=preprocessor,

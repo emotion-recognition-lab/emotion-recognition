@@ -19,15 +19,11 @@ class EmotionEstimator:
             f"{model_checkpoint}/backbones",
             use_cache=False,
         )
-        fusion_layer = LowRankFusionLayer(
-            [text_feature_size, audio_feature_size, video_feature_size], 16, 128
-        )
+        fusion_layer = LowRankFusionLayer([text_feature_size, audio_feature_size, video_feature_size], 16, 128)
 
         self.preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
         self.emotion_model = (
-            MultimodalModel.from_checkpoint(
-                model_checkpoint, backbone=backbone, fusion_layer=fusion_layer
-            )
+            MultimodalModel.from_checkpoint(model_checkpoint, backbone=backbone, fusion_layer=fusion_layer)
             .cuda()
             .eval()
         )

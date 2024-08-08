@@ -38,15 +38,11 @@ class FeatureLoss(nn.Module):
         super().__init__()
         self.temp = temp
 
-    def forward(
-        self, student_embeddings: torch.Tensor, teacher_embeddings: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, student_embeddings: torch.Tensor, teacher_embeddings: torch.Tensor) -> torch.Tensor:
         teacher_embeddings = F.normalize(teacher_embeddings, p=2, dim=1)
         student_embeddings = F.normalize(student_embeddings, p=2, dim=1)
         log_q = torch.log_softmax(
             torch.matmul(teacher_embeddings, student_embeddings.transpose(0, 1)) / self.temp, dim=1
         )
-        p = torch.softmax(
-            torch.matmul(teacher_embeddings, teacher_embeddings.transpose(0, 1)) / self.temp, dim=1
-        )
+        p = torch.softmax(torch.matmul(teacher_embeddings, teacher_embeddings.transpose(0, 1)) / self.temp, dim=1)
         return F.kl_div(log_q, p, reduction="batchmean")

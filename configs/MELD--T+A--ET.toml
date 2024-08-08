@@ -8,7 +8,7 @@ encoders = [
     "facebook/wav2vec2-base-960h",
 ]
 fusion = "LowRankFusionLayer([768, 768, 1], 16, 128)"
-freeze_backbone = true
+freeze_backbone = false
 
 [dataset]
 path = "datasets/MELD"

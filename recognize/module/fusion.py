@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 import torch
 from torch import nn
@@ -36,19 +36,13 @@ class TensorFusionLayer(FusionLayer):
         else:
             augmentation_zv = augmentation.broadcast_to(zl.size(0), self.video_size + 1)
 
-        assert (
-            augmentation_zl.size(1) == self.text_size + 1
-        ), f"{augmentation_zl.size(1)} != {self.text_size + 1}"
-        assert (
-            augmentation_za.size(1) == self.audio_size + 1
-        ), f"{augmentation_za.size(1)} != {self.audio_size + 1}"
-        assert (
-            augmentation_zv.size(1) == self.video_size + 1
-        ), f"{augmentation_zv.size(1)} != {self.video_size + 1}"
+        assert augmentation_zl.size(1) == self.text_size + 1, f"{augmentation_zl.size(1)} != {self.text_size + 1}"
+        assert augmentation_za.size(1) == self.audio_size + 1, f"{augmentation_za.size(1)} != {self.audio_size + 1}"
+        assert augmentation_zv.size(1) == self.video_size + 1, f"{augmentation_zv.size(1)} != {self.video_size + 1}"
 
-        fusion_tensor = torch.einsum(
-            "bi,bj,bk->bijk", augmentation_zl, augmentation_za, augmentation_zv
-        ).view(zl.size(0), -1)
+        fusion_tensor = torch.einsum("bi,bj,bk->bijk", augmentation_zl, augmentation_za, augmentation_zv).view(
+            zl.size(0), -1
+        )
         return fusion_tensor
 
 
@@ -57,9 +51,7 @@ class LowRankFusionLayer(FusionLayer):
         super().__init__(output_size)
         self.dims = dims
         self.rank = rank
-        self.low_rank_weights = nn.ParameterList(
-            [nn.Parameter(torch.randn(rank, dim, output_size)) for dim in dims]
-        )
+        self.low_rank_weights = nn.ParameterList([nn.Parameter(torch.randn(rank, dim, output_size)) for dim in dims])
         self.output_layer = nn.Linear(rank, 1)
 
     def forward(self, *inputs: torch.Tensor | None):
@@ -68,9 +60,7 @@ class LowRankFusionLayer(FusionLayer):
         ), "Number of inputs should be less than or equal to number of weights"
         # N*d x R*d*h => R*N*h ~reshape~> N*h*R -> N*h*1 ~squeeze~> N*h
         fusion_tensors = [
-            torch.matmul(i, w)
-            for i, w in zip(inputs, self.low_rank_weights, strict=False)
-            if i is not None
+            torch.matmul(i, w) for i, w in zip(inputs, self.low_rank_weights, strict=False) if i is not None
         ]
         product_tensor = torch.prod(torch.stack(fusion_tensors), dim=0)
         output = self.output_layer(product_tensor.permute(1, 2, 0)).squeeze(dim=-1)
@@ -80,10 +70,20 @@ class LowRankFusionLayer(FusionLayer):
 def gen_fusion_layer(fusion: str) -> FusionLayer:
     fusion = eval(
         fusion,
-        {
+        {  # locals
             "TensorFusionLayer": TensorFusionLayer,
             "LowRankFusionLayer": LowRankFusionLayer,
         },
     )
-    assert isinstance(fusion, FusionLayer), f"{fusion} is not a FusionLayer"
+    assert isinstance(fusion, FusionLayer), f"{fusion} is not a FusionLayer, but {type(fusion)}"
     return fusion
+
+
+# class __FusionLayer(FusionLayer):
+# def mean_embs(self, embs_list: list[torch.Tensor | None]):
+#     filtered_embs_list = [emb for emb in embs_list if emb is not None]
+#     return sum(filtered_embs_list) / len(filtered_embs_list)
+
+# def forward(self, inputs: MultimodalInput):
+#     text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.compute_pooled_embs(inputs)
+#     return self.mean_embs([text_pooled_embs, audio_pooled_embs, video_pooled_embs])

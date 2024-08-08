@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+from typing_extensions import deprecated
 
 from .typing import LogLevel, ModalType
 
@@ -11,9 +12,14 @@ from .typing import LogLevel, ModalType
 class ModelConfig(BaseModel):
     modals: list[ModalType]
     feature_sizes: list[int]
-    backbones: list[str]
+    encoders: list[str]
     freeze_backbone: bool = True
     fusion: str | None = None
+
+    @property
+    @deprecated("Use `encoders` instead")
+    def backbones(self) -> list[str]:
+        return self.encoders
 
 
 class DatasetConfig(BaseModel):

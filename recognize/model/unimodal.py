@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 import torch
 
@@ -46,7 +46,7 @@ class UnimodalModel(ClassifierModel[MultimodalBackbone]):
         class_weights: torch.Tensor | None = None,
     ):
         checkpoint_path = Path(checkpoint_path)
-        with open(checkpoint_path / "config.json", "r") as f:
+        with open(checkpoint_path / "config.json") as f:
             model_config = json.load(f)
         return cls(backbone, **model_config, class_weights=class_weights)
 

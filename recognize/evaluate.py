@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any
-
 import numpy as np
 import torch
 from cachetools import Cache, cached
 from loguru import logger
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from rich.table import Table
 from torch.utils.data import DataLoader
 
@@ -60,9 +57,7 @@ def calculate_accuracy(predicted_list: list[int], labels_list: list[int]):
     return accuracy
 
 
-def calculate_f1_score(
-    predicted_list: list[int], labels_list: list[int], class_weights: list[float]
-):
+def calculate_f1_score(predicted_list: list[int], labels_list: list[int], class_weights: list[float]):
     num_classes = len(class_weights)
     predicted = np.array(predicted_list)
     labels = np.array(labels_list)
@@ -189,41 +184,3 @@ class TrainingResult(BaseModel):
             f1_score=f1_score,
             # confusion_matrix=confusion_matrix(model, data_loader),
         )
-
-
-class EarlyStopper(BaseModel):
-    patience: int = 20
-    best_scores: dict[str, Any] = Field(default_factory=dict)
-    best_epoch: int = -1
-
-    @classmethod
-    def from_file(cls, path: str):
-        with open(path, "r") as f:
-            state_dict = f.read()
-        return cls.model_validate_json(state_dict)
-
-    def load(self, path: str | Path):
-        with open(path, "r") as f:
-            state_dict = self.model_validate_json(f.read()).model_dump()
-        self.patience = state_dict["patience"]
-        self.best_scores = state_dict["best_scores"]
-        self.best_epoch = state_dict["best_epoch"]
-
-    def save(self, path: str | Path):
-        with open(path, "w") as f:
-            f.write(self.model_dump_json())
-
-    def update(self, epoch: int, **kwargs: float):
-        for key, value in kwargs.items():
-            if key not in self.best_scores:
-                self.best_scores[key] = (float("-inf"), 0)
-            if value > self.best_scores[key][0]:
-                self.best_scores[key] = (value, 0)
-                self.best_epoch = epoch
-            else:
-                repeat_times = self.best_scores[key][1]
-                self.best_scores[key] = (self.best_scores[key][0], repeat_times + 1)
-                if self.best_scores[key][1] >= self.patience:
-                    logger.info(f"Early stopping by {key}!")
-                    return True
-        return False

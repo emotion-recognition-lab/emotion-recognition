@@ -12,12 +12,20 @@ from .dataset.utils import read_videos
 
 class Preprocessor:
     def __init__(self, tokenizer=None, feature_extractor=None, image_processor=None):
-        if tokenizer is not None:
-            tokenizer.truncation_side = "left"
-            tokenizer.padding_side = "left"
         self.tokenizer = tokenizer
         self.feature_extractor = feature_extractor
         self.image_processor = image_processor
+
+    @property
+    def tokenizer(self):
+        return self._tokenizer
+
+    @tokenizer.setter
+    def tokenizer(self, tokenizer):
+        if tokenizer is not None:
+            tokenizer.truncation_side = "left"
+            tokenizer.padding_side = "left"
+        self._tokenizer = tokenizer
 
     def load_text(self, text: str) -> tuple[torch.Tensor | None, torch.Tensor | None]:
         if self.tokenizer is not None:
@@ -82,9 +90,7 @@ class Preprocessor:
             text_attention_mask = None
         return text_input_ids, text_attention_mask
 
-    def load_audios(
-        self, audio_paths: list[str]
-    ) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+    def load_audios(self, audio_paths: list[str]) -> tuple[torch.Tensor | None, torch.Tensor | None]:
         if self.feature_extractor is None:
             return None, None
         audio_input_values_list, audio_attention_mask_list = [], []

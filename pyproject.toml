@@ -34,15 +34,36 @@ emotion-recognize = "cli.cli_recognize:app"
 emotion-tool = "cli.cli_tool:app"
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["F", "I", "B", "C4", "PGH", "RUF", "W", "YTT", "TID"]
-ignore = ["F841", "PGH003"]
+select = [
+    # Pyflakes
+    "F",
+    # Pycodestyle
+    "E",
+    "W",
+    # Isort
+    "I",
+    # Pyupgrade
+    "UP",
+    # Flake8
+    "B",
+    "C4",
+    "YTT",
+    "TID",
+    # "PTH",
+    # Pygrep-hooks
+    "PGH",
+    # Ruff-specific rules
+    "RUF",
+]
+ignore = ["F841", "PGH003", "UP038"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "I002"]
+"cli/*.py" = ["UP007"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["recognize"]

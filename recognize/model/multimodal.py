@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Callable, Self, Sequence
+from typing import Self
 
 import torch
 from loguru import logger
-from safetensors.torch import load_file
-from torch import nn
 from torch.nn.utils.rnn import pad_sequence
 
 from recognize.module.fusion import FusionLayer
@@ -30,18 +29,10 @@ class MultimodalInput(ModelInput):
 
     def __getitem__(self, index: int | list[int] | slice) -> MultimodalInput:
         text_input_ids = self.text_input_ids[index] if self.text_input_ids is not None else None
-        text_attention_mask = (
-            self.text_attention_mask[index] if self.text_attention_mask is not None else None
-        )
-        audio_input_values = (
-            self.audio_input_values[index] if self.audio_input_values is not None else None
-        )
-        audio_attention_mask = (
-            self.audio_attention_mask[index] if self.audio_attention_mask is not None else None
-        )
-        video_pixel_values = (
-            self.video_pixel_values[index] if self.video_pixel_values is not None else None
-        )
+        text_attention_mask = self.text_attention_mask[index] if self.text_attention_mask is not None else None
+        audio_input_values = self.audio_input_values[index] if self.audio_input_values is not None else None
+        audio_attention_mask = self.audio_attention_mask[index] if self.audio_attention_mask is not None else None
+        video_pixel_values = self.video_pixel_values[index] if self.video_pixel_values is not None else None
         video_head_mask = self.video_head_mask[index] if self.video_head_mask is not None else None
 
         labels = self.labels[index] if self.labels is not None else None
@@ -109,11 +100,7 @@ class LazyMultimodalInput(MultimodalInput):
     video_paths: list[str] | None = None
 
     def __getattribute__(self, __name: str):
-        if (
-            __name in ["text_input_ids", "text_attention_mask"]
-            and self.texts is None
-            and self.audio_paths is not None
-        ):
+        if __name in ["text_input_ids", "text_attention_mask"] and self.texts is None and self.audio_paths is not None:
             logger.debug("Texts is not provided, but audio_paths is provided, so use audio_paths")
             self.texts = [self.recoginize_audio(audio_path) for audio_path in self.audio_paths]
         if (
@@ -127,9 +114,7 @@ class LazyMultimodalInput(MultimodalInput):
             and super().__getattribute__("audio_input_values") is None
             and self.audio_paths is not None
         ):
-            self.audio_input_values, self.audio_attention_mask = self.preprocessor.load_audios(
-                self.audio_paths
-            )
+            self.audio_input_values, self.audio_attention_mask = self.preprocessor.load_audios(self.audio_paths)
         elif (
             __name == "video_pixel_values"
             and super().__getattribute__("video_pixel_values") is None
@@ -168,59 +153,30 @@ class LazyMultimodalInput(MultimodalInput):
                     if itme_attr is None:
                         attr = None
                         break
-                    assert isinstance(
-                        itme_attr, list
-                    ), f"{field} must be a list, but got {type(itme_attr)}"
+                    assert isinstance(itme_attr, list), f"{field} must be a list, but got {type(itme_attr)}"
                     attr.extend(itme_attr)
             field_dict[field] = attr
         return cls(**field_dict)
 
 
 class MultimodalBackbone(Backbone[MultimodalInput]):
-    def __init__(
-        self,
-        text_backbone: nn.Module | None = None,
-        audio_backbone: nn.Module | None = None,
-        video_backbone: nn.Module | None = None,
-        *,
-        feature_sizes: tuple[int, int, int] = (768, 768, 768),
-        use_cache: bool = True,
-        is_frozen: bool = True,
-        use_peft: bool = False,
-        encoder_dir: str | Path = "./checkpoints/backbones",
-    ):
-        super().__init__(
-            {
-                "text": (text_backbone, feature_sizes[0]),
-                "audio": (audio_backbone, feature_sizes[1]),
-                "video": (video_backbone, feature_sizes[2]),
-            },
-            encoder_num=3,
-            use_cache=use_cache,
-            is_frozen=is_frozen,
-            use_peft=use_peft,
-            encoder_dir=encoder_dir,
-        )
-
     def compute_embs(self, inputs: MultimodalInput) -> dict[str, torch.Tensor | None]:
-        if "text" in self.backbones and inputs.text_input_ids is not None:
-            text_outputs = self.backbones["text"](
-                inputs.text_input_ids, attention_mask=inputs.text_attention_mask
-            )
+        if "text" in self.encoders and inputs.text_input_ids is not None:
+            text_outputs = self.encoders["text"](inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
             text_embs = text_outputs.last_hidden_state[:, 0]
         else:
             text_embs = None
 
-        if "audio" in self.backbones and inputs.audio_input_values is not None:
-            audio_outputs = self.backbones["audio"](
+        if "audio" in self.encoders and inputs.audio_input_values is not None:
+            audio_outputs = self.encoders["audio"](
                 inputs.audio_input_values, attention_mask=inputs.audio_attention_mask
             )
             audio_embs = audio_outputs.last_hidden_state[:, 0]
         else:
             audio_embs = None
 
-        if "video" in self.backbones and inputs.video_pixel_values is not None:
-            video_outputs = self.backbones["video"](inputs.video_pixel_values)
+        if "video" in self.encoders and inputs.video_pixel_values is not None:
+            video_outputs = self.encoders["video"](inputs.video_pixel_values)
             video_embs = video_outputs.last_hidden_state[:, 0]
         else:
             video_embs = None
@@ -230,45 +186,6 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
             "audio": audio_embs,
             "video": video_embs,
         }
-
-    # def mean_embs(self, embs_list: list[torch.Tensor | None]):
-    #     filtered_embs_list = [emb for emb in embs_list if emb is not None]
-    #     return sum(filtered_embs_list) / len(filtered_embs_list)
-
-    # def forward(self, inputs: MultimodalInput):
-    #     text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.compute_pooled_embs(inputs)
-    #     return self.mean_embs([text_pooled_embs, audio_pooled_embs, video_pooled_embs])
-
-    @classmethod
-    def from_checkpoint(
-        cls,
-        checkpoint_path: str | Path,
-        *,
-        use_cache: bool = True,
-        is_frozen: bool = True,
-        use_peft: bool = False,
-        encoder_dir: str | Path = "./checkpoints/backbones",
-    ):
-        from transformers import AutoConfig, AutoModel
-
-        checkpoint_path = Path(checkpoint_path)
-        backbones: list[nn.Module] = []
-        for name in ["text", "audio", "video"]:
-            if not (checkpoint_path / name).exists():
-                logger.warning(f"{name} not found in {checkpoint_path}")
-                continue
-            config = AutoConfig.from_pretrained(checkpoint_path / name)
-            model = AutoModel.from_config(config)
-            model.load_state_dict(load_file(checkpoint_path / f"{name}.safetensors"))
-            backbones.append(model)
-
-        return cls(
-            *backbones,
-            use_cache=use_cache,
-            is_frozen=is_frozen,
-            use_peft=use_peft,
-            encoder_dir=encoder_dir,
-        )
 
 
 class MultimodalModel(ClassifierModel[MultimodalBackbone]):
@@ -312,7 +229,7 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
         class_weights: torch.Tensor | None = None,
     ):
         checkpoint_path = Path(checkpoint_path)
-        with open(checkpoint_path / "config.json", "r") as f:
+        with open(checkpoint_path / "config.json") as f:
             model_config = json.load(f)
         return cls(backbone, fusion_layer, **model_config, class_weights=class_weights)
 
