@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing_extensions import deprecated
 
 from .typing import LogLevel, ModalType
@@ -15,6 +15,13 @@ class ModelConfig(BaseModel):
     encoders: list[str]
     freeze_backbone: bool = True
     fusion: str | None = None
+
+    @model_validator(mode="after")
+    def verify_model_config(self) -> Self:
+        assert (
+            len(self.modals) == len(self.feature_sizes) == len(self.encoders)
+        ), "Number of modals, feature_sizes and encoders should be the same"
+        return self
 
     @property
     @deprecated("Use `encoders` instead")
