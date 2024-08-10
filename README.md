@@ -11,12 +11,10 @@ emotion-recogiition
 │   │   └── meld.py
 │   ├── model/
 │   │   ├── base.py
-│   │   ├── text.py
-│   │   ├── ...
+│   │   ├── unimodal.py
 │   │   └── multimodal.py
 │   ├── module/
-│   │   ├── fusion.py
-│   │   ├── loss.py
+│   │   ├── ...
 │   │   └── utils.py
 │   ├── cache.py
 │   ├── cli.py
@@ -25,11 +23,12 @@ emotion-recogiition
 │   ├── evaluate.py
 │   ├── preprocess.py
 │   └── utils.py
-├── training/
+├── cli/
+│   ├── cli_recognize.py
+│   └── cli_tool.py
+├── configs/
 │   ├── ...
-│   └── text_bert.py
-├── evaluation/
-│   └── TODO
+│   └── MELD--T--EF.toml
 └── README.md
 ```
 
@@ -65,6 +64,12 @@ emotion-recogiition
    pip install -e .
    python recognize/cli.py train datasets/MELD --modal T --label-type sentiment
    ```
+
+
+## 技术选型
+
+### 视频读取
+经测试，OpenCV 比 PyAV 速度更快。
 
 ## 机制介绍
 

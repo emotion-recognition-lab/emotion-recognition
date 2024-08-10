@@ -219,6 +219,7 @@ def distill(
         config_feature_sizes,
         # checkpoints=[Path(f"./checkpoints/{model_label}/backbones"), Path(f"./{checkpoint}/backbones")],
     )
+    # TODO: maybe those will be covered by load_best_model
     backbone.encoders.update(dict(teacher_backbone.encoders))
     backbone.poolers.update(dict(teacher_backbone.poolers))
 
@@ -257,7 +258,7 @@ def distill(
 
     load_best_model(teacher_checkpoint, teacher_model)
     result = TrainingResult.auto_compute(teacher_model, test_data_loader)
-    logger.info("Test result(best teacher model):")
+    logger.info("Test result in best [green]teacher[/] model:")
     result.print()
 
     fusion_layer = gen_fusion_layer(config_fusion)
@@ -275,7 +276,6 @@ def distill(
     if checkpoint is not None and not os.path.exists(f"./checkpoints/{model_label}/stopper.json"):
         load_best_model(checkpoint, model)
         result = TrainingResult.auto_compute(model, test_data_loader)
-        logger.info("Test result in best model:")
         result.print()
 
     result: TrainingResult = train_and_eval_distill(
@@ -287,6 +287,9 @@ def distill(
         num_epochs=200,
         model_label=model_label,
     )
+
+    logger.info("Test result in best model:")
+    result.print()
 
 
 @app.command()
@@ -383,7 +386,6 @@ def train(
     if checkpoint is not None and not os.path.exists(f"./checkpoints/{model_label}/stopper.json"):
         load_best_model(checkpoint, model)
         result = TrainingResult.auto_compute(model, test_data_loader)
-        logger.info("Test result in best model:")
         result.print()
 
     result: TrainingResult = train_and_eval(
