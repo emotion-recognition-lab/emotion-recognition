@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
 from loguru import logger
 from rich.highlighter import NullHighlighter
 from rich.logging import RichHandler
 
-from recognize.typing import LogLevel
-from recognize.utils import find_best_model
+if TYPE_CHECKING:
+    from recognize.typing import LogLevel
 
 
 def init_logger(log_level: LogLevel):
@@ -22,25 +23,41 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 @app.command()
-def generate_inference_checkpoints(
+def create_standalone(
     checkpoint: Path,
-    inference_checkpoint: Path,
-    log_level: LogLevel = "DEBUG",
+    target_checkpoint: Path,
 ):
-    init_logger(log_level)
-    if inference_checkpoint.exists():
-        logger.warning(f"{inference_checkpoint} already exists, will be overwritten")
-        shutil.rmtree(inference_checkpoint)
+    from recognize.config import load_config, save_config
+    from recognize.utils import find_best_model
 
-    inference_checkpoint.mkdir(parents=True, exist_ok=True)
+    config = load_config(checkpoint / "config.toml")
+    init_logger(config.log_level)
+
+    if target_checkpoint.exists():
+        logger.warning(f"{target_checkpoint} already exists, will be overwritten")
+        shutil.rmtree(target_checkpoint)
+    target_checkpoint.mkdir(parents=True, exist_ok=True)
+    save_config(config, target_checkpoint / "config.toml")
+
     best_epoch = find_best_model(checkpoint)
-    shutil.copytree(checkpoint / "preprocessor", inference_checkpoint / "preprocessor")
+    shutil.copytree(checkpoint / "preprocessor", target_checkpoint / "preprocessor")
     for subpath in (checkpoint / f"{best_epoch}").glob("*"):
         if subpath.is_file():
-            shutil.copy2(subpath, inference_checkpoint / subpath.name)
+            shutil.copy2(subpath, target_checkpoint / subpath.name)
         else:
-            shutil.copytree(subpath, inference_checkpoint / subpath.name)
-    logger.info(f"Inference checkpoints generated: [blue]{inference_checkpoint}")
+            shutil.copytree(subpath, target_checkpoint / subpath.name)
+    logger.info(f"Inference checkpoints generated: [blue]{target_checkpoint}")
+
+
+@app.command()
+def prune(
+    checkpoint: Path,
+    pruned_checkpoint: Path,
+):
+    from recognize.config import load_config
+
+    config = load_config(checkpoint / "config.toml")
+    init_logger(config.log_level)
 
 
 if __name__ == "__main__":

@@ -1,13 +1,14 @@
 log_level = "DEBUG"
+batch_size = 4
 
 [model]
 modals = ["T", "A"]
-feature_sizes = [768, 768]
+feature_sizes = [768, 256]
 encoders = [
     "roberta-large",
     "facebook/wav2vec2-base-960h",
 ]
-fusion = "LowRankFusionLayer([768, 768, 1], 16, 128)"
+fusion = "LowRankFusionLayer({'text': 768, 'audio': 256, 'video': 1}, 16, 128)"
 freeze_backbone = false
 
 [dataset]

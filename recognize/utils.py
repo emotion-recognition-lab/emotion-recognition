@@ -41,6 +41,10 @@ def save_checkpoint(
     original_encoder_dir = checkpoint_dir / "backbones"
     if model.backbone.is_frozen:
         # save and link original backbone state_dict
+        epoch_encoder_dir.symlink_to(
+            "../backbones",
+            target_is_directory=True,
+        )
         if not original_encoder_dir.exists():
             original_encoder_dir.mkdir(parents=True)
             for name, path in model.backbone.save(original_encoder_dir).items():
@@ -137,7 +141,6 @@ def get_trainer(
     return Trainer(model, data_loaders, optimizer, scheduler)
 
 
-# @torch.compile()
 def train_epoch(
     model: ClassifierModel,
     trainer: Trainer,
@@ -149,7 +152,7 @@ def train_epoch(
     for batch_index, batch in enumerate(train_data_loader):
         output = model(batch)
         loss = output.loss
-        loss_value = trainer.step(loss)
+        loss_value = trainer.training_step(loss)
         if update_hook is not None:
             update_hook(batch_index, loss_value)
 

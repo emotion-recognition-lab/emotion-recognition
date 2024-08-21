@@ -67,8 +67,8 @@ class Preprocessor:
 
     def load_video(self, video_path: str) -> torch.Tensor | None:
         if self.image_processor is not None and os.path.exists(video_path):
-            videos = read_videos(video_path)
-            video_inputs = self.image_processor(list(videos), return_tensors="pt")
+            video = read_videos(video_path)
+            video_inputs = self.image_processor(video, return_tensors="pt")
             video_pixel_values = video_inputs["pixel_values"][0]
         else:
             video_pixel_values = None
@@ -132,8 +132,8 @@ class Preprocessor:
         for video_path in video_paths:
             if not os.path.exists(video_path):
                 return None
-            videos = read_videos(video_path)
-            video_inputs = self.image_processor(list(videos), return_tensors="pt")
+            video = read_videos(video_path)
+            video_inputs = self.image_processor(video, return_tensors="pt")
             video_pixel_values = video_inputs["pixel_values"][0]
             video_pixel_values_list.append(video_pixel_values)
         return pad_sequence(video_pixel_values_list, batch_first=True)

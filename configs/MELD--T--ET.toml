@@ -1,4 +1,5 @@
 log_level = "INFO"
+batch_size = 4
 
 [model]
 modals = ["T"]

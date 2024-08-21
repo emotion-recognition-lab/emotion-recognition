@@ -6,6 +6,8 @@ from pathlib import Path
 
 import torch
 
+from recognize.config import load_config
+
 from .base import ClassifierModel, ClassifierOutput
 from .multimodal import MultimodalBackbone, MultimodalInput
 
@@ -29,7 +31,6 @@ class UnimodalModel(ClassifierModel[MultimodalBackbone]):
 
     def get_hyperparameter(self):
         return {
-            "feature_size": self.feature_size,
             "num_classes": self.num_classes,
         }
 
@@ -48,6 +49,13 @@ class UnimodalModel(ClassifierModel[MultimodalBackbone]):
         checkpoint_path = Path(checkpoint_path)
         with open(checkpoint_path / "config.json") as f:
             model_config = json.load(f)
-        return cls(backbone, **model_config, class_weights=class_weights)
+        config = load_config(checkpoint_path / "config.toml")
+
+        return cls(
+            backbone,
+            feature_size=config.model.feature_sizes[0],
+            num_classes=model_config["num_classes"],
+            class_weights=class_weights,
+        )
 
     __call__: Callable[[MultimodalInput], ClassifierOutput]

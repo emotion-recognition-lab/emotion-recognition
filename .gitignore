@@ -5,6 +5,7 @@ checkpoints/
 logs/
 cache/
 datasets/
+public/
 
 .pdm-python
 .python-version

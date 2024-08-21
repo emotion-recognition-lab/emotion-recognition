@@ -19,7 +19,9 @@ class EmotionEstimator:
             f"{model_checkpoint}/backbones",
             use_cache=False,
         )
-        fusion_layer = LowRankFusionLayer([text_feature_size, audio_feature_size, video_feature_size], 16, 128)
+        fusion_layer = LowRankFusionLayer(
+            {"text": text_feature_size, "audio": audio_feature_size, "video": video_feature_size}, 16, 128
+        )
 
         self.preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
         self.emotion_model = (
@@ -33,7 +35,7 @@ class EmotionEstimator:
         text: str | None = None,
         video_path: str | None = None,
         audio_path: str | None = None,
-    ) -> int:
+    ) -> float:
         inputs = LazyMultimodalInput(
             preprocessor=self.preprocessor,
             texts=[text] if text is not None else None,
@@ -43,4 +45,4 @@ class EmotionEstimator:
         outputs = self.emotion_model(inputs)
         emotion_level = 1 / (1 + np.exp(-outputs.logits[0][0].cpu().numpy()))
         emotion_level = 50 + emotion_level * 50
-        return emotion_level
+        return emotion_level.item()

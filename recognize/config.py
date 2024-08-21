@@ -3,7 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal, Self
 
-from pydantic import BaseModel, Field, model_validator
+from loguru import logger
+from pydantic import BaseModel, model_validator
 from typing_extensions import deprecated
 
 from .typing import LogLevel, ModalType
@@ -30,14 +31,16 @@ class ModelConfig(BaseModel):
 
 
 class DatasetConfig(BaseModel):
-    path: Path = Path("datasets/MELD")
+    path: Path
     label_type: Literal["sentiment", "emotion"] = "sentiment"
 
 
 class Config(BaseModel):
     log_level: LogLevel = "INFO"
+    batch_size: int = 32
+
     model: ModelConfig
-    dataset: DatasetConfig = Field(default_factory=DatasetConfig)
+    dataset: DatasetConfig
 
     def generate_model_label(self):
         model_label = "+".join(self.model.modals)
@@ -76,6 +79,34 @@ def load_dict_from_path(path: Path) -> dict[str, Any]:
     return config
 
 
+def save_dict_to_path(config: dict[str, Any], path: Path) -> None:
+    if path.exists():
+        logger.warning(f"{path} already exists, will be overwritten")
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    path = path.expanduser()
+    with open(path.absolute(), "w") as f:
+        if path.suffix == ".json":
+            import json
+
+            json.dump(config, f)
+        elif path.suffix == ".toml":
+            import toml
+
+            toml.dump(config, f)
+        elif path.suffix == ".yaml":
+            import yaml
+
+            yaml.dump(config, f)
+        else:
+            raise NotImplementedError(f"Unsupportted suffix {path.suffix}")
+
+
 def load_config(path: str | Path) -> Config:
     config_dict = load_dict_from_path(Path(path))
     return Config(**config_dict)
+
+
+def save_config(config: Config, path: str | Path) -> None:
+    config_dict = config.model_dump()
+    save_dict_to_path(config_dict, Path(path))

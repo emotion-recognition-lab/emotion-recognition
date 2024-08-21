@@ -9,6 +9,7 @@ import torch
 from loguru import logger
 from torch.nn.utils.rnn import pad_sequence
 
+from recognize.config import load_config
 from recognize.module.fusion import FusionLayer
 from recognize.preprocessor import Preprocessor
 
@@ -120,8 +121,6 @@ class LazyMultimodalInput(MultimodalInput):
             and super().__getattribute__("video_pixel_values") is None
             and self.video_paths is not None
         ):
-            pass
-            # TODO: load video too slow
             self.video_pixel_values = self.preprocessor.load_videos(self.video_paths)
 
         return super().__getattribute__(__name)
@@ -209,14 +208,12 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
 
     def get_hyperparameter(self):
         return {
-            "feature_sizes": self.feature_sizes,
             "num_classes": self.num_classes,
         }
 
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
         embs_dict = self.backbone(inputs)
-        # TODO: dict to tuple maybe wrong
-        fusion_features = self.fusion_layer(*(embs_dict[k] for k in sorted(embs_dict)))
+        fusion_features = self.fusion_layer(embs_dict)
         return self.classify(fusion_features, inputs.labels)
 
     @classmethod
@@ -231,6 +228,13 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
         checkpoint_path = Path(checkpoint_path)
         with open(checkpoint_path / "config.json") as f:
             model_config = json.load(f)
-        return cls(backbone, fusion_layer, **model_config, class_weights=class_weights)
+        config = load_config(checkpoint_path / "config.toml")
+        return cls(
+            backbone,
+            fusion_layer,
+            feature_sizes=config.model.feature_sizes,
+            num_classes=model_config["num_classes"],
+            class_weights=class_weights,
+        )
 
     __call__: Callable[[MultimodalInput], ClassifierOutput]

@@ -71,6 +71,7 @@ class Trainer:
         *,
         max_grad_norm: float | None = None,
     ):
+        self.init_torch()
         self.model = model
         self.data_loaders = data_loaders
         self.optimizer = optimizer

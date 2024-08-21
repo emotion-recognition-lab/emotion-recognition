@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import torch
 import typer
@@ -21,15 +21,17 @@ from recognize.model import (
     MultimodalModel,
     UnimodalModel,
 )
-from recognize.module.fusion import gen_fusion_layer
+from recognize.module.fusion import FusionLayer, LowRankFusionLayer
 from recognize.preprocessor import Preprocessor
-from recognize.typing import LogLevel, ModalType
 from recognize.utils import (
     find_best_model,
     load_best_model,
     train_and_eval,
     train_and_eval_distill,
 )
+
+if TYPE_CHECKING:
+    from recognize.typing import LogLevel, ModalType
 
 
 def init_logger(log_level: LogLevel):
@@ -48,27 +50,32 @@ def seed_everything(seed: int = 666):
     np.random.seed(seed)
 
 
-def provide_meld_datasets(dataset_path: Path, preprocessor: Preprocessor, label_type: MELDDatasetLabelType = "emotion"):
+def provide_meld_datasets(
+    dataset_path: Path,
+    preprocessor: Preprocessor,
+    label_type: MELDDatasetLabelType = "emotion",
+    custom_unique_id: str = "T",
+):
     train_dataset = MELDDataset(
         dataset_path.as_posix(),
         preprocessor,
         split=DatasetSplit.TRAIN,
         label_type=label_type,
-        custom_unique_id="T",
+        custom_unique_id=custom_unique_id,
     )
     dev_dataset = MELDDataset(
         dataset_path.as_posix(),
         preprocessor,
         split=DatasetSplit.VALID,
         label_type=label_type,
-        custom_unique_id="T",
+        custom_unique_id=custom_unique_id,
     )
     test_dataset = MELDDataset(
         dataset_path.as_posix(),
         preprocessor,
         split=DatasetSplit.TEST,
         label_type=label_type,
-        custom_unique_id="T",
+        custom_unique_id=custom_unique_id,
     )
     return train_dataset, dev_dataset, test_dataset
 
@@ -157,13 +164,29 @@ def generate_backbone(
     return backbone
 
 
+def gen_fusion_layer(fusion: str, modals: list[ModalType], feature_sizes: list[int]) -> FusionLayer:
+    fusion = eval(
+        fusion,
+        {
+            # "TensorFusionLayer": TensorFusionLayer,
+            "LowRankFusionLayer": LowRankFusionLayer,
+            "feature_sizes_dict": {
+                modal2name[modal]: feature_size for modal, feature_size in zip(modals, feature_sizes, strict=True)
+            },
+        },
+    )
+
+    assert isinstance(fusion, FusionLayer), f"{fusion} is not a FusionLayer, but {type(fusion)}"
+    return fusion
+
+
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
 @app.command()
 def distill(
-    teacher_checkpoint: Path,
-    config_path: Path = Path("configs/default.toml"),
+    config_path: Path,
+    teacher_checkpoint: Path = typer.Option(..., help="The checkpoint of the teacher model"),
     checkpoint: Optional[Path] = None,
 ) -> None:
     """
@@ -175,11 +198,11 @@ def distill(
 
     config = load_config(config_path)
     config_freeze = config.model.freeze_backbone
-    config_label_type = config.dataset.label_type
     config_encoders = config.model.encoders
     config_modals = config.model.modals
     config_feature_sizes = config.model.feature_sizes
     config_fusion = config.model.fusion
+    config_dataset = config.dataset
 
     init_logger(config.log_level)
 
@@ -224,7 +247,10 @@ def distill(
     backbone.poolers.update(dict(teacher_backbone.poolers))
 
     train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
-        config.dataset.path, preprocessor, label_type=config_label_type
+        config_dataset.path,
+        preprocessor,
+        label_type=config_dataset.label_type,
+        custom_unique_id="+".join(config.model.modals),
     )
     train_data_loader = DataLoader(
         train_dataset,
@@ -261,7 +287,7 @@ def distill(
     logger.info("Test result in best [green]teacher[/] model:")
     result.print()
 
-    fusion_layer = gen_fusion_layer(config_fusion)
+    fusion_layer = gen_fusion_layer(config_fusion, config_modals, config_feature_sizes)
     model = MultimodalModel(
         backbone,
         fusion_layer,
@@ -294,29 +320,29 @@ def distill(
 
 @app.command()
 def train(
-    config_path: Path = Path("configs/default.toml"),
+    config_path: Path,
     checkpoint: Optional[Path] = None,
 ) -> None:
     config = load_config(config_path)
     init_logger(config.log_level)
-    freeze = config.model.freeze_backbone
-    label_type = config.dataset.label_type
-    encoders = config.model.encoders
+    config_freeze = config.model.freeze_backbone
+    config_encoders = config.model.encoders
     config_feature_sizes = config.model.feature_sizes
-    modals = config.model.modals
+    config_modals = config.model.modals
+    config_dataset = config.dataset
 
     model_label = config.generate_model_label()
-    batch_size = 64 if freeze else 2
+    batch_size = config.batch_size
 
     preprocessor = generate_preprocessor(
-        encoders,
-        modals,
+        config_encoders,
+        config_modals,
         checkpoints=[Path(f"./checkpoints/{model_label}/preprocessor"), Path(f"./{checkpoint}/preprocessor")],
     )
 
     backbone = generate_backbone(
-        encoders,
-        modals,
+        config_encoders,
+        config_modals,
         config_feature_sizes,
         checkpoints=[Path(f"./checkpoints/{model_label}/backbones"), Path(f"./{checkpoint}/backbones")],
     )
@@ -329,7 +355,10 @@ def train(
     )
 
     train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
-        config.dataset.path, preprocessor, label_type=label_type
+        config_dataset.path,
+        preprocessor,
+        label_type=config_dataset.label_type,
+        custom_unique_id="+".join(config.model.modals),
     )
     train_data_loader = DataLoader(
         train_dataset,
@@ -371,7 +400,7 @@ def train(
             class_weights=class_weights,
         ).cuda()
     else:
-        fusion_layer = gen_fusion_layer(config.model.fusion)
+        fusion_layer = gen_fusion_layer(config.model.fusion, config_modals, config_feature_sizes)
         model = MultimodalModel(
             backbone,
             fusion_layer,
@@ -380,7 +409,7 @@ def train(
             class_weights=class_weights,
         ).cuda()
 
-    if not freeze:
+    if not config_freeze:
         model.unfreeze_backbone()
 
     if checkpoint is not None and not os.path.exists(f"./checkpoints/{model_label}/stopper.json"):
@@ -391,7 +420,7 @@ def train(
     result: TrainingResult = train_and_eval(
         model,
         train_data_loader,
-        dev_data_loader,
+        test_data_loader,
         test_data_loader,
         num_epochs=200,
         model_label=model_label,
@@ -408,16 +437,19 @@ def inference(
     video_path: Optional[Path] = None,
 ):
     config = load_config(f"{checkpoint}/config.toml")
+    config_modals = config.model.modals
+    config_feature_sizes = config.model.feature_sizes
+    config_fusion = config.model.fusion
     init_logger(config.log_level)
 
     preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
     model_checkpoint = f"{checkpoint}/{find_best_model(checkpoint)}"
 
     backbone = MultimodalBackbone.from_checkpoint(f"{model_checkpoint}/backbones")
-    if config.model.fusion is None:
+    if config_fusion is None:
         model = UnimodalModel.from_checkpoint(model_checkpoint, backbone=backbone).cuda()
     else:
-        fusion_layer = gen_fusion_layer(config.model.fusion)
+        fusion_layer = gen_fusion_layer(config_fusion, config_modals, config_feature_sizes)
         model = MultimodalModel.from_checkpoint(model_checkpoint, backbone=backbone, fusion_layer=fusion_layer).cuda()
     model.eval()
     inputs = LazyMultimodalInput(

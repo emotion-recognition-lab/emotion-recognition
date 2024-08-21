@@ -12,7 +12,7 @@ class FusionLayer(nn.Module):
         super().__init__()
         self.output_size = output_size
 
-    __call__: Callable[..., torch.Tensor]
+    __call__: Callable[[dict[str, torch.Tensor | None]], torch.Tensor]
 
 
 class TensorFusionLayer(FusionLayer):
@@ -47,36 +47,29 @@ class TensorFusionLayer(FusionLayer):
 
 
 class LowRankFusionLayer(FusionLayer):
-    def __init__(self, dims: list[int], rank: int, output_size: int):
+    def __init__(self, dims: dict[str, int], rank: int, output_size: int):
         super().__init__(output_size)
         self.dims = dims
         self.rank = rank
-        self.low_rank_weights = nn.ParameterList([nn.Parameter(torch.randn(rank, dim, output_size)) for dim in dims])
+        self.low_rank_weights = nn.ParameterDict(
+            {name: nn.Parameter(torch.randn(rank, dim, output_size)) for name, dim in dims.items()}
+        )
+        self.placeholders = nn.ParameterDict({name: nn.Parameter(torch.randn(1, dim)) for name, dim in dims.items()})
         self.output_layer = nn.Linear(rank, 1)
 
-    def forward(self, *inputs: torch.Tensor | None):
+    def forward(self, inputs: dict[str, torch.Tensor | None]):
         assert len(inputs) <= len(
             self.low_rank_weights
         ), "Number of inputs should be less than or equal to number of weights"
         # N*d x R*d*h => R*N*h ~reshape~> N*h*R -> N*h*1 ~squeeze~> N*h
         fusion_tensors = [
-            torch.matmul(i, w) for i, w in zip(inputs, self.low_rank_weights, strict=False) if i is not None
+            torch.matmul(i, self.low_rank_weights[n])
+            for n, i in inputs.items()
+            if i is not None and n in self.low_rank_weights
         ]
         product_tensor = torch.prod(torch.stack(fusion_tensors), dim=0)
         output = self.output_layer(product_tensor.permute(1, 2, 0)).squeeze(dim=-1)
         return output
-
-
-def gen_fusion_layer(fusion: str) -> FusionLayer:
-    fusion = eval(
-        fusion,
-        {  # locals
-            "TensorFusionLayer": TensorFusionLayer,
-            "LowRankFusionLayer": LowRankFusionLayer,
-        },
-    )
-    assert isinstance(fusion, FusionLayer), f"{fusion} is not a FusionLayer, but {type(fusion)}"
-    return fusion
 
 
 # class __FusionLayer(FusionLayer):

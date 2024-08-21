@@ -90,7 +90,7 @@ class ModelInput(BaseModel):
 class Backbone(nn.Module, Generic[ModelInputT]):
     def __init__(
         self,
-        # TODO: change to dict[str, tuple[nn.Module, int]]
+        # TODO: change to Mapping[str, tuple[nn.Module, int]]
         encoders: Mapping[str, tuple[nn.Module | None, int]],
         use_cache: bool = True,
         is_frozen: bool = True,
@@ -143,8 +143,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
     def save_cache(self, no_cached_inputs: ModelInputT) -> None:
         assert no_cached_inputs.unique_ids is not None
         with torch.no_grad():
-            embs_tuple = self.compute_embs(no_cached_inputs)
-            pooler_output = self.pool_embs(embs_tuple)
+            pooler_output = self.direct_forward(no_cached_inputs)
         save_cached_tensors(
             no_cached_inputs.unique_ids,
             dict(pooler_output.items()),
