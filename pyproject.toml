@@ -13,16 +13,21 @@ dependencies = [
     "cachetools>=5.3.2",
     "pydantic>=2.0.0",
     "loguru>=0.7.0",
-    "typer>=0.12.0",
     "rich>=13.7.1",
     "toml>=0.10.0",
+    "pillow>=10.2.0",
 ]
 requires-python = ">=3.11"
 readme = "README.md"
 license = { text = "MIT" }
 
 [project.optional-dependencies]
-train = ["pandas>=2.0.0"]
+train = [
+    "opencv-python>=4.0.0",
+    "pandas>=2.0.0",
+    "torch-pruning>=1.4.2",
+]
+cli = ["typer>=0.12.0"]
 triton = ["triton>=2.2.0"]
 
 [project.urls]
@@ -59,7 +64,7 @@ select = [
     # Ruff-specific rules
     "RUF",
 ]
-ignore = ["F841", "PGH003", "UP038"]
+ignore = ["F841", "PGH003", "UP038", "B008"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "I002"]
@@ -81,7 +86,7 @@ line-ending = "auto"
 
 [tool.uv]
 extra-index-url = ["https://download.pytorch.org/whl/cu121"]
-dev-dependencies = ["memray", "viztracer"]
+dev-dependencies = ["viztracer"]
 
 [tool.pdm.build]
 includes = ["recognize"]
