@@ -3,7 +3,6 @@ from __future__ import annotations
 from functools import cached_property
 from typing import TYPE_CHECKING
 
-import pandas as pd
 import torch
 from loguru import logger
 
@@ -27,6 +26,8 @@ class PilotDataset(MultimodalDataset):
         split: DatasetSplit = DatasetSplit.TRAIN,
         custom_unique_id: str = "",
     ):
+        import pandas as pd
+
         if split != DatasetSplit.TRAIN:
             logger.warning("Pilot dataset only has train split. Ignoring split argument.")
             split = DatasetSplit.TRAIN

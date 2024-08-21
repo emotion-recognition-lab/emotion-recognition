@@ -4,7 +4,6 @@ import os
 from functools import cached_property
 from typing import TYPE_CHECKING
 
-import pandas as pd
 import torch
 
 if TYPE_CHECKING:
@@ -22,6 +21,8 @@ class SIMSDataset(MultimodalDataset):
         split: DatasetSplit = DatasetSplit.TRAIN,
         custom_unique_id: str = "",
     ):
+        import pandas as pd
+
         meta = pd.read_csv(os.path.join(dataset_path, "label.csv"))
         meta = meta[meta["mode"] == split.value]
         super().__init__(

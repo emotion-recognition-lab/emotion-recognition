@@ -3,7 +3,6 @@ from __future__ import annotations
 from functools import cached_property
 from typing import TYPE_CHECKING, Literal
 
-import pandas as pd
 import torch
 from loguru import logger
 
@@ -46,6 +45,8 @@ class MELDDataset(MultimodalDataset):
         label_type: MELDDatasetLabelType = "emotion",
         custom_unique_id: str = "MELD",
     ):
+        import pandas as pd
+
         if split == DatasetSplit.DEV:
             logger.warning("DEV split is deprecated. Using VALID split instead.")
             split = DatasetSplit.VALID

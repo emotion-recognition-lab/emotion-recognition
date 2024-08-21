@@ -4,10 +4,11 @@ from abc import abstractmethod
 from enum import Enum
 from typing import TYPE_CHECKING
 
-import pandas as pd
 from torch.utils.data import Dataset
 
 if TYPE_CHECKING:
+    from pandas import DataFrame
+
     from recognize.model import MultimodalInput
     from recognize.preprocessor import Preprocessor
 
@@ -23,7 +24,7 @@ class MultimodalDataset(Dataset):
     def __init__(
         self,
         dataset_path: str,
-        meta: pd.DataFrame,
+        meta: DataFrame,
         preprocessor: Preprocessor,
         *,
         num_classes: int = 2,
