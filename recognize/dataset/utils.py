@@ -16,6 +16,8 @@ def sample_frame_indices(length: int, target_length: int):
 
 
 def read_videos(video_path: str):
+    from collections import Counter
+
     import cv2
 
     video = cv2.VideoCapture(video_path)
@@ -24,16 +26,18 @@ def read_videos(video_path: str):
     count = 0
     indices = sample_frame_indices(target_length=32, length=length)
     indices = list(indices)
+    indices_counter = Counter(indices)
 
     while video.isOpened():
         ret, image = video.read()
         if not ret:
             break
-
-        if count in list(indices):
-            frames.append(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        if count in indices_counter:
+            frame = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            for _j in range(indices_counter[count]):
+                frames.append(frame)
         count += 1
 
     video.release()
 
-    return np.array(frames)
+    return frames
