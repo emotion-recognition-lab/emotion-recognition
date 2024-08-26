@@ -18,6 +18,7 @@ ClassifierModelT = TypeVar("ClassifierModelT", bound="ClassifierModel")
 ModuleT = TypeVar("ModuleT", bound=nn.Module)
 
 ModalType = Literal["T", "A", "V"]
-
-
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+
+DatasetSplit = Literal["train", "valid", "test", "dev"]
+DatasetLabelType = Literal["emotion", "sentiment"]

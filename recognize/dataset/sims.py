@@ -6,10 +6,12 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from recognize.typing import DatasetSplit
+
 if TYPE_CHECKING:
     from recognize.preprocessor import Preprocessor
 
-from .base import DatasetSplit, MultimodalDataset
+from .base import MultimodalDataset
 
 
 class SIMSDataset(MultimodalDataset):
@@ -18,13 +20,13 @@ class SIMSDataset(MultimodalDataset):
         dataset_path: str,
         preprocessor: Preprocessor,
         *,
-        split: DatasetSplit = DatasetSplit.TRAIN,
+        split: DatasetSplit = "train",
         custom_unique_id: str = "",
     ):
         import pandas as pd
 
         meta = pd.read_csv(os.path.join(dataset_path, "label.csv"))
-        meta = meta[meta["mode"] == split.value]
+        meta = meta[meta["mode"] == split]
         super().__init__(
             dataset_path,
             meta,

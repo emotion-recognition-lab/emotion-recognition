@@ -1,0 +1,12 @@
+log_level = "INFO"
+
+[model]
+modals = ["T"]
+feature_sizes = [128]
+encoders = ["roberta-large"]
+freeze_backbone = true
+
+[dataset]
+dataset_class = "PilotDataset"
+path = "datasets/pilot-emotion"
+label_type = "sentiment"

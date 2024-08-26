@@ -95,7 +95,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         use_cache: bool = True,
         is_frozen: bool = True,
         use_peft: bool = False,
-        encoder_dir: str | Path = "./checkpoints/backbones",
+        encoder_dir: str | Path = "./checkpoints/training/backbones",
     ):
         super().__init__()
         self.encoder_dir = Path(encoder_dir)
@@ -302,7 +302,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         use_cache: bool = True,
         is_frozen: bool = True,
         use_peft: bool = False,
-        encoder_dir: str | Path = "./checkpoints/backbones",
+        encoder_dir: str | Path = "./checkpoints/training/backbones",
     ) -> Self:
         from transformers import AutoConfig, AutoModel
 

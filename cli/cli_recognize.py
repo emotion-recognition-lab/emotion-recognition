@@ -15,7 +15,7 @@ from rich.logging import RichHandler
 from torch.utils.data import DataLoader
 
 from recognize.config import InferenceConfig, load_training_config, save_config
-from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType
+from recognize.dataset import MELDDataset, PilotDataset
 from recognize.evaluate import TrainingResult
 from recognize.model import (
     LazyMultimodalInput,
@@ -25,6 +25,8 @@ from recognize.model import (
 )
 from recognize.module import gen_fusion_layer
 from recognize.preprocessor import Preprocessor
+from recognize.trainer import EarlyStopper
+from recognize.typing import DatasetLabelType
 from recognize.utils import (
     find_best_model,
     load_best_model,
@@ -57,27 +59,33 @@ def seed_everything(seed: int | None = None):
 def provide_meld_datasets(
     dataset_path: Path,
     preprocessor: Preprocessor,
-    label_type: MELDDatasetLabelType = "emotion",
+    label_type: DatasetLabelType = "emotion",
     custom_unique_id: str = "T",
+    dataset_class_str: str = "MELDDataset",
 ):
-    train_dataset = MELDDataset(
+    dataset_class = {
+        "MELDDataset": MELDDataset,
+        "PilotDataset": PilotDataset,
+    }[dataset_class_str]
+    custom_unique_id = f"{dataset_class_str}--{custom_unique_id}"
+    train_dataset = dataset_class(
         dataset_path.as_posix(),
         preprocessor,
-        split=DatasetSplit.TRAIN,
+        split="train",
         label_type=label_type,
         custom_unique_id=custom_unique_id,
     )
-    dev_dataset = MELDDataset(
+    dev_dataset = dataset_class(
         dataset_path.as_posix(),
         preprocessor,
-        split=DatasetSplit.VALID,
+        split="valid",
         label_type=label_type,
         custom_unique_id=custom_unique_id,
     )
-    test_dataset = MELDDataset(
+    test_dataset = dataset_class(
         dataset_path.as_posix(),
         preprocessor,
-        split=DatasetSplit.TEST,
+        split="test",
         label_type=label_type,
         custom_unique_id=custom_unique_id,
     )
@@ -191,7 +199,7 @@ def distill(
     init_logger(config.log_level)
 
     model_label = f"distill--{config.generate_model_label()}"
-    batch_size = 64 if config_freeze else 2
+    batch_size = config.batch_size
 
     assert config_fusion is not None
     assert Path(f"./{teacher_checkpoint}/stopper.json").exists()
@@ -201,14 +209,14 @@ def distill(
         config_encoders,
         config_modals,
         checkpoints=[
-            Path(f"./checkpoints/{model_label}/preprocessor"),
+            Path(f"./checkpoints/training/{model_label}/preprocessor"),
             Path(f"./{checkpoint}/preprocessor"),
             Path(f"./{teacher_checkpoint}/preprocessor"),
         ],
     )
 
-    Path(f"./checkpoints/{model_label}").mkdir(exist_ok=True)
-    preprocessor_dir = Path(f"./checkpoints/{model_label}/preprocessor")
+    Path(f"./checkpoints/training/{model_label}").mkdir(exist_ok=True)
+    preprocessor_dir = Path(f"./checkpoints/training/{model_label}/preprocessor")
     if not preprocessor_dir.exists():
         preprocessor.save_pretrained(preprocessor_dir)
 
@@ -220,7 +228,7 @@ def distill(
         config_encoders,
         config_modals,
         config_feature_sizes,
-        # checkpoints=[Path(f"./checkpoints/{model_label}/backbones"), Path(f"./{checkpoint}/backbones")],
+        # checkpoints=[Path(f"./checkpoints/training/{model_label}/backbones"), Path(f"./{checkpoint}/backbones")],
     )
     # TODO: maybe those will be covered by load_best_model
     backbone.encoders.update(dict(teacher_backbone.encoders))
@@ -231,6 +239,7 @@ def distill(
         preprocessor,
         label_type=config_dataset.label_type,
         custom_unique_id="+".join(config.model.modals),
+        dataset_class_str=config_dataset.dataset_class,
     )
     train_data_loader = DataLoader(
         train_dataset,
@@ -257,10 +266,10 @@ def distill(
 
     symlink(
         config_path,
-        f"./checkpoints/{model_label}/training.toml",
+        f"./checkpoints/training/{model_label}/training.toml",
     )
     inference_config = InferenceConfig(num_classes=train_dataset.num_classes, model=config.model)
-    save_config(inference_config, f"./checkpoints/{model_label}/inference.toml")
+    save_config(inference_config, f"./checkpoints/training/{model_label}/inference.toml")
 
     teacher_model = UnimodalModel(
         teacher_backbone,
@@ -286,7 +295,7 @@ def distill(
     if not config_freeze:
         model.unfreeze_backbone()
 
-    if checkpoint is not None and not os.path.exists(f"./checkpoints/{model_label}/stopper.json"):
+    if checkpoint is not None and not os.path.exists(f"./checkpoints/training/{model_label}/stopper.json"):
         load_best_model(checkpoint, model)
         result = TrainingResult.auto_compute(model, test_data_loader)
         result.print()
@@ -323,21 +332,22 @@ def train(
 
     model_label = config.generate_model_label()
     batch_size = config.batch_size
+    print(batch_size)
 
     preprocessor = generate_preprocessor(
         config_encoders,
         config_modals,
-        checkpoints=[Path(f"./checkpoints/{model_label}/preprocessor"), Path(f"./{checkpoint}/preprocessor")],
+        checkpoints=[Path(f"./checkpoints/training/{model_label}/preprocessor"), Path(f"./{checkpoint}/preprocessor")],
     )
 
     backbone = generate_backbone(
         config_encoders,
         config_modals,
         config_feature_sizes,
-        checkpoints=[Path(f"./checkpoints/{model_label}/backbones"), Path(f"./{checkpoint}/backbones")],
+        checkpoints=[Path(f"./checkpoints/training/{model_label}/backbones"), Path(f"./{checkpoint}/backbones")],
     )
 
-    checkpoint_dir = Path(f"./checkpoints/{model_label}")
+    checkpoint_dir = Path(f"./checkpoints/training/{model_label}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
@@ -345,6 +355,7 @@ def train(
         preprocessor,
         label_type=config_dataset.label_type,
         custom_unique_id="+".join(config.model.modals),
+        dataset_class_str=config_dataset.dataset_class,
     )
     train_data_loader = DataLoader(
         train_dataset,
@@ -370,21 +381,26 @@ def train(
 
     symlink(
         config_path,
-        f"./checkpoints/{model_label}/training.toml",
+        f"./checkpoints/training/{model_label}/training.toml",
     )
     inference_config = InferenceConfig(num_classes=train_dataset.num_classes, model=config.model)
-    save_config(inference_config, f"./checkpoints/{model_label}/inference.toml")
+    save_config(inference_config, f"./checkpoints/training/{model_label}/inference.toml")
 
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
-    if checkpoint is None and not os.path.exists(f"./{checkpoint}/preprocessor") and preprocessor.tokenizer is not None:
-        preprocessor.tokenizer.add_special_tokens(
-            {
-                "additional_special_tokens": train_dataset.speakers  # type: ignore
-            }
-        )
-        backbone.encoders["T"].resize_token_embeddings(len(preprocessor.tokenizer))
-    if not os.path.exists(f"./checkpoints/{model_label}/preprocessor"):
-        preprocessor.save_pretrained(f"./checkpoints/{model_label}/preprocessor")
+    if config_dataset.dataset_class == "MELDDataset":
+        if (
+            checkpoint is None
+            and not os.path.exists(f"./{checkpoint}/preprocessor")
+            and preprocessor.tokenizer is not None
+        ):
+            preprocessor.tokenizer.add_special_tokens(
+                {
+                    "additional_special_tokens": train_dataset.speakers  # type: ignore
+                }
+            )
+            backbone.encoders["T"].resize_token_embeddings(len(preprocessor.tokenizer))
+    if not os.path.exists(f"./checkpoints/training/{model_label}/preprocessor"):
+        preprocessor.save_pretrained(f"./checkpoints/training/{model_label}/preprocessor")
 
     if config.model.fusion is None:
         model = UnimodalModel(
@@ -406,7 +422,7 @@ def train(
     if not config_freeze:
         model.unfreeze_backbone()
 
-    if checkpoint is not None and not os.path.exists(f"./checkpoints/{model_label}/stopper.json"):
+    if checkpoint is not None and not os.path.exists(f"./checkpoints/training/{model_label}/stopper.json"):
         load_best_model(checkpoint, model)
         result = TrainingResult.auto_compute(model, test_data_loader)
         result.print()
@@ -414,8 +430,9 @@ def train(
     result: TrainingResult = train_and_eval(
         model,
         train_data_loader,
+        dev_data_loader,
         test_data_loader,
-        test_data_loader,
+        stopper=EarlyStopper(patience=20),
         num_epochs=200,
         model_label=model_label,
     )

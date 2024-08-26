@@ -32,6 +32,7 @@ class ModelConfig(BaseModel):
 
 class DatasetConfig(BaseModel):
     path: Path
+    dataset_class: str  # TODO: use Literal
     label_type: Literal["sentiment", "emotion"] = "sentiment"
 
 

@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import torch
 from loguru import logger
 
-from .base import DatasetSplit, MultimodalDataset
+from recognize.typing import DatasetLabelType
+
+from .base import MultimodalDataset
 
 if TYPE_CHECKING:
     from recognize.preprocessor import Preprocessor
-
-
-MELDDatasetLabelType = Literal["emotion", "sentiment"]
+    from recognize.typing import DatasetSplit
 
 
 class MELDDataset(MultimodalDataset):
@@ -41,16 +41,17 @@ class MELDDataset(MultimodalDataset):
         dataset_path: str,
         preprocessor: Preprocessor,
         *,
-        split: DatasetSplit = DatasetSplit.TRAIN,
-        label_type: MELDDatasetLabelType = "emotion",
+        split: DatasetSplit = "train",
+        label_type: DatasetLabelType = "emotion",
         custom_unique_id: str = "MELD",
     ):
         import pandas as pd
 
-        if split == DatasetSplit.DEV:
+        if split == "dev":
             logger.warning("DEV split is deprecated. Using VALID split instead.")
-            split = DatasetSplit.VALID
-        self.split = "dev" if split == DatasetSplit.VALID else split.value
+        elif split == "valid":
+            split = "dev"
+        self.split = split
         self.label_type = label_type
 
         if label_type == "emotion":
@@ -70,7 +71,6 @@ class MELDDataset(MultimodalDataset):
             split=split,
             custom_unique_id=custom_unique_id,
         )
-        self.split = "dev" if split == DatasetSplit.VALID else split.value
 
         self._generate_session()
 

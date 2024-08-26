@@ -182,7 +182,7 @@ def train_and_eval(
     if model_label is None:
         model_label = f"{model.__class__.__name__}-{id(model)}"
     # TODO: use checkpoint_dir
-    checkpoint_dir = Path(f"./checkpoints/{model_label}")
+    checkpoint_dir = Path(f"./checkpoints/training/{model_label}")
     logger.add(f"./logs/{model_label}.txt")
     logger.info(f"Train model [blue]{model_label}[/]. Save to [blue]{checkpoint_dir}[/]")
 
@@ -308,7 +308,7 @@ def train_and_eval_distill(
         test_data_loader = valid_data_loader
     if model_label is None:
         model_label = f"{model.__class__.__name__}-{id(model)}"
-    checkpoint_dir = Path(f"./checkpoints/{model_label}")
+    checkpoint_dir = Path(f"./checkpoints/training/{model_label}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     logger.add(f"./logs/{model_label}.txt")
     logger.info(f"Train model [blue]{model_label}[/]. Save to [blue]{checkpoint_dir}[/]")

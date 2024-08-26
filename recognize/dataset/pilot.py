@@ -6,10 +6,13 @@ from typing import TYPE_CHECKING
 import torch
 from loguru import logger
 
+from recognize.typing import DatasetLabelType
+
 if TYPE_CHECKING:
     from recognize.preprocessor import Preprocessor
+    from recognize.typing import DatasetSplit
 
-from .base import DatasetSplit, MultimodalDataset
+from .base import MultimodalDataset
 
 
 class PilotDataset(MultimodalDataset):
@@ -23,15 +26,18 @@ class PilotDataset(MultimodalDataset):
         dataset_path: str,
         preprocessor: Preprocessor,
         *,
-        split: DatasetSplit = DatasetSplit.TRAIN,
+        label_type: DatasetLabelType = "sentiment",
+        split: DatasetSplit = "train",
         custom_unique_id: str = "",
     ):
         import pandas as pd
 
-        if split != DatasetSplit.TRAIN:
+        if split != "train":
             logger.warning("Pilot dataset only has train split. Ignoring split argument.")
-            split = DatasetSplit.TRAIN
-        self.split = split.value
+            split = "train"
+        if label_type != "sentiment":
+            logger.warning("Pilot dataset only has sentiment label. Ignoring label_type argument.")
+        self.split = split
         self.num_classes = 4
 
         super().__init__(
@@ -42,7 +48,6 @@ class PilotDataset(MultimodalDataset):
             split=split,
             custom_unique_id=custom_unique_id,
         )
-        self.split = "dev" if split == DatasetSplit.VALID else split.value
 
     @cached_property
     def class_weights(self) -> list[float]:

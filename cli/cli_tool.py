@@ -27,17 +27,18 @@ def create_standalone(
     checkpoint: Path,
     target_checkpoint: Path,
 ):
-    from recognize.config import load_training_config, save_config
+    from recognize.config import load_inference_config, load_training_config, save_config
     from recognize.utils import find_best_model
 
-    config = load_training_config(checkpoint / "config.toml")
-    init_logger(config.log_level)
+    training_config = load_training_config(checkpoint / "training.toml")
+    inference_config = load_inference_config(checkpoint / "inference.toml")
+    init_logger(training_config.log_level)
 
     if target_checkpoint.exists():
         logger.warning(f"{target_checkpoint} already exists, will be overwritten")
         shutil.rmtree(target_checkpoint)
     target_checkpoint.mkdir(parents=True, exist_ok=True)
-    save_config(config, target_checkpoint / "config.toml")
+    save_config(inference_config, target_checkpoint / "inference.toml")
 
     best_epoch = find_best_model(checkpoint)
     shutil.copytree(checkpoint / "preprocessor", target_checkpoint / "preprocessor")

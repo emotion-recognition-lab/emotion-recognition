@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from enum import Enum
 from typing import TYPE_CHECKING
 
 from torch.utils.data import Dataset
@@ -11,13 +10,7 @@ if TYPE_CHECKING:
 
     from recognize.model import MultimodalInput
     from recognize.preprocessor import Preprocessor
-
-
-class DatasetSplit(Enum):
-    TRAIN = "train"
-    VALID = "valid"
-    TEST = "test"
-    DEV = "dev"  # meld dataset
+    from recognize.typing import DatasetSplit
 
 
 class MultimodalDataset(Dataset):
@@ -28,7 +21,7 @@ class MultimodalDataset(Dataset):
         preprocessor: Preprocessor,
         *,
         num_classes: int = 2,
-        split: DatasetSplit = DatasetSplit.TRAIN,
+        split: DatasetSplit = "train",
         custom_unique_id: str = "",
         cache_mode: bool = False,
     ):
@@ -41,7 +34,7 @@ class MultimodalDataset(Dataset):
         self.load_video = self.preprocessor.load_video
 
         self.num_classes = num_classes
-        self.split = split.value
+        self.split = split
 
         self.custom_unique_id = custom_unique_id
         self.cache_mode = cache_mode

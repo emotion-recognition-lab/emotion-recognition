@@ -8,5 +8,6 @@ encoders = ["roberta-large"]
 freeze_backbone = true
 
 [dataset]
+dataset_class = "MELDDataset"
 path = "datasets/MELD"
 label_type = "emotion"
