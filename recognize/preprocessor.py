@@ -144,11 +144,13 @@ class Preprocessor:
     def recoginize_audio(self, audio_path: str) -> str:
         if self.whisper_model is None:
             # TODO: use self.device
+            download_root = os.environ.get("WHISPER_DOWNLOAD_ROOT", None)
             self.whisper_model = WhisperModel(
                 "medium",
                 device="cuda",
                 compute_type="float16",
-                download_root=os.environ.get("WHISPER_DOWNLOAD_ROOT", None),
+                download_root=download_root,
+                local_files_only=download_root is not None and os.path.isdir(download_root),
             )
         segments, _ = self.whisper_model.transcribe(audio_path, language="zh", initial_prompt="简体")
         text = "。".join(seg.text for seg in segments)
