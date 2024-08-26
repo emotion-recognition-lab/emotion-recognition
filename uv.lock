@@ -167,6 +167,7 @@ dependencies = [
     { name = "cachetools" },
     { name = "faster-whisper" },
     { name = "loguru" },
+    { name = "numpy" },
     { name = "peft" },
     { name = "pillow" },
     { name = "pydantic" },

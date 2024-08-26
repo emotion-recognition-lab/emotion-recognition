@@ -5,6 +5,7 @@ description = ""
 authors = [{ name = "Zhan Rongrui", email = "2742392377@qq.com" }]
 dependencies = [
     "transformers>=4.43.1",
+    "numpy>=1.26.0",
     "torch>=2.3.1",
     "peft>=0.8.2",
     "safetensors>=0.4.2",
