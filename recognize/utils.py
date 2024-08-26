@@ -263,18 +263,18 @@ def distill_epoch(
     trainer.clear_losses()
     for batch_index, batch in enumerate(train_data_loader):
         with torch.no_grad():
-            teacher_embs = teacher_model.backbone(batch)["text"]
+            teacher_embs = teacher_model.backbone(batch)["T"]
             teacher_logits = teacher_model.classifier(teacher_embs)
 
         student_embs_dict = student_model.backbone(batch)
-        if student_embs_dict.get("audio") is None:
+        if student_embs_dict.get("A") is None:
             continue
         student_output = student_model.classify(student_model.fusion_layer(*student_embs_dict.values()), batch.labels)
 
         assert student_output.loss is not None
         loss = (
             LogitLoss()(student_output.logits, teacher_logits)
-            + FeatureLoss()(student_embs_dict["audio"], teacher_embs)
+            + FeatureLoss()(student_embs_dict["A"], teacher_embs)
             # + FeatureLoss()(student_pooled_embs_tuple[2], teacher_pooled_embs)
             + 5 * student_output.loss
         )

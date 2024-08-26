@@ -105,13 +105,6 @@ def generate_model_label(modal: list[ModalType], freeze: bool, label_type: str):
     return model_label
 
 
-modal2name = {
-    "T": "text",
-    "V": "video",
-    "A": "audio",
-}
-
-
 def generate_preprocessor(encoders: list[str], modals: list[ModalType], checkpoints: Sequence[Path] = ()):
     from transformers import (
         AutoFeatureExtractor,
@@ -160,7 +153,7 @@ def generate_backbone(
     else:
         backbone = MultimodalBackbone(
             {
-                modal2name[modal]: (AutoModel.from_pretrained(model_name), feature_size)
+                modal: (AutoModel.from_pretrained(model_name), feature_size)
                 for modal, model_name, feature_size in zip(modals, encoders, feature_sizes, strict=True)
             }
         )
@@ -389,7 +382,7 @@ def train(
                 "additional_special_tokens": train_dataset.speakers  # type: ignore
             }
         )
-        backbone.encoders["text"].resize_token_embeddings(len(preprocessor.tokenizer))
+        backbone.encoders["T"].resize_token_embeddings(len(preprocessor.tokenizer))
     if not os.path.exists(f"./checkpoints/{model_label}/preprocessor"):
         preprocessor.save_pretrained(f"./checkpoints/{model_label}/preprocessor")
 

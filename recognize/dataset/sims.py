@@ -52,7 +52,7 @@ class SIMSDataset(MultimodalDataset):
         label = self.label2int(item)
 
         video_id = item["video_id"]
-        audio_id = video_id.replace("video", "audio")
+        audio_id = video_id.replace("V", "A")
         clip_id = item["clip_id"]
         audio_path = f"{self.dataset_path}/Raw/{audio_id}/{clip_id}.flac"
         video_path = f"{self.dataset_path}/Raw/{video_id}/{clip_id}.mp4"
@@ -60,7 +60,7 @@ class SIMSDataset(MultimodalDataset):
         return LazyMultimodalInput(
             preprocessor=self.preprocessor,
             unique_ids=[f"{self.custom_unique_id}--{self.split}_{index}"],
-            texts=[item["text"]],
+            texts=[item["T"]],
             audio_paths=[audio_path],
             video_paths=[video_path],
             labels=torch.tensor(label, dtype=torch.int64),

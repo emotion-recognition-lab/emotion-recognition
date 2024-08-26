@@ -5,19 +5,12 @@ from recognize.typing import ModalType
 
 
 def gen_fusion_layer(fusion: str, modals: list[ModalType], feature_sizes: list[int]) -> FusionLayer:
-    modal2name = {
-        "T": "text",
-        "V": "video",
-        "A": "audio",
-    }
     fusion = eval(
         fusion,
         {
             # "TensorFusionLayer": TensorFusionLayer,
             "LowRankFusionLayer": LowRankFusionLayer,
-            "feature_sizes_dict": {
-                modal2name[modal]: feature_size for modal, feature_size in zip(modals, feature_sizes, strict=True)
-            },
+            "feature_sizes_dict": dict(zip(modals, feature_sizes, strict=True)),
         },
     )
 

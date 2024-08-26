@@ -34,7 +34,7 @@ class UnimodalModel(ClassifierModel[MultimodalBackbone]):
         }
 
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
-        pooled_embs = self.backbone(inputs)["text"]
+        pooled_embs = self.backbone(inputs)["T"]
         return self.classify(pooled_embs, inputs.labels)
 
     @classmethod
