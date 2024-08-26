@@ -5,6 +5,8 @@ from pathlib import Path
 
 import soundfile as sf
 import torch
+from faster_whisper import WhisperModel
+from loguru import logger
 from torch.nn.utils.rnn import pad_sequence
 
 from .dataset.utils import read_videos
@@ -15,6 +17,7 @@ class Preprocessor:
         self.tokenizer = tokenizer
         self.feature_extractor = feature_extractor
         self.image_processor = image_processor
+        self.whisper_model: WhisperModel | None = None
 
     @property
     def tokenizer(self):
@@ -137,6 +140,20 @@ class Preprocessor:
             video_pixel_values = video_inputs["pixel_values"][0]
             video_pixel_values_list.append(video_pixel_values)
         return pad_sequence(video_pixel_values_list, batch_first=True)
+
+    def recoginize_audio(self, audio_path: str) -> str:
+        if self.whisper_model is None:
+            # TODO: use self.device
+            self.whisper_model = WhisperModel(
+                "medium",
+                device="cuda",
+                compute_type="float16",
+                download_root=os.environ.get("WHISPER_DOWNLOAD_ROOT", None),
+            )
+        segments, _ = self.whisper_model.transcribe(audio_path, language="zh", initial_prompt="简体")
+        text = "。".join(seg.text for seg in segments)
+        logger.debug(f"Recognized text: {text}")
+        return text
 
     def save_pretrained(self, path: str | Path):
         if self.tokenizer is not None:

@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import itertools
 import json
-import os
 import pickle
 import zlib
 from collections.abc import Callable, Mapping, Sequence
@@ -12,7 +11,6 @@ from pathlib import Path
 from typing import Generic, Literal, Self, overload
 
 import torch
-from faster_whisper import WhisperModel
 from loguru import logger
 from peft import LoraConfig, get_peft_model, get_peft_model_state_dict, set_peft_model_state_dict
 from peft.peft_model import PeftModel
@@ -38,7 +36,6 @@ class ClassifierOutput(ModelOutput):
 
 class ModelInput(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    whisper_model: WhisperModel | None = None
     unique_ids: list[str] | None = None  # TODO: maybe better name
 
     def cuda(self) -> Self:
@@ -71,20 +68,6 @@ class ModelInput(BaseModel):
     @property
     def device(self) -> torch.device:
         raise NotImplementedError("device property must be implemented in subclass")
-
-    def recoginize_audio(self, audio_path: str) -> str:
-        if self.whisper_model is None:
-            # use self.device
-            self.whisper_model = WhisperModel(
-                "medium",
-                device="cuda",
-                compute_type="float16",
-                download_root=os.environ.get("WHISPER_DOWNLOAD_ROOT", None),
-            )
-        segments, _ = self.whisper_model.transcribe(audio_path, language="zh", initial_prompt="简体")
-        text = "。".join(seg.text for seg in segments)
-        logger.info(f"Recognized text: {text}")
-        return text
 
 
 class Backbone(nn.Module, Generic[ModelInputT]):
