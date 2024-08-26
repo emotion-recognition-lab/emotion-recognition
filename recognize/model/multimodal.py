@@ -222,14 +222,19 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
         *,
         class_weights: torch.Tensor | None = None,
     ):
+        from recognize.utils import load_model
+
         checkpoint_path = Path(checkpoint_path)
         config = load_inference_config(checkpoint_path / "inference.toml")
-        return cls(
+        model = cls(
             backbone,
             fusion_layer,
             feature_sizes=config.model.feature_sizes,
             num_classes=config.num_classes,
             class_weights=class_weights,
         )
+        load_model(checkpoint_path, model)
+
+        return model
 
     __call__: Callable[[MultimodalInput], ClassifierOutput]

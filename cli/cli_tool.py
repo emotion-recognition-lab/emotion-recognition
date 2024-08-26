@@ -27,7 +27,7 @@ def create_standalone(
     checkpoint: Path,
     target_checkpoint: Path,
 ):
-    from recognize.config import load_inference_config, load_training_config, save_config
+    from recognize.config import load_inference_config, load_training_config
     from recognize.utils import find_best_model
 
     training_config = load_training_config(checkpoint / "training.toml")
@@ -38,9 +38,9 @@ def create_standalone(
         logger.warning(f"{target_checkpoint} already exists, will be overwritten")
         shutil.rmtree(target_checkpoint)
     target_checkpoint.mkdir(parents=True, exist_ok=True)
-    save_config(inference_config, target_checkpoint / "inference.toml")
 
     best_epoch = find_best_model(checkpoint)
+    logger.info(f"Best epoch found: [blue]{best_epoch}")
     shutil.copytree(checkpoint / "preprocessor", target_checkpoint / "preprocessor")
     for subpath in (checkpoint / f"{best_epoch}").glob("*"):
         if subpath.is_file():

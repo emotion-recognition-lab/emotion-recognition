@@ -60,6 +60,9 @@ def save_checkpoint(
             epoch_encoder_dir.relative_to(original_encoder_dir.parent),
             target_is_directory=True,
         )
+    (epoch_checkpoint_dir / "inference.toml").symlink_to(
+        "../inference.toml",
+    )
 
     torch.save(optimizer.state_dict(), checkpoint_dir / "optimizer.pt")  # TODO: improve size
     stopper.save(checkpoint_dir / "stopper.json")
