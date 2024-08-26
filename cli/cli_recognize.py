@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import os
+import random
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
+import numpy as np
 import torch
 import typer
 from loguru import logger
@@ -12,7 +14,7 @@ from rich.highlighter import NullHighlighter
 from rich.logging import RichHandler
 from torch.utils.data import DataLoader
 
-from recognize.config import load_config
+from recognize.config import InferenceConfig, load_training_config, save_config
 from recognize.dataset import DatasetSplit, MELDDataset, MELDDatasetLabelType
 from recognize.evaluate import TrainingResult
 from recognize.model import (
@@ -21,7 +23,7 @@ from recognize.model import (
     MultimodalModel,
     UnimodalModel,
 )
-from recognize.module.fusion import FusionLayer, LowRankFusionLayer
+from recognize.module import gen_fusion_layer
 from recognize.preprocessor import Preprocessor
 from recognize.utils import (
     find_best_model,
@@ -40,14 +42,16 @@ def init_logger(log_level: LogLevel):
     logger.add(handler, format="{message}", level=log_level)
 
 
-def seed_everything(seed: int = 666):
-    import random
-
-    import numpy as np
-
+def seed_everything(seed: int | None = None):
+    if seed is None:
+        return
     random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
     np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def provide_meld_datasets(
@@ -164,22 +168,6 @@ def generate_backbone(
     return backbone
 
 
-def gen_fusion_layer(fusion: str, modals: list[ModalType], feature_sizes: list[int]) -> FusionLayer:
-    fusion = eval(
-        fusion,
-        {
-            # "TensorFusionLayer": TensorFusionLayer,
-            "LowRankFusionLayer": LowRankFusionLayer,
-            "feature_sizes_dict": {
-                modal2name[modal]: feature_size for modal, feature_size in zip(modals, feature_sizes, strict=True)
-            },
-        },
-    )
-
-    assert isinstance(fusion, FusionLayer), f"{fusion} is not a FusionLayer, but {type(fusion)}"
-    return fusion
-
-
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
@@ -188,6 +176,7 @@ def distill(
     config_path: Path,
     teacher_checkpoint: Path = typer.Option(..., help="The checkpoint of the teacher model"),
     checkpoint: Optional[Path] = None,
+    seed: Optional[int] = None,
 ) -> None:
     """
     When using knowledge distillation,
@@ -196,7 +185,9 @@ def distill(
     as the student model typically has more modalities.
     """
 
-    config = load_config(config_path)
+    seed_everything(seed)
+
+    config = load_training_config(config_path)
     config_freeze = config.model.freeze_backbone
     config_encoders = config.model.encoders
     config_modals = config.model.modals
@@ -228,10 +219,6 @@ def distill(
     if not preprocessor_dir.exists():
         preprocessor.save_pretrained(preprocessor_dir)
 
-    symlink(
-        config_path,
-        f"./checkpoints/{model_label}/config.toml",
-    )
     teacher_backbone = MultimodalBackbone.from_checkpoint(
         f"{teacher_checkpoint}/backbones",
     )
@@ -274,6 +261,13 @@ def distill(
         pin_memory=True,
     )
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
+
+    symlink(
+        config_path,
+        f"./checkpoints/{model_label}/training.toml",
+    )
+    inference_config = InferenceConfig(num_classes=train_dataset.num_classes, model=config.model)
+    save_config(inference_config, f"./checkpoints/{model_label}/inference.toml")
 
     teacher_model = UnimodalModel(
         teacher_backbone,
@@ -322,8 +316,11 @@ def distill(
 def train(
     config_path: Path,
     checkpoint: Optional[Path] = None,
+    seed: Optional[int] = None,
 ) -> None:
-    config = load_config(config_path)
+    seed_everything(seed)
+
+    config = load_training_config(config_path)
     init_logger(config.log_level)
     config_freeze = config.model.freeze_backbone
     config_encoders = config.model.encoders
@@ -349,10 +346,6 @@ def train(
 
     checkpoint_dir = Path(f"./checkpoints/{model_label}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    symlink(
-        config_path,
-        f"./checkpoints/{model_label}/config.toml",
-    )
 
     train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
         config_dataset.path,
@@ -381,6 +374,14 @@ def train(
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
+
+    symlink(
+        config_path,
+        f"./checkpoints/{model_label}/training.toml",
+    )
+    inference_config = InferenceConfig(num_classes=train_dataset.num_classes, model=config.model)
+    save_config(inference_config, f"./checkpoints/{model_label}/inference.toml")
+
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
     if checkpoint is None and not os.path.exists(f"./{checkpoint}/preprocessor") and preprocessor.tokenizer is not None:
         preprocessor.tokenizer.add_special_tokens(
@@ -436,7 +437,7 @@ def inference(
     audio_path: Optional[Path] = None,
     video_path: Optional[Path] = None,
 ):
-    config = load_config(f"{checkpoint}/config.toml")
+    config = load_training_config(f"{checkpoint}/training.toml")
     config_modals = config.model.modals
     config_feature_sizes = config.model.feature_sizes
     config_fusion = config.model.fusion

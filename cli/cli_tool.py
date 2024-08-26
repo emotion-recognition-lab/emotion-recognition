@@ -27,10 +27,10 @@ def create_standalone(
     checkpoint: Path,
     target_checkpoint: Path,
 ):
-    from recognize.config import load_config, save_config
+    from recognize.config import load_training_config, save_config
     from recognize.utils import find_best_model
 
-    config = load_config(checkpoint / "config.toml")
+    config = load_training_config(checkpoint / "config.toml")
     init_logger(config.log_level)
 
     if target_checkpoint.exists():
@@ -54,9 +54,9 @@ def prune(
     checkpoint: Path,
     pruned_checkpoint: Path,
 ):
-    from recognize.config import load_config
+    from recognize.config import load_training_config
 
-    config = load_config(checkpoint / "config.toml")
+    config = load_training_config(checkpoint / "config.toml")
     init_logger(config.log_level)
 
 

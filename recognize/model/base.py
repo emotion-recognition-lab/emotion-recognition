@@ -378,7 +378,7 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
         loss = None
         if labels is not None:
             loss = self.compute_loss(logits, labels)
-        return ClassifierOutput(logits=logits.detach(), loss=loss)
+        return ClassifierOutput(logits=logits, loss=loss)
 
     def get_hyperparameter(self):
         return {

@@ -1,34 +1,48 @@
 from __future__ import annotations
 
-import numpy as np
+import torch
 
+from recognize.config import load_inference_config
 from recognize.model import (
     LazyMultimodalInput,
     MultimodalBackbone,
     MultimodalModel,
 )
-from recognize.module import LowRankFusionLayer
+from recognize.model.unimodal import UnimodalModel
+from recognize.module import gen_fusion_layer
 from recognize.preprocessor import Preprocessor
 
 
 class EmotionEstimator:
-    def __init__(self, checkpoint: str = "./public/models/emotion/"):
-        model_checkpoint = f"{checkpoint}/"
-        text_feature_size, audio_feature_size, video_feature_size = 128, 16, 1
+    def __init__(self, checkpoint: str) -> None:
+        config = load_inference_config(f"{checkpoint}/config.toml")
+
         backbone = MultimodalBackbone.from_checkpoint(
-            f"{model_checkpoint}/backbones",
+            f"{checkpoint}/backbones",
             use_cache=False,
         )
-        fusion_layer = LowRankFusionLayer(
-            {"text": text_feature_size, "audio": audio_feature_size, "video": video_feature_size}, 16, 128
-        )
+        if config.model.fusion is None:
+            self.emotion_model = (
+                UnimodalModel.from_checkpoint(
+                    checkpoint,
+                    backbone,
+                )
+                .cuda()
+                .eval()
+            )
+        else:
+            fusion_layer = gen_fusion_layer(config.model.fusion, config.model.modals, config.model.feature_sizes)
+            self.emotion_model = (
+                MultimodalModel.from_checkpoint(
+                    checkpoint,
+                    backbone,
+                    fusion_layer,
+                )
+                .cuda()
+                .eval()
+            )
 
         self.preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
-        self.emotion_model = (
-            MultimodalModel.from_checkpoint(model_checkpoint, backbone=backbone, fusion_layer=fusion_layer)
-            .cuda()
-            .eval()
-        )
 
     def emotion_estimate(
         self,
@@ -43,6 +57,11 @@ class EmotionEstimator:
             video_paths=[video_path] if video_path is not None else None,
         ).cuda()
         outputs = self.emotion_model(inputs)
-        emotion_level = 1 / (1 + np.exp(-outputs.logits[0][0].cpu().numpy()))
-        emotion_level = 50 + emotion_level * 50
-        return emotion_level.item()
+        logits = outputs.logits[0]
+        probabilities = torch.softmax(logits, 0)
+        expected_value = torch.sum(
+            probabilities
+            * torch.arange(self.emotion_model.num_classes, dtype=probabilities.dtype, device=probabilities.device)
+        )
+        score = (expected_value / 3) * 100
+        return score.item()

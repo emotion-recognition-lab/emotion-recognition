@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Self
@@ -9,7 +8,7 @@ import torch
 from loguru import logger
 from torch.nn.utils.rnn import pad_sequence
 
-from recognize.config import load_config
+from recognize.config import load_inference_config
 from recognize.module.fusion import FusionLayer
 from recognize.preprocessor import Preprocessor
 
@@ -226,14 +225,12 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
         class_weights: torch.Tensor | None = None,
     ):
         checkpoint_path = Path(checkpoint_path)
-        with open(checkpoint_path / "config.json") as f:
-            model_config = json.load(f)
-        config = load_config(checkpoint_path / "config.toml")
+        config = load_inference_config(checkpoint_path / "inference.toml")
         return cls(
             backbone,
             fusion_layer,
             feature_sizes=config.model.feature_sizes,
-            num_classes=model_config["num_classes"],
+            num_classes=config.num_classes,
             class_weights=class_weights,
         )
 

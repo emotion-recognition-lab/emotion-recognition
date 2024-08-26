@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import json
 from collections.abc import Callable
 from pathlib import Path
 
 import torch
 
-from recognize.config import load_config
+from recognize.config import load_inference_config
 
 from .base import ClassifierModel, ClassifierOutput
 from .multimodal import MultimodalBackbone, MultimodalInput
@@ -47,14 +46,12 @@ class UnimodalModel(ClassifierModel[MultimodalBackbone]):
         class_weights: torch.Tensor | None = None,
     ):
         checkpoint_path = Path(checkpoint_path)
-        with open(checkpoint_path / "config.json") as f:
-            model_config = json.load(f)
-        config = load_config(checkpoint_path / "config.toml")
+        config = load_inference_config(checkpoint_path / "inference.toml")
 
         return cls(
             backbone,
             feature_size=config.model.feature_sizes[0],
-            num_classes=model_config["num_classes"],
+            num_classes=config.num_classes,
             class_weights=class_weights,
         )
 

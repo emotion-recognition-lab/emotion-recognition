@@ -35,7 +35,7 @@ class DatasetConfig(BaseModel):
     label_type: Literal["sentiment", "emotion"] = "sentiment"
 
 
-class Config(BaseModel):
+class TrainingConfig(BaseModel):
     log_level: LogLevel = "INFO"
     batch_size: int = 32
 
@@ -53,6 +53,11 @@ class Config(BaseModel):
         else:
             model_label += "T"
         return model_label
+
+
+class InferenceConfig(BaseModel):
+    num_classes: int
+    model: ModelConfig
 
 
 def load_dict_from_path(path: Path) -> dict[str, Any]:
@@ -102,11 +107,16 @@ def save_dict_to_path(config: dict[str, Any], path: Path) -> None:
             raise NotImplementedError(f"Unsupportted suffix {path.suffix}")
 
 
-def load_config(path: str | Path) -> Config:
+def load_training_config(path: str | Path) -> TrainingConfig:
     config_dict = load_dict_from_path(Path(path))
-    return Config(**config_dict)
+    return TrainingConfig(**config_dict)
 
 
-def save_config(config: Config, path: str | Path) -> None:
-    config_dict = config.model_dump()
+def load_inference_config(path: str | Path) -> InferenceConfig:
+    config_dict = load_dict_from_path(Path(path))
+    return InferenceConfig(**config_dict)
+
+
+def save_config(config: BaseModel, path: str | Path) -> None:
+    config_dict = config.model_dump(mode="json")
     save_dict_to_path(config_dict, Path(path))
