@@ -21,8 +21,10 @@ class EmotionEstimator:
             f"{checkpoint}/backbones",
             use_cache=False,
         )
+        preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
+
         if config.model.fusion is None:
-            self.emotion_model = (
+            model = (
                 UnimodalModel.from_checkpoint(
                     checkpoint,
                     backbone,
@@ -32,7 +34,7 @@ class EmotionEstimator:
             )
         else:
             fusion_layer = gen_fusion_layer(config.model.fusion, config.model.modals, config.model.feature_sizes)
-            self.emotion_model = (
+            model = (
                 MultimodalModel.from_checkpoint(
                     checkpoint,
                     backbone,
@@ -42,7 +44,8 @@ class EmotionEstimator:
                 .eval()
             )
 
-        self.preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
+        self.preprocessor = preprocessor
+        self.emotion_model = model
 
     def emotion_estimate(
         self,
@@ -63,5 +66,6 @@ class EmotionEstimator:
             probabilities
             * torch.arange(self.emotion_model.num_classes, dtype=probabilities.dtype, device=probabilities.device)
         )
-        score = (expected_value / 3) * 100
+
+        score = (1 - expected_value / 3) * 100
         return score.item()
