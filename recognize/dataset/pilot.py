@@ -65,7 +65,7 @@ class PilotDataset(MultimodalDataset):
         return LazyMultimodalInput(
             preprocessor=self.preprocessor,
             unique_ids=[f"{self.custom_unique_id}--{self.split}_{index}"],
-            texts=[item["Answer"]],
+            texts=[item["Question"] + item["Answer"]],
             labels=torch.tensor([label], dtype=torch.int64),
         )
 

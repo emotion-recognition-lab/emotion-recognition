@@ -332,7 +332,6 @@ def train(
 
     model_label = config.generate_model_label()
     batch_size = config.batch_size
-    print(batch_size)
 
     preprocessor = generate_preprocessor(
         config_encoders,
@@ -437,6 +436,79 @@ def train(
         model_label=model_label,
     )
     logger.info("Test result in best model:")
+    result.print()
+
+
+@app.command()
+def evaluate(
+    checkpoint: Path,
+    seed: Optional[int] = None,
+) -> None:
+    seed_everything(seed)
+
+    config = load_training_config(checkpoint / "training.toml")
+    init_logger(config.log_level)
+    config_freeze = config.model.freeze_backbone
+    config_encoders = config.model.encoders
+    config_feature_sizes = config.model.feature_sizes
+    config_modals = config.model.modals
+    config_dataset = config.dataset
+
+    model_label = config.generate_model_label()
+    batch_size = config.batch_size
+
+    preprocessor = generate_preprocessor(
+        config_encoders,
+        config_modals,
+        checkpoints=[Path(f"./checkpoints/training/{model_label}/preprocessor"), Path(f"./{checkpoint}/preprocessor")],
+    )
+
+    backbone = generate_backbone(
+        config_encoders,
+        config_modals,
+        config_feature_sizes,
+        checkpoints=[Path(f"./checkpoints/training/{model_label}/backbones"), Path(f"./{checkpoint}/backbones")],
+    )
+
+    train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
+        config_dataset.path,
+        preprocessor,
+        label_type=config_dataset.label_type,
+        custom_unique_id="+".join(config.model.modals),
+        dataset_class_str=config_dataset.dataset_class,
+    )
+    test_data_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        collate_fn=LazyMultimodalInput.collate_fn,
+        pin_memory=True,
+    )
+
+    if not os.path.exists(f"./checkpoints/training/{model_label}/preprocessor"):
+        preprocessor.save_pretrained(f"./checkpoints/training/{model_label}/preprocessor")
+
+    if config.model.fusion is None:
+        model = UnimodalModel(
+            backbone,
+            feature_size=config.model.feature_sizes[0],
+            num_classes=train_dataset.num_classes,
+        ).cuda()
+    else:
+        fusion_layer = gen_fusion_layer(config.model.fusion, config_modals, config_feature_sizes)
+        model = MultimodalModel(
+            backbone,
+            fusion_layer,
+            feature_sizes=config.model.feature_sizes,
+            num_classes=train_dataset.num_classes,
+        ).cuda()
+
+    if not config_freeze:
+        model.unfreeze_backbone()
+
+    load_best_model(checkpoint, model)
+    model.parameters()
+    result = TrainingResult.auto_compute(model, test_data_loader)
     result.print()
 
 
