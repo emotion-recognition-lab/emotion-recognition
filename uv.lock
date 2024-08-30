@@ -1,5 +1,11 @@
 version = 1
 requires-python = ">=3.11"
+environment-markers = [
+    "python_version == '3.11'",
+    "python_version >= '3.13'",
+    "python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')",
+    "python_version < '3.13' and python_version >= '3.12'",
+]
 
 [[distribution]]
 name = "accelerate"
@@ -164,37 +170,38 @@ name = "emotion-recognition"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "cachetools" },
-    { name = "faster-whisper" },
-    { name = "loguru" },
-    { name = "numpy" },
-    { name = "peft" },
-    { name = "pillow" },
-    { name = "pydantic" },
-    { name = "rich" },
-    { name = "safetensors" },
-    { name = "soundfile" },
-    { name = "toml" },
-    { name = "torch" },
-    { name = "transformers" },
+    { name = "cachetools", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
+    { name = "faster-whisper", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
+    { name = "loguru", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
+    { name = "numpy", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
+    { name = "peft", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
+    { name = "pillow", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
+    { name = "pydantic", version = "2.7.4", source = { registry = "https://pypi.org/simple" }, marker = "python_version >= '3.13'" },
+    { name = "pydantic", version = "2.8.2", source = { registry = "https://pypi.org/simple" }, marker = "python_version == '3.11' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
+    { name = "rich", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
+    { name = "safetensors", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
+    { name = "soundfile", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
+    { name = "toml", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
+    { name = "torch", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
+    { name = "transformers", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
 ]
 
 [distribution.optional-dependencies]
 cli = [
-    { name = "typer" },
+    { name = "typer", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
 ]
 train = [
-    { name = "opencv-python" },
-    { name = "pandas" },
-    { name = "torch-pruning" },
+    { name = "opencv-python", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
+    { name = "pandas", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
+    { name = "torch-pruning", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
 ]
 triton = [
-    { name = "triton" },
+    { name = "triton", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
 ]
 
 [distribution.dev-dependencies]
 dev = [
-    { name = "viztracer" },
+    { name = "viztracer", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
 ]
 
 [[distribution]]
@@ -653,11 +660,33 @@ wheels = [
 
 [[distribution]]
 name = "pydantic"
+version = "2.7.4"
+source = { registry = "https://pypi.org/simple" }
+environment-markers = [
+    "python_version >= '3.13'",
+]
+dependencies = [
+    { name = "annotated-types", marker = "python_version >= '3.13'" },
+    { name = "pydantic-core", version = "2.18.4", source = { registry = "https://pypi.org/simple" }, marker = "python_version >= '3.13'" },
+    { name = "typing-extensions", marker = "python_version >= '3.13'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0d/fc/ccd0e8910bc780f1a4e1ab15e97accbb1f214932e796cff3131f9a943967/pydantic-2.7.4.tar.gz", hash = "sha256:0c84efd9548d545f63ac0060c1e4d39bb9b14db8b3c0652338aecc07b5adec52", size = 714127 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/17/ba/1b65c9cbc49e0c7cd1be086c63209e9ad883c2a409be4746c21db4263f41/pydantic-2.7.4-py3-none-any.whl", hash = "sha256:ee8538d41ccb9c0a9ad3e0e5f07bf15ed8015b481ced539a1759d8cc89ae90d0", size = 409017 },
+]
+
+[[distribution]]
+name = "pydantic"
 version = "2.8.2"
 source = { registry = "https://pypi.org/simple" }
+environment-markers = [
+    "python_version == '3.11'",
+    "python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')",
+    "python_version < '3.13' and python_version >= '3.12'",
+]
 dependencies = [
     { name = "annotated-types", marker = "python_version == '3.11' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
-    { name = "pydantic-core", marker = "python_version == '3.11' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
+    { name = "pydantic-core", version = "2.20.1", source = { registry = "https://pypi.org/simple" }, marker = "python_version == '3.11' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
     { name = "typing-extensions", marker = "python_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/8c/99/d0a5dca411e0a017762258013ba9905cd6e7baa9a3fd1fe8b6529472902e/pydantic-2.8.2.tar.gz", hash = "sha256:6f62c13d067b0755ad1c21a34bdd06c0c12625a22b0fc09c6b149816604f7c2a", size = 739834 }
@@ -667,8 +696,53 @@ wheels = [
 
 [[distribution]]
 name = "pydantic-core"
+version = "2.18.4"
+source = { registry = "https://pypi.org/simple" }
+environment-markers = [
+    "python_version >= '3.13'",
+]
+dependencies = [
+    { name = "typing-extensions", marker = "python_version >= '3.13'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/02/d0/622cdfe12fb138d035636f854eb9dc414f7e19340be395799de87c1de6f6/pydantic_core-2.18.4.tar.gz", hash = "sha256:ec3beeada09ff865c344ff3bc2f427f5e6c26401cc6113d77e372c3fdac73864", size = 385098 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/ba/f8106ec853ed1e288490c39796322cb54f96685e53a1b302c6d7d5d3528e/pydantic_core-2.18.4-cp311-cp311-macosx_10_12_x86_64.whl", hash = "sha256:942ba11e7dfb66dc70f9ae66b33452f51ac7bb90676da39a7345e99ffb55402d", size = 1852003 },
+    { url = "https://files.pythonhosted.org/packages/6c/a2/229dbee765ce711cd42c056da497ca26f7267384362e6767ab3bcdafca79/pydantic_core-2.18.4-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:b2ebef0e0b4454320274f5e83a41844c63438fdc874ea40a8b5b4ecb7693f1c4", size = 1769636 },
+    { url = "https://files.pythonhosted.org/packages/4d/cd/f29239ba9e23a4cbe27ebac22652f9c93b3f2122bd8b96bd51f72bbf7009/pydantic_core-2.18.4-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a642295cd0c8df1b86fc3dced1d067874c353a188dc8e0f744626d49e9aa51c4", size = 1790366 },
+    { url = "https://files.pythonhosted.org/packages/17/24/517cb7e5839754b0855c50c92cdd8715919d05a360b94dc5cf181d5fe60d/pydantic_core-2.18.4-cp311-cp311-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:5f09baa656c904807e832cf9cce799c6460c450c4ad80803517032da0cd062e2", size = 1781086 },
+    { url = "https://files.pythonhosted.org/packages/90/63/9bf4ff4e014942387cb18a9d60d3b32ac892df9581b2b09c0d3eadd88fab/pydantic_core-2.18.4-cp311-cp311-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:98906207f29bc2c459ff64fa007afd10a8c8ac080f7e4d5beff4c97086a3dabd", size = 1978642 },
+    { url = "https://files.pythonhosted.org/packages/d2/71/3c9fd032695746c63fd95ea2765709c12d02e5332c9cc3972fa335e9f254/pydantic_core-2.18.4-cp311-cp311-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:19894b95aacfa98e7cb093cd7881a0c76f55731efad31073db4521e2b6ff5b7d", size = 2868673 },
+    { url = "https://files.pythonhosted.org/packages/d6/4b/51141c5ea1874e7204efac93899eefcb690ff6772a92c9a6521b32e5b71f/pydantic_core-2.18.4-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0fbbdc827fe5e42e4d196c746b890b3d72876bdbf160b0eafe9f0334525119c8", size = 2048418 },
+    { url = "https://files.pythonhosted.org/packages/90/2b/c06dbed36bcb247412de81a20931e42ebf6ddb6f1cf3efb28c6539358aef/pydantic_core-2.18.4-cp311-cp311-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:f85d05aa0918283cf29a30b547b4df2fbb56b45b135f9e35b6807cb28bc47951", size = 1905908 },
+    { url = "https://files.pythonhosted.org/packages/70/97/64968701368ff84049f5c916f63e39d6afc15cbdb188fd9f412cba359ff4/pydantic_core-2.18.4-cp311-cp311-musllinux_1_1_aarch64.whl", hash = "sha256:e85637bc8fe81ddb73fda9e56bab24560bdddfa98aa64f87aaa4e4b6730c23d2", size = 2009496 },
+    { url = "https://files.pythonhosted.org/packages/ad/07/25167289bfb595cbe2aba706aa5c50083cff618662776d696e8574f03fc5/pydantic_core-2.18.4-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:2f5966897e5461f818e136b8451d0551a2e77259eb0f73a837027b47dc95dab9", size = 2114671 },
+    { url = "https://files.pythonhosted.org/packages/51/a0/a62e80edc26575627f3cae3e450c5afe31ce28b5333762eb3a3bba996675/pydantic_core-2.18.4-cp311-none-win32.whl", hash = "sha256:44c7486a4228413c317952e9d89598bcdfb06399735e49e0f8df643e1ccd0558", size = 1718138 },
+    { url = "https://files.pythonhosted.org/packages/00/29/62236e5e19b92c1b908089589300e5834a8fcb5f870ae4f2a08b17782142/pydantic_core-2.18.4-cp311-none-win_amd64.whl", hash = "sha256:8a7164fe2005d03c64fd3b85649891cd4953a8de53107940bf272500ba8a788b", size = 1911303 },
+    { url = "https://files.pythonhosted.org/packages/f5/cb/83c4c1059fd04d72849a010654be036bdc01b31718f539e9e5601950bf38/pydantic_core-2.18.4-cp311-none-win_arm64.whl", hash = "sha256:4e99bc050fe65c450344421017f98298a97cefc18c53bb2f7b3531eb39bc7805", size = 1779815 },
+    { url = "https://files.pythonhosted.org/packages/e0/37/a46d4741a88f7223ef3ec68490e638fb93570127f28fd76cbc2c89c0a7ec/pydantic_core-2.18.4-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:6f5c4d41b2771c730ea1c34e458e781b18cc668d194958e0112455fff4e402b2", size = 1846298 },
+    { url = "https://files.pythonhosted.org/packages/e9/93/46f546b40aba72683032c167aef9ccd568a54e28f28687081d10a6735294/pydantic_core-2.18.4-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:2fdf2156aa3d017fddf8aea5adfba9f777db1d6022d392b682d2a8329e087cef", size = 1766852 },
+    { url = "https://files.pythonhosted.org/packages/e5/84/864556db336393f2433eda50b7e047a8d485b95dd48d1d277750ce0042bf/pydantic_core-2.18.4-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:4748321b5078216070b151d5271ef3e7cc905ab170bbfd27d5c83ee3ec436695", size = 1786599 },
+    { url = "https://files.pythonhosted.org/packages/79/7b/a4f002cf3603672de868ae913dec7d561509bcd17401f4cc719ab8a46213/pydantic_core-2.18.4-cp312-cp312-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:847a35c4d58721c5dc3dba599878ebbdfd96784f3fb8bb2c356e123bdcd73f34", size = 1769558 },
+    { url = "https://files.pythonhosted.org/packages/bc/36/c3e7665d84f692b095d11e9f4af71bfc339471b7153d22a7526584b75b92/pydantic_core-2.18.4-cp312-cp312-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:3c40d4eaad41f78e3bbda31b89edc46a3f3dc6e171bf0ecf097ff7a0ffff7cb1", size = 1976988 },
+    { url = "https://files.pythonhosted.org/packages/c8/91/4bbb89ef7aade8095bbb26055c16d8026a3bbe97f6ad9a827f8265c00350/pydantic_core-2.18.4-cp312-cp312-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:21a5e440dbe315ab9825fcd459b8814bb92b27c974cbc23c3e8baa2b76890077", size = 2792471 },
+    { url = "https://files.pythonhosted.org/packages/d8/36/5676d758ccb008de9ae48db1614ffaa381e1971677e4a7e365cb7004e61c/pydantic_core-2.18.4-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:01dd777215e2aa86dfd664daed5957704b769e726626393438f9c87690ce78c3", size = 2082097 },
+    { url = "https://files.pythonhosted.org/packages/a0/d7/05be10426e0a338a84dc2699c143d8d1a3ad2a79aefe0dd0ce17a7dea81d/pydantic_core-2.18.4-cp312-cp312-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:4b06beb3b3f1479d32befd1f3079cc47b34fa2da62457cdf6c963393340b56e9", size = 1902982 },
+    { url = "https://files.pythonhosted.org/packages/73/c8/784718a31831eda4446ba3d5c9d9a259a10d01f71f9684300f1bbac65d2f/pydantic_core-2.18.4-cp312-cp312-musllinux_1_1_aarch64.whl", hash = "sha256:564d7922e4b13a16b98772441879fcdcbe82ff50daa622d681dd682175ea918c", size = 2001850 },
+    { url = "https://files.pythonhosted.org/packages/83/f8/9d59e352b3d168984b2e67e347365afe9698f08b2167e9582a03abf4f961/pydantic_core-2.18.4-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:0eb2a4f660fcd8e2b1c90ad566db2b98d7f3f4717c64fe0a83e0adb39766d5b8", size = 2115674 },
+    { url = "https://files.pythonhosted.org/packages/0f/98/fb23c03b5b96a4e6196d24ebc05026dbcd3ec05e9b0c85ae34a3c40f6d58/pydantic_core-2.18.4-cp312-none-win32.whl", hash = "sha256:8b8bab4c97248095ae0c4455b5a1cd1cdd96e4e4769306ab19dda135ea4cdb07", size = 1721997 },
+    { url = "https://files.pythonhosted.org/packages/d9/c9/85bbe091e0f0f5a99f38cda2774b810ac593fd36dae2f9d777e215d2fa6b/pydantic_core-2.18.4-cp312-none-win_amd64.whl", hash = "sha256:14601cdb733d741b8958224030e2bfe21a4a881fb3dd6fbb21f071cabd48fa0a", size = 1905580 },
+    { url = "https://files.pythonhosted.org/packages/35/ea/fba944f8e29860a3e1d535223427a657e7b29118e114188b3e2fda02c69e/pydantic_core-2.18.4-cp312-none-win_arm64.whl", hash = "sha256:c1322d7dd74713dcc157a2b7898a564ab091ca6c58302d5c7b4c07296e3fd00f", size = 1781973 },
+]
+
+[[distribution]]
+name = "pydantic-core"
 version = "2.20.1"
 source = { registry = "https://pypi.org/simple" }
+environment-markers = [
+    "python_version == '3.11'",
+    "python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')",
+    "python_version < '3.13' and python_version >= '3.12'",
+]
 dependencies = [
     { name = "typing-extensions", marker = "python_version == '3.11' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
 ]
@@ -1006,8 +1080,8 @@ name = "torch-pruning"
 version = "1.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "numpy" },
-    { name = "torch" },
+    { name = "numpy", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
+    { name = "torch", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/92/11/8f3527006c4ec1e8f5e59ede42250dde6783251e9eefa7cb4bbc9e984f7d/torch_pruning-1.4.2.tar.gz", hash = "sha256:b0e416351867fd1c1caa45a5afba26530a37170c4750819c424bf38221c860de", size = 71868 }
 wheels = [
@@ -1062,7 +1136,7 @@ wheels = [
 
 [[distribution]]
 name = "typer"
-version = "0.12.3"
+version = "0.12.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
@@ -1070,9 +1144,9 @@ dependencies = [
     { name = "shellingham", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
     { name = "typing-extensions", marker = "python_version == '3.11' or python_version >= '3.13' or (python_version < '3.12' and (python_version < '3.11' or python_version > '3.11')) or (python_version < '3.13' and python_version >= '3.12')" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ac/0a/d55af35db5f50f486e3eda0ada747eed773859e2699d3ce570b682a9b70a/typer-0.12.3.tar.gz", hash = "sha256:49e73131481d804288ef62598d97a1ceef3058905aa536a1134f90891ba35482", size = 94276 }
+sdist = { url = "https://files.pythonhosted.org/packages/c5/58/a79003b91ac2c6890fc5d90145c662fd5771c6f11447f116b63300436bc9/typer-0.12.5.tar.gz", hash = "sha256:f592f089bedcc8ec1b974125d64851029c3b1af145f04aca64d69410f0c9b722", size = 98953 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/20/b5/11cf2e34fbb11b937e006286ab5b8cfd334fde1c8fa4dd7f491226931180/typer-0.12.3-py3-none-any.whl", hash = "sha256:070d7ca53f785acbccba8e7d28b08dcd88f79f1fbda035ade0aecec71ca5c914", size = 47209 },
+    { url = "https://files.pythonhosted.org/packages/a8/2b/886d13e742e514f704c33c4caa7df0f3b89e5a25ef8db02aa9ca3d9535d5/typer-0.12.5-py3-none-any.whl", hash = "sha256:62fe4e471711b147e3365034133904df3e235698399bc4de2b36c8579298d52b", size = 47288 },
 ]
 
 [[distribution]]

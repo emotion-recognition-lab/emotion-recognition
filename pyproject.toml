@@ -28,7 +28,7 @@ train = [
     "pandas>=2.0.0",
     "torch-pruning>=1.4.2",
 ]
-cli = ["typer>=0.12.0"]
+cli = ["typer>=0.12.4"]
 triton = ["triton>=2.2.0"]
 
 [project.urls]
