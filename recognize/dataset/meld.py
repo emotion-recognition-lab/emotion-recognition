@@ -11,6 +11,7 @@ from recognize.typing import DatasetLabelType
 from .base import MultimodalDataset
 
 if TYPE_CHECKING:
+    from recognize.model import MultimodalBackbone
     from recognize.preprocessor import Preprocessor
     from recognize.typing import DatasetSplit
 
@@ -86,6 +87,18 @@ class MELDDataset(MultimodalDataset):
             for idx, row in group.iterrows():
                 session_parts.append(f"{row['Speaker']} {row['Utterance']}")
                 self.meta.at[idx, "Session"] = " ".join(session_parts)
+
+    def special_process(self, backbone: MultimodalBackbone):
+        tokenizer = self.preprocessor.tokenizer
+        if tokenizer is None:
+            return
+        text_backbone = backbone.encoders["T"]
+        tokenizer.add_special_tokens(
+            {
+                "additional_special_tokens": self.speakers  # type: ignore
+            }
+        )
+        text_backbone.resize_token_embeddings(len(tokenizer))
 
     @cached_property
     def class_weights(self) -> list[float]:

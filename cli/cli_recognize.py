@@ -4,7 +4,7 @@ import os
 import random
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -176,8 +176,8 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 def distill(
     config_path: Path,
     teacher_checkpoint: Path = typer.Option(..., help="The checkpoint of the teacher model"),
-    checkpoint: Optional[Path] = None,
-    seed: Optional[int] = None,
+    checkpoint: Path | None = None,
+    seed: int | None = None,
 ) -> None:
     """
     When using knowledge distillation,
@@ -317,8 +317,8 @@ def distill(
 @app.command()
 def train(
     config_path: Path,
-    checkpoint: Optional[Path] = None,
-    seed: Optional[int] = None,
+    checkpoint: Path | None = None,
+    seed: int | None = None,
 ) -> None:
     seed_everything(seed)
 
@@ -386,19 +386,9 @@ def train(
     save_config(inference_config, f"./checkpoints/training/{model_label}/inference.toml")
 
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
-    if config_dataset.dataset_class == "MELDDataset":
-        if (
-            checkpoint is None
-            and not os.path.exists(f"./{checkpoint}/preprocessor")
-            and preprocessor.tokenizer is not None
-        ):
-            preprocessor.tokenizer.add_special_tokens(
-                {
-                    "additional_special_tokens": train_dataset.speakers  # type: ignore
-                }
-            )
-            backbone.encoders["T"].resize_token_embeddings(len(preprocessor.tokenizer))
     if not os.path.exists(f"./checkpoints/training/{model_label}/preprocessor"):
+        if checkpoint is None:
+            train_dataset.special_process(backbone)
         preprocessor.save_pretrained(f"./checkpoints/training/{model_label}/preprocessor")
 
     if config.model.fusion is None:
@@ -442,7 +432,7 @@ def train(
 @app.command()
 def evaluate(
     checkpoint: Path,
-    seed: Optional[int] = None,
+    seed: int | None = None,
 ) -> None:
     seed_everything(seed)
 
@@ -515,9 +505,9 @@ def evaluate(
 @app.command()
 def inference(
     checkpoint: Path,
-    text: Optional[str] = None,
-    audio_path: Optional[Path] = None,
-    video_path: Optional[Path] = None,
+    text: str | None = None,
+    audio_path: Path | None = None,
+    video_path: Path | None = None,
 ):
     config = load_training_config(f"{checkpoint}/training.toml")
     config_modals = config.model.modals
