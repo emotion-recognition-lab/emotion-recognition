@@ -1,55 +1,8 @@
 # 多模态情绪评估实验 (multimodal emotion recoginition)
 
-## 项目结构
-
-```
-emotion-recogiition
-├── recognize/
-│   ├── dataset/
-│   │   ├── base.py
-│   │   ├── ...
-│   │   └── meld.py
-│   ├── model/
-│   │   ├── base.py
-│   │   ├── unimodal.py
-│   │   └── multimodal.py
-│   ├── module/
-│   │   ├── ...
-│   │   └── utils.py
-│   ├── cache.py
-│   ├── cli.py
-│   ├── typing.py
-│   ├── estimate.py
-│   ├── evaluate.py
-│   ├── preprocess.py
-│   └── utils.py
-├── cli/
-│   ├── cli_recognize.py
-│   └── cli_tool.py
-├── configs/
-│   ├── ...
-│   └── MELD--T--EF.toml
-└── README.md
-```
-
 ## 复现方法
-
 1. 下载 MELD 数据集。
-2. 将原始 MELD 数据集中视频文件（mp4）中的音频以 flac 格式提取出来，并按照如下结构组织文件：
-   ```
-   MELD
-   ├── audios/
-   │   ├── dev/
-   │   ├── test/
-   │   └── train/
-   ├── videos/
-   │   ├── dev/
-   │   ├── test/
-   │   └── train/
-   ├── dev_sent_emo.csv
-   ├── test_sent_emo.csv
-   └── train_sent_emo.csv
-   ```
+2. 将原始 MELD 数据集中视频文件（mp4）中的音频以 flac 格式提取出来，并按照规定的[数据集结构](docs/structure.md#数据集结构)组织文件。
 3. 链接数据集到项目 `datasets` 文件夹。
    ```sh
    mkdir datasets
@@ -57,18 +10,22 @@ emotion-recogiition
    ```
 4. 开始训练。
    ```sh
-   pdm install
-   pdm run emotion-recognize train datasets/MELD --modal T --label-type sentiment
-   ```
-   ```sh
-   pip install -e .
-   python recognize/cli.py train datasets/MELD --modal T --label-type sentiment
+   uv sync --all-extras --dev
+   uv run emotion-recognize train datasets/MELD --modal T --label-type sentiment
    ```
 
+如果你需要了解源码的更多信息，请查看[项目结构](docs/structure.md)。
 
 ## 技术选型
 
 ### 视频读取
+- opencv
+   首次调用耗时: 0.11s
+   平均耗时: 0.08s
+- pyav
+   首次调用耗时: 0.22s
+   平均耗时: 0.17s
+
 经测试，OpenCV 比 PyAV 速度更快。
 
 ## 机制介绍
@@ -77,6 +34,9 @@ emotion-recogiition
 
 由于当特征提取模块冻结时，相同输入的特征提取模块的输出不会发生变化，因此可以将特征提取模块的输出缓存下来，以减少重复计算。
 `safetensors` 是 `huggingface` 推出的一个储存和分发张量的格式，相比于其他格式，`safetensors` 拥有更好的性能。
+
+依赖技术：
+- [safetensors](https://github.com/huggingface/safetensors)
 
 ### 透明模型存储
 
@@ -100,7 +60,6 @@ emotion-recogiition
 因此，我们最终选择使用配置文件来确定模型的参数，这样既可以保持代码的整洁，又可以方便的修改参数。
 
 依赖技术：
-
 - [Pydantic](https://pydantic-docs.helpmanual.io/)
 
 ### 知识蒸馏
@@ -117,13 +76,16 @@ emotion-recogiition
 对于单一模态任务，文件夹命名为`{模态}--{分类任务}{训练方式}({骨干网络})`，
 对于多模态任务，文件夹命名为`{模态}--{分类任务}{训练方式}--{融合网络}({骨干网络})`。
 
-其中分类任务分为`emotion`和`sentiment`，简称如下：
+其中模态分为`text`、`audio`和`video`，简称如下：
+- text: T
+- audio: A
+- video: V
 
+其中分类任务分为`emotion`和`sentiment`，简称如下：
 - emotion: E
 - sentiment: S
 
 训练方式分为`Full Tuning`、`LoRA` 和 `Froze Backbones`，简称如下：
-
 - Full Tuning: T
 - LoRA: L
 - Froze Backbones: F
@@ -155,13 +117,11 @@ emotion-recogiition
 | 视频(V) |  ViViT   | Froze Backbones | 49.5%(验证集十折交叉验证) |   -    |   -    | 41.36%(验证集十折交叉验证) |
 
 ## 相关技术
-
 - [LoRA](https://huggingface.co/docs/peft/task_guides/lora_based_methods)
 
 ## 参考文献
 
 ### 知识蒸馏
-
 - [KD](https://arxiv.org/pdf/2104.09044)
 - [DIST](https://arxiv.org/pdf/2205.10536)
 - [跨模态知识蒸馏](https://arxiv.org/pdf/2401.12987v2)

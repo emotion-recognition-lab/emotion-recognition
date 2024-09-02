@@ -11,7 +11,7 @@ public/
 .python-version
 result.json
 
-docs
+thesis_docs
 
 Justfile
 tools/
