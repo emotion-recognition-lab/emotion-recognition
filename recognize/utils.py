@@ -64,7 +64,8 @@ def save_checkpoint(
         "../inference.toml",
     )
 
-    torch.save(optimizer.state_dict(), checkpoint_dir / "optimizer.pt")  # TODO: improve size
+    # TODO: improve optimizer size
+    torch.save(optimizer.state_dict(), checkpoint_dir / "optimizer.pt")
     stopper.save(checkpoint_dir / "stopper.json")
 
 

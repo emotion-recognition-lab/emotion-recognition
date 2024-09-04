@@ -127,7 +127,7 @@ def generate_preprocessor(encoders: list[str], modals: list[ModalType], checkpoi
             logger.info(f"Load preprocessor from [blue]./{checkpoint}[/]")
             break
     else:
-        preprocessor = Preprocessor()
+        preprocessor = Preprocessor(device="cuda")
 
     for modal, model_name in zip(modals, encoders, strict=True):
         if modal == "T":

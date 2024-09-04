@@ -13,11 +13,12 @@ from .dataset.utils import read_videos
 
 
 class Preprocessor:
-    def __init__(self, tokenizer=None, feature_extractor=None, image_processor=None):
+    def __init__(self, tokenizer=None, feature_extractor=None, image_processor=None, *, device: str = "cpu"):
         self.tokenizer = tokenizer
         self.feature_extractor = feature_extractor
         self.image_processor = image_processor
         self.whisper_model: WhisperModel | None = None
+        self.device = device
 
     @property
     def tokenizer(self):
@@ -143,11 +144,10 @@ class Preprocessor:
 
     def recoginize_audio(self, audio_path: str) -> str:
         if self.whisper_model is None:
-            # TODO: use self.device
             download_root = os.environ.get("WHISPER_DOWNLOAD_ROOT", None)
             self.whisper_model = WhisperModel(
                 "medium",
-                device="cuda",
+                device=self.device,
                 compute_type="float16",
                 download_root=download_root,
                 local_files_only=download_root is not None and os.path.isdir(download_root),

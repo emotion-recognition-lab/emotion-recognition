@@ -9,6 +9,7 @@ public/
 
 .pdm-python
 .python-version
+.cursorrules
 result.json
 
 thesis_docs

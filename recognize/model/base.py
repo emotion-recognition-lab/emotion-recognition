@@ -73,8 +73,7 @@ class ModelInput(BaseModel):
 class Backbone(nn.Module, Generic[ModelInputT]):
     def __init__(
         self,
-        # TODO: change to Mapping[str, tuple[nn.Module, int]]
-        encoders: Mapping[str, tuple[nn.Module | None, int]],
+        encoders: Mapping[str, tuple[nn.Module, int]],
         use_cache: bool = True,
         is_frozen: bool = True,
         use_peft: bool = False,
@@ -86,15 +85,9 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         self.use_cache = use_cache
         self.use_peft = use_peft
         self.is_frozen = is_frozen
-        self.encoders = nn.ModuleDict(
-            {name: self.pretrained_module(module) for name, (module, _) in encoders.items() if module is not None}
-        )
+        self.encoders = nn.ModuleDict({name: self.pretrained_module(module) for name, (module, _) in encoders.items()})
         self.poolers = nn.ModuleDict(
-            {
-                name: Pooler(module.config.hidden_size, feature_size)
-                for name, (module, feature_size) in encoders.items()
-                if module is not None
-            }
+            {name: Pooler(module.config.hidden_size, feature_size) for name, (module, feature_size) in encoders.items()}
         )
 
     @property
