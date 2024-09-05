@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import torch
 
 from recognize.config import load_inference_config
@@ -18,7 +20,7 @@ class EmotionEstimator:
         config = load_inference_config(f"{checkpoint}/inference.toml")
 
         backbone = MultimodalBackbone.from_checkpoint(
-            f"{checkpoint}/backbones",
+            Path(f"{checkpoint}/backbones"),
             use_cache=False,
         )
         preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")

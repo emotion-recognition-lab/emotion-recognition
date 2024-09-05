@@ -11,7 +11,6 @@ from recognize.typing import DatasetLabelType
 
 if TYPE_CHECKING:
     from recognize.model import MultimodalBackbone
-    from recognize.preprocessor import Preprocessor
     from recognize.typing import DatasetSplit
 
 from .base import MultimodalDataset
@@ -26,7 +25,6 @@ class PilotDataset(MultimodalDataset):
     def __init__(
         self,
         dataset_path: str,
-        preprocessor: Preprocessor,
         *,
         label_type: DatasetLabelType = "sentiment",
         split: DatasetSplit = "train",
@@ -45,7 +43,6 @@ class PilotDataset(MultimodalDataset):
         super().__init__(
             dataset_path,
             pd.read_csv(f"{dataset_path}/pilot_data.csv", sep=",", index_col=0, header=0),
-            preprocessor,
             num_classes=self.num_classes,
             split=split,
             custom_unique_id=custom_unique_id,
@@ -54,10 +51,11 @@ class PilotDataset(MultimodalDataset):
         self.data = self._generate_data(split)
 
     def special_process(self, backbone: MultimodalBackbone):
+        assert self.preprocessor is not None, "Preprocessor is not set"
         tokenizer = self.preprocessor.tokenizer
         if tokenizer is None:
             return
-        text_backbone = backbone.encoders["T"]
+        text_backbone = backbone.named_encoders["T"]
         tokenizer.add_special_tokens({"additional_special_tokens": ["<q>", "<a>"]})
         text_backbone.resize_token_embeddings(len(tokenizer))
 
@@ -94,6 +92,7 @@ class PilotDataset(MultimodalDataset):
         text = item["text"]
         label = item["label"]
 
+        assert self.preprocessor is not None, "Preprocessor is not set"
         return LazyMultimodalInput(
             preprocessor=self.preprocessor,
             unique_ids=[f"{self.custom_unique_id}--{self.split}_{index}"],

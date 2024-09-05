@@ -2,14 +2,10 @@ from __future__ import annotations
 
 import os
 from functools import cached_property
-from typing import TYPE_CHECKING
 
 import torch
 
 from recognize.typing import DatasetSplit
-
-if TYPE_CHECKING:
-    from recognize.preprocessor import Preprocessor
 
 from .base import MultimodalDataset
 
@@ -18,7 +14,6 @@ class SIMSDataset(MultimodalDataset):
     def __init__(
         self,
         dataset_path: str,
-        preprocessor: Preprocessor,
         *,
         split: DatasetSplit = "train",
         custom_unique_id: str = "",
@@ -30,7 +25,6 @@ class SIMSDataset(MultimodalDataset):
         super().__init__(
             dataset_path,
             meta,
-            preprocessor,
             num_classes=1,
             split=split,
             custom_unique_id=custom_unique_id,
@@ -59,6 +53,7 @@ class SIMSDataset(MultimodalDataset):
         audio_path = f"{self.dataset_path}/Raw/{audio_id}/{clip_id}.flac"
         video_path = f"{self.dataset_path}/Raw/{video_id}/{clip_id}.mp4"
 
+        assert self.preprocessor is not None, "Preprocessor is not set"
         return LazyMultimodalInput(
             preprocessor=self.preprocessor,
             unique_ids=[f"{self.custom_unique_id}--{self.split}_{index}"],

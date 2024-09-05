@@ -12,7 +12,6 @@ from .base import MultimodalDataset
 
 if TYPE_CHECKING:
     from recognize.model import MultimodalBackbone
-    from recognize.preprocessor import Preprocessor
     from recognize.typing import DatasetSplit
 
 
@@ -40,7 +39,6 @@ class MELDDataset(MultimodalDataset):
     def __init__(
         self,
         dataset_path: str,
-        preprocessor: Preprocessor,
         *,
         split: DatasetSplit = "train",
         label_type: DatasetLabelType = "emotion",
@@ -67,7 +65,6 @@ class MELDDataset(MultimodalDataset):
         super().__init__(
             dataset_path,
             pd.read_csv(f"{dataset_path}/{self.split}_sent_emo.csv", sep=",", index_col=0, header=0),
-            preprocessor,
             num_classes=self.num_classes,
             split=split,
             custom_unique_id=custom_unique_id,
@@ -89,10 +86,11 @@ class MELDDataset(MultimodalDataset):
                 self.meta.at[idx, "Session"] = " ".join(session_parts)
 
     def special_process(self, backbone: MultimodalBackbone):
+        assert self.preprocessor is not None, "Preprocessor is not set"
         tokenizer = self.preprocessor.tokenizer
         if tokenizer is None:
             return
-        text_backbone = backbone.encoders["T"]
+        text_backbone = backbone.named_encoders["T"]
         tokenizer.add_special_tokens(
             {
                 "additional_special_tokens": self.speakers  # type: ignore
@@ -125,6 +123,8 @@ class MELDDataset(MultimodalDataset):
         text = f"{session} </s> Now {speaker} feels"
         audio_path = f"{self.dataset_path}/audios/{self.split}/dia{dia_id}_utt{utt_id}.flac"
         video_path = f"{self.dataset_path}/videos/{self.split}/dia{dia_id}_utt{utt_id}.mp4"
+
+        assert self.preprocessor is not None, "Preprocessor is not set"
         return LazyMultimodalInput(
             preprocessor=self.preprocessor,
             unique_ids=[f"{self.custom_unique_id}--{self.split}_{utt_id}_{dia_id}"],

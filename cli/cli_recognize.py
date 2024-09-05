@@ -35,6 +35,7 @@ from recognize.utils import (
 )
 
 if TYPE_CHECKING:
+    from recognize.dataset.base import MultimodalDataset
     from recognize.typing import LogLevel, ModalType
 
 
@@ -58,7 +59,6 @@ def seed_everything(seed: int | None = None):
 
 def provide_meld_datasets(
     dataset_path: Path,
-    preprocessor: Preprocessor,
     label_type: DatasetLabelType = "emotion",
     custom_unique_id: str = "T",
     dataset_class_str: str = "MELDDataset",
@@ -70,21 +70,18 @@ def provide_meld_datasets(
     custom_unique_id = f"{dataset_class_str}--{custom_unique_id}"
     train_dataset = dataset_class(
         dataset_path.as_posix(),
-        preprocessor,
         split="train",
         label_type=label_type,
         custom_unique_id=custom_unique_id,
     )
     dev_dataset = dataset_class(
         dataset_path.as_posix(),
-        preprocessor,
         split="valid",
         label_type=label_type,
         custom_unique_id=custom_unique_id,
     )
     test_dataset = dataset_class(
         dataset_path.as_posix(),
-        preprocessor,
         split="test",
         label_type=label_type,
         custom_unique_id=custom_unique_id,
@@ -169,6 +166,58 @@ def generate_backbone(
     return backbone
 
 
+def generate_preprocessor_and_backbone(
+    encoders: list[str],
+    modals: list[ModalType],
+    feature_sizes: list[int],
+    datasets: list[MultimodalDataset],
+    checkpoints: Sequence[Path] = (),
+):
+    from transformers import AutoFeatureExtractor, AutoImageProcessor, AutoModel, AutoTokenizer, VivitImageProcessor
+
+    for checkpoint in checkpoints:
+        preprocessor_path = checkpoint / "preprocessor"
+        if preprocessor_path.exists():
+            preprocessor = Preprocessor.from_pretrained(preprocessor_path)
+            logger.info(f"Load preprocessor from [blue]./{checkpoint}[/]")
+            break
+    else:
+        preprocessor = Preprocessor(device="cuda")
+
+    for modal, model_name in zip(modals, encoders, strict=True):
+        if modal == "T":
+            preprocessor.tokenizer = preprocessor.tokenizer or AutoTokenizer.from_pretrained(model_name)
+        elif modal == "A":
+            preprocessor.feature_extractor = preprocessor.feature_extractor or AutoFeatureExtractor.from_pretrained(
+                model_name
+            )
+        elif modal == "V":
+            preprocessor.image_processor = preprocessor.image_processor or VivitImageProcessor.from_pretrained(
+                model_name
+            )
+        else:
+            preprocessor.image_processor = preprocessor.image_processor or AutoImageProcessor.from_pretrained(
+                model_name
+            )
+    for dataset in datasets:
+        dataset.set_preprocessor(preprocessor)
+    for checkpoint in checkpoints:
+        backbone_path = checkpoint / "backbones"
+        if backbone_path.exists():
+            backbone = MultimodalBackbone.from_checkpoint(backbone_path)
+            logger.info(f"Load backbone from [blue]./{checkpoint}[/]")
+            break
+    else:
+        backbone = MultimodalBackbone(
+            {
+                modal: (AutoModel.from_pretrained(model_name), feature_size)
+                for modal, model_name, feature_size in zip(modals, encoders, feature_sizes, strict=True)
+            },
+            init_hook=datasets[0].special_process,
+        )
+    return preprocessor, backbone
+
+
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
@@ -221,7 +270,7 @@ def distill(
         preprocessor.save_pretrained(preprocessor_dir)
 
     teacher_backbone = MultimodalBackbone.from_checkpoint(
-        f"{teacher_checkpoint}/backbones",
+        Path(f"{teacher_checkpoint}/backbones"),
     )
     logger.info(f"Load backbone from [blue]./{teacher_checkpoint}/backbones[/]")
     backbone = generate_backbone(
@@ -236,7 +285,6 @@ def distill(
 
     train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
         config_dataset.path,
-        preprocessor,
         label_type=config_dataset.label_type,
         custom_unique_id="+".join(config.model.modals),
         dataset_class_str=config_dataset.dataset_class,
@@ -333,25 +381,11 @@ def train(
     model_label = config.generate_model_label()
     batch_size = config.batch_size
 
-    preprocessor = generate_preprocessor(
-        config_encoders,
-        config_modals,
-        checkpoints=[Path(f"./checkpoints/training/{model_label}/preprocessor"), Path(f"./{checkpoint}/preprocessor")],
-    )
-
-    backbone = generate_backbone(
-        config_encoders,
-        config_modals,
-        config_feature_sizes,
-        checkpoints=[Path(f"./checkpoints/training/{model_label}/backbones"), Path(f"./{checkpoint}/backbones")],
-    )
-
     checkpoint_dir = Path(f"./checkpoints/training/{model_label}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
         config_dataset.path,
-        preprocessor,
         label_type=config_dataset.label_type,
         custom_unique_id="+".join(config.model.modals),
         dataset_class_str=config_dataset.dataset_class,
@@ -377,6 +411,13 @@ def train(
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
+    preprocessor, backbone = generate_preprocessor_and_backbone(
+        config_encoders,
+        config_modals,
+        config_feature_sizes,
+        datasets=[train_dataset, dev_dataset, test_dataset],
+        checkpoints=[Path(f"./checkpoints/training/{model_label}"), Path(f"./{checkpoint}")],
+    )
 
     symlink(
         config_path,
@@ -387,8 +428,6 @@ def train(
 
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
     if not os.path.exists(f"./checkpoints/training/{model_label}/preprocessor"):
-        if checkpoint is None:
-            train_dataset.special_process(backbone)
         preprocessor.save_pretrained(f"./checkpoints/training/{model_label}/preprocessor")
 
     if config.model.fusion is None:
@@ -462,7 +501,6 @@ def evaluate(
 
     train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
         config_dataset.path,
-        preprocessor,
         label_type=config_dataset.label_type,
         custom_unique_id="+".join(config.model.modals),
         dataset_class_str=config_dataset.dataset_class,
@@ -518,7 +556,7 @@ def inference(
     preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
     model_checkpoint = f"{checkpoint}/{find_best_model(checkpoint)}"
 
-    backbone = MultimodalBackbone.from_checkpoint(f"{model_checkpoint}/backbones")
+    backbone = MultimodalBackbone.from_checkpoint(Path(f"{model_checkpoint}/backbones"))
     if config_fusion is None:
         model = UnimodalModel.from_checkpoint(model_checkpoint, backbone=backbone).cuda()
     else:
