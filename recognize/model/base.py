@@ -19,7 +19,7 @@ from safetensors.torch import load_file, save, save_file
 from torch import nn
 from torch.nn import CrossEntropyLoss
 
-from recognize.cache import load_cached_tensors, save_cached_tensors
+from recognize.cache import CacheManager, load_cached_tensors, save_cached_tensors
 from recognize.module.basic import Pooler
 from recognize.typing import BackboneT, ModelInputT, StateDicts
 
@@ -52,6 +52,10 @@ class ModelInput(BaseModel):
                 setattr(self, field, field_value.pin_memory().cuda())
         return self
 
+    def __hash__(self) -> int:
+        assert self.unique_ids is not None, "unique_ids must be a list"
+        return hash(tuple(self.unique_ids))
+
     def __getitem__(self, index: int | list[int] | slice) -> Self:
         raise NotImplementedError("__getitem__ method must be implemented in subclass")
 
@@ -77,18 +81,25 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         use_cache: bool = True,
         is_frozen: bool = True,
         use_peft: bool = False,
-        encoder_dir: str | Path = "./checkpoints/training/backbones",
+        *,
+        encoder_dir: Path = Path("./checkpoints/training/backbones"),
+        init_hook: Callable[[Self], None] | None = None,
     ):
         super().__init__()
-        self.encoder_dir = Path(encoder_dir)
+        self.encoder_dir = encoder_dir
         self.feature_sizes = {name: feature_size for name, (_, feature_size) in encoders.items()}
         self.use_cache = use_cache
         self.use_peft = use_peft
         self.is_frozen = is_frozen
-        self.encoders = nn.ModuleDict({name: self.pretrained_module(module) for name, (module, _) in encoders.items()})
-        self.poolers = nn.ModuleDict(
+        self.named_encoders = nn.ModuleDict(
+            {name: self.pretrained_module(module) for name, (module, _) in encoders.items()}
+        )
+        self.named_poolers = nn.ModuleDict(
             {name: Pooler(module.config.hidden_size, feature_size) for name, (module, feature_size) in encoders.items()}
         )
+        if init_hook is not None:
+            init_hook(self)
+        self.cache_manager = CacheManager(4 * 2**30, cache_dir=Path(f"./cache/{self.hash}"))
 
     @property
     def hyperparameter(self):
@@ -109,22 +120,22 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         self,
         embs_dict: dict[str, torch.Tensor | None],
     ) -> dict[str, torch.Tensor]:
-        return {name: self.poolers[name](embs) for name in self.poolers if (embs := embs_dict.get(name)) is not None}
+        return {
+            name: self.named_poolers[name](embs)
+            for name in self.named_poolers
+            if (embs := embs_dict.get(name)) is not None
+        }
 
     def load_cache(self, inputs: ModelInputT) -> tuple[list[dict[str, torch.Tensor]], list[int]]:
         assert inputs.unique_ids is not None, "unique_ids must be a list"
-        cached_list, _, no_cached_index_list = load_cached_tensors(inputs.unique_ids, cache_dir=f"./cache/{self.hash}")
+        cached_list, _, no_cached_index_list = load_cached_tensors(inputs.unique_ids, cache_manager=self.cache_manager)
         return cached_list, no_cached_index_list
 
     def save_cache(self, no_cached_inputs: ModelInputT) -> None:
         assert no_cached_inputs.unique_ids is not None
         with torch.no_grad():
             pooler_output = self.direct_forward(no_cached_inputs)
-        save_cached_tensors(
-            no_cached_inputs.unique_ids,
-            dict(pooler_output.items()),
-            cache_dir=f"./cache/{self.hash}",
-        )
+        save_cached_tensors(no_cached_inputs.unique_ids, pooler_output, cache_manager=self.cache_manager)
 
     def merge_cache(self, cached_list: list[dict[str, torch.Tensor]], device: torch.device) -> dict[str, torch.Tensor]:
         embs_list_dict: dict[str, list[torch.Tensor]] = {}
@@ -205,7 +216,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
 
     def set_state_dicts(self, state_dicts: dict[str, dict[str, torch.Tensor]]):
         for name, state_dict in state_dicts.items():
-            module = self.encoders[name]
+            module = self.named_encoders[name]
             if isinstance(module, PeftModel):
                 set_peft_model_state_dict(module, state_dict)
             else:
@@ -214,7 +225,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
     def get_state_dicts(self) -> tuple[StateDicts, StateDicts]:
         state_dicts: dict[str, dict[str, torch.Tensor]] = {}
         peft_state_dicts: dict[str, dict[str, torch.Tensor]] = {}
-        for name, module in self.encoders.items():
+        for name, module in self.named_encoders.items():
             if isinstance(module, PeftModel):
                 peft_state_dicts[name] = get_peft_model_state_dict(
                     module,
@@ -242,7 +253,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         self.encoder_dir.mkdir(parents=True, exist_ok=True)
         state_dicts, peft_state_dicts = self.get_state_dicts()
         for name, state_dict in state_dicts.items():
-            self.encoders[name].config.save_pretrained(original_encoder_dir / name)
+            self.named_encoders[name].config.save_pretrained(original_encoder_dir / name)
             state_bytes = save(state_dict)
             hasher = hashlib.md5()
             hasher.update(state_bytes)
@@ -267,24 +278,23 @@ class Backbone(nn.Module, Generic[ModelInputT]):
 
         with open(original_encoder_dir / "config.json", "w") as f:
             json.dump(self.hyperparameter, f)
-        save_file(self.poolers.state_dict(), original_encoder_dir / "pooler.safetensors")
+        save_file(self.named_poolers.state_dict(), original_encoder_dir / "poolers.safetensors")
         return state_path_dict
 
     @classmethod
     def from_checkpoint(
         cls,
-        checkpoint_path: str | Path,
+        checkpoint_path: Path,
         *,
         use_cache: bool = True,
         is_frozen: bool = True,
         use_peft: bool = False,
-        encoder_dir: str | Path = "./checkpoints/training/backbones",
+        encoder_dir: Path = Path("./checkpoints/training/backbones"),
     ) -> Self:
         from transformers import AutoConfig, AutoModel
 
         checkpoint_path = Path(checkpoint_path)
-        backbones: dict[str, tuple[nn.Module, int]] = {}
-        state_dicts: dict[str, dict[str, torch.Tensor]] = {}
+        encoders: dict[str, tuple[nn.Module, int]] = {}
 
         with open(checkpoint_path / "config.json") as f:
             backbone_config = json.load(f)
@@ -295,17 +305,17 @@ class Backbone(nn.Module, Generic[ModelInputT]):
                 continue
             config = AutoConfig.from_pretrained(checkpoint_path / name / "config.json")
             model = AutoModel.from_config(config)
-            state_dicts[name] = load_file(checkpoint_path / f"{name}.safetensors")
-            backbones[name] = (model, feature_size)
+            model.load_state_dict(load_file(checkpoint_path / f"{name}.safetensors"))
+            encoders[name] = (model, feature_size)
         self = cls(
-            backbones,
+            encoders,
             use_cache=use_cache,
             is_frozen=is_frozen,
             use_peft=use_peft,
             encoder_dir=encoder_dir,
         )
-        self.set_state_dicts(state_dicts)
-        self.poolers.load_state_dict(load_file(checkpoint_path / "pooler.safetensors"))
+        self.named_poolers.load_state_dict(load_file(checkpoint_path / "poolers.safetensors"))
+        self.cache_manager.cache_dir = Path(f"./cache/{self.hash}")
         return self
 
 

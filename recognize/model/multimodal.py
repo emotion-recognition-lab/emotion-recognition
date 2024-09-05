@@ -159,20 +159,22 @@ class LazyMultimodalInput(MultimodalInput):
 
 class MultimodalBackbone(Backbone[MultimodalInput]):
     def compute_embs(self, inputs: MultimodalInput) -> dict[str, torch.Tensor | None]:
-        if "T" in self.encoders and inputs.text_input_ids is not None:
-            text_outputs = self.encoders["T"](inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
+        if "T" in self.named_encoders and inputs.text_input_ids is not None:
+            text_outputs = self.named_encoders["T"](inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
             text_embs = text_outputs.last_hidden_state[:, 0]
         else:
             text_embs = None
 
-        if "A" in self.encoders and inputs.audio_input_values is not None:
-            audio_outputs = self.encoders["A"](inputs.audio_input_values, attention_mask=inputs.audio_attention_mask)
+        if "A" in self.named_encoders and inputs.audio_input_values is not None:
+            audio_outputs = self.named_encoders["A"](
+                inputs.audio_input_values, attention_mask=inputs.audio_attention_mask
+            )
             audio_embs = audio_outputs.last_hidden_state[:, 0]
         else:
             audio_embs = None
 
-        if "V" in self.encoders and inputs.video_pixel_values is not None:
-            video_outputs = self.encoders["V"](inputs.video_pixel_values)
+        if "V" in self.named_encoders and inputs.video_pixel_values is not None:
+            video_outputs = self.named_encoders["V"](inputs.video_pixel_values)
             video_embs = video_outputs.last_hidden_state[:, 0]
         else:
             video_embs = None

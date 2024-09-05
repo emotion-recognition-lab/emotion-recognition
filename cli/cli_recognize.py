@@ -280,8 +280,8 @@ def distill(
         # checkpoints=[Path(f"./checkpoints/training/{model_label}/backbones"), Path(f"./{checkpoint}/backbones")],
     )
     # TODO: maybe those will be covered by load_best_model
-    backbone.encoders.update(dict(teacher_backbone.encoders))
-    backbone.poolers.update(dict(teacher_backbone.poolers))
+    backbone.named_encoders.update(dict(teacher_backbone.named_encoders))
+    backbone.named_poolers.update(dict(teacher_backbone.named_poolers))
 
     train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
         config_dataset.path,
