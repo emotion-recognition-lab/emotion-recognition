@@ -27,11 +27,10 @@ def create_standalone(
     checkpoint: Path,
     target_checkpoint: Path,
 ):
-    from recognize.config import load_inference_config, load_training_config
+    from recognize.config import load_training_config
     from recognize.utils import find_best_model
 
     training_config = load_training_config(checkpoint / "training.toml")
-    inference_config = load_inference_config(checkpoint / "inference.toml")
     init_logger(training_config.log_level)
 
     if target_checkpoint.exists():
@@ -59,6 +58,7 @@ def prune(
 
     config = load_training_config(checkpoint / "config.toml")
     init_logger(config.log_level)
+    raise NotImplementedError("Pruning is not implemented yet")
 
 
 if __name__ == "__main__":
