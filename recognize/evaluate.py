@@ -2,37 +2,16 @@ from __future__ import annotations
 
 import numpy as np
 import torch
-from cachetools import Cache, cached
 from loguru import logger
 from pydantic import BaseModel
 from rich.table import Table
 from torch.utils.data import DataLoader
 
-from .dataset import MELDDataset, SIMSDataset
+from .dataset import MultimodalDataset
 from .model import ClassifierModel
 
 
-@cached(cache=Cache(maxsize=10))
-def calculate_class_weights(data_loader: DataLoader, num_classes: int = 30) -> list[float]:
-    if isinstance(data_loader.dataset, (MELDDataset, SIMSDataset)):
-        return data_loader.dataset.class_weights
-    class_counts = [0] * num_classes
-
-    with torch.no_grad():
-        for batch in data_loader:
-            for i in range(num_classes):
-                labels = batch.labels
-                class_counts[i] += (labels == i).sum().item()
-
-    total_samples = sum(class_counts)
-    class_weights: list[float] = []
-    for i in range(num_classes):
-        class_weights.append(class_counts[i] / total_samples)
-
-    return class_weights
-
-
-def confusion_matrix(model: ClassifierModel, data_loader: DataLoader):
+def confusion_matrix(model: ClassifierModel, data_loader: DataLoader) -> list[list[int]]:
     y_true, y_pred = get_outputs(model, data_loader)
 
     num_classes = model.num_classes
@@ -46,7 +25,7 @@ def confusion_matrix(model: ClassifierModel, data_loader: DataLoader):
     return matrix
 
 
-def calculate_accuracy(predicted_list: list[int], labels_list: list[int]):
+def calculate_accuracy(predicted_list: list[int], labels_list: list[int]) -> float:
     correct: int = 0
     total: int = len(predicted_list)
     for predicted, labels in zip(predicted_list, labels_list, strict=True):
@@ -57,7 +36,7 @@ def calculate_accuracy(predicted_list: list[int], labels_list: list[int]):
     return accuracy
 
 
-def calculate_f1_score(predicted_list: list[int], labels_list: list[int], class_weights: list[float]):
+def calculate_f1_score(predicted_list: list[int], labels_list: list[int], class_weights: list[float]) -> float:
     num_classes = len(class_weights)
     predicted = np.array(predicted_list)
     labels = np.array(labels_list)
@@ -87,22 +66,22 @@ def calculate_f1_score(predicted_list: list[int], labels_list: list[int], class_
     return 100 * weighted_f1_score
 
 
-def calculate_accuracy_and_f1_score(model: ClassifierModel, data_loader: DataLoader):
-    num_classes = model.num_classes
+def calculate_accuracy_and_f1_score(model: ClassifierModel, data_loader: DataLoader) -> tuple[float, float]:
+    dataset = data_loader.dataset
+    assert isinstance(dataset, MultimodalDataset)
+    class_weights = dataset.class_weights
     predicted_list, labels_list = get_outputs(model, data_loader)
 
     # accuracy
     accuracy = calculate_accuracy(predicted_list, labels_list)
 
     # f1 score
-    weighted_f1_score = calculate_f1_score(
-        predicted_list, labels_list, calculate_class_weights(data_loader, num_classes)
-    )
+    weighted_f1_score = calculate_f1_score(predicted_list, labels_list, class_weights)
 
     return accuracy, weighted_f1_score
 
 
-def get_outputs(model: ClassifierModel, data_loader: DataLoader):
+def get_outputs(model: ClassifierModel, data_loader: DataLoader) -> tuple[list[int], list[int]]:
     model.eval()
     predicted_list: list[int] = []
     labels_list: list[int] = []
