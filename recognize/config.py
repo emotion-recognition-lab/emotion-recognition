@@ -37,7 +37,7 @@ class DatasetConfig(BaseModel):
 
 
 class TrainingConfig(BaseModel):
-    log_level: LogLevel = "INFO"
+    log_level: LogLevel = "INFO"  # TODO: remove after typer supports Literal
     batch_size: int = 32
 
     model: ModelConfig

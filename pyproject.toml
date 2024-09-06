@@ -64,7 +64,7 @@ select = [
     # Ruff-specific rules
     "RUF",
 ]
-ignore = ["F841", "PGH003", "UP038", "B008"]
+ignore = ["F841", "PGH003", "UP038", "B008", "RUF001"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "I002"]
@@ -84,13 +84,18 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
+[tool.pyright]
+includes = ["recognize", "cli", "tests"]
+typeCheckingMode = "standard"
+reportPrivateImportUsage = false
+
 [tool.uv]
 extra-index-url = ["https://download.pytorch.org/whl/cu121"]
 dev-dependencies = ["viztracer"]
 
 [tool.pdm.build]
 includes = ["recognize"]
-source-includes = ["cli", "README.md"]
+source-includes = ["cli", "tests", "README.md"]
 
 [build-system]
 requires = ["pdm-backend"]

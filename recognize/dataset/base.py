@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
+from functools import cached_property
 from typing import TYPE_CHECKING
 
 from torch.utils.data import Dataset
@@ -42,8 +43,12 @@ class MultimodalDataset(Dataset):
     def set_preprocessor(self, preprocessor: Preprocessor):
         self.preprocessor = preprocessor
 
-    def special_process(self, backbone: MultimodalBackbone):
-        raise NotImplementedError("This method must be implemented in the subclass.")
+    @abstractmethod
+    def special_process(self, backbone: MultimodalBackbone): ...
+
+    @cached_property
+    @abstractmethod
+    def class_weights(self) -> list[float]: ...
 
     @abstractmethod
     def __getitem__(self, index: int) -> MultimodalInput: ...
