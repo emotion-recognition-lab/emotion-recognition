@@ -60,6 +60,10 @@ def save_checkpoint(
             epoch_encoder_dir.relative_to(original_encoder_dir.parent),
             target_is_directory=True,
         )
+
+    (epoch_checkpoint_dir / "preprocessor").symlink_to(
+        "../preprocessor",
+    )
     (epoch_checkpoint_dir / "inference.toml").symlink_to(
         "../inference.toml",
     )
