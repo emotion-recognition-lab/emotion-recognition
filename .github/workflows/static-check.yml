@@ -1,0 +1,35 @@
+name: CodeStyle Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  code-style-check:
+    runs-on: ubuntu-latest
+    name: CodeStyle Check
+    steps:
+      - name: Checkout 📦
+        uses: actions/checkout@v3
+      - name: Install python 📦
+        uses: actions/setup-python@v4
+      - name: Run pre-commit ✅
+        uses: pre-commit/action@v3.0.1
+
+  type-check:
+    runs-on: ubuntu-latest
+    name: Type Check
+    steps:
+      - name: Checkout 📦
+        uses: actions/checkout@v3
+      - name: Install python 📦
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install the latest version of uv 📦
+        uses: astral-sh/setup-uv@v2
+      # - name: Install dependencies 📦
+      #   run: uv sync --all-extras --dev
+      # - name: Type Check 📦
+      #   run: uv run pyright

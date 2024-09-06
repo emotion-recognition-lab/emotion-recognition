@@ -15,10 +15,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup PDM
-        uses: pdm-project/setup-pdm@v3
+      - name: Install python 📦
+        uses: actions/setup-python@v4
         with:
           python-version: "3.11"
-      # - name: Install dependencies
-      #   run: |
-      #     pdm install
+      - name: Install the latest version of uv 📦
+        uses: astral-sh/setup-uv@v2
+      # - name: Install dependencies 📦
+      #   run: uv sync --all-extras --dev
