@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import cached_property
 from pathlib import Path
 from typing import Any, Literal, Self
 
@@ -32,7 +33,7 @@ class ModelConfig(BaseModel):
 
 class DatasetConfig(BaseModel):
     path: Path
-    dataset_class: str  # TODO: use Literal
+    dataset_class: Literal["MELDDataset", "PilotDataset", "SIMSDataset"]
     label_type: Literal["sentiment", "emotion"] = "sentiment"
 
 
@@ -43,17 +44,17 @@ class TrainingConfig(BaseModel):
     model: ModelConfig
     dataset: DatasetConfig
 
-    def generate_model_label(self):
-        model_label = "+".join(self.model.modals)
-        if self.dataset.label_type == "sentiment":
-            model_label += "--S"
-        else:
-            model_label += "--E"
-        if self.model.freeze_backbone:
-            model_label += "F"
-        else:
-            model_label += "T"
-        return model_label
+    @cached_property
+    def model_label(self):
+        label_type_mapping = {"sentiment": "S", "emotion": "E"}
+        dataset_class_mapping = {"MELDDataset": "MELD", "PilotDataset": "Pilot", "SIMSDataset": "SIMS"}
+        freeze_backbone_mapping = {True: "F", False: "T"}
+        model_labels = [
+            "+".join(self.model.modals),
+            dataset_class_mapping[self.dataset.dataset_class],
+            label_type_mapping[self.dataset.label_type] + freeze_backbone_mapping[self.model.freeze_backbone],
+        ]
+        return "--".join(model_labels)
 
 
 class InferenceConfig(BaseModel):

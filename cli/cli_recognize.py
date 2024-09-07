@@ -191,7 +191,7 @@ def distill(
 
     init_logger(config.log_level)
 
-    model_label = f"distill--{config.generate_model_label()}"
+    model_label = f"distill--{config.model_label}"
     batch_size = config.batch_size
 
     assert config_fusion is not None
@@ -320,7 +320,7 @@ def train(
     config_modals = config.model.modals
     config_dataset = config.dataset
 
-    model_label = config.generate_model_label()
+    model_label = config.model_label
     batch_size = config.batch_size
 
     if checkpoint is not None:
