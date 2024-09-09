@@ -296,6 +296,7 @@ def distill(
         train_data_loader,
         dev_data_loader,
         test_data_loader,
+        checkpoint_dir=checkpoint_dir,
         num_epochs=200,
         model_label=model_label,
     )
@@ -402,6 +403,7 @@ def train(
         train_data_loader,
         dev_data_loader,
         test_data_loader,
+        checkpoint_dir=checkpoint_dir,
         stopper=EarlyStopper(patience=20),
         num_epochs=200,
         model_label=model_label,

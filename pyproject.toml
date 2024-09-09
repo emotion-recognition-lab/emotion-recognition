@@ -22,11 +22,7 @@ readme = "README.md"
 license = { text = "MIT" }
 
 [project.optional-dependencies]
-train = [
-    "opencv-python>=4.0.0",
-    "pandas>=2.0.0",
-    "torch-pruning>=1.4.2",
-]
+train = ["opencv-python>=4.0.0", "pandas>=2.0.0", "torch-pruning>=1.4.2"]
 cli = ["typer>=0.12.4"]
 triton = ["triton>=2.2.0"]
 
@@ -90,8 +86,10 @@ typeCheckingMode = "standard"
 reportPrivateImportUsage = false
 
 [tool.uv]
-extra-index-url = ["https://download.pytorch.org/whl/cu121"]
 dev-dependencies = ["viztracer"]
+
+[tool.uv.pip]
+extra-index-url = ["https://download.pytorch.org/whl/cu121"]
 
 [tool.pdm.build]
 includes = ["recognize"]

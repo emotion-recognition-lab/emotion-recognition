@@ -171,6 +171,7 @@ def train_and_eval(
     valid_data_loader: DataLoader,
     test_data_loader: DataLoader | None = None,
     *,
+    checkpoint_dir: Path | None = None,
     stopper: EarlyStopper | None = None,
     num_epochs: int = 100,
     model_label: str | None = None,
@@ -189,8 +190,7 @@ def train_and_eval(
         test_data_loader = valid_data_loader
     if model_label is None:
         model_label = f"{model.__class__.__name__}-{id(model)}"
-    # TODO: use checkpoint_dir
-    checkpoint_dir = Path(f"./checkpoints/training/{model_label}")
+    checkpoint_dir = checkpoint_dir or Path(f"./checkpoints/training/{model_label}")
     logger.add(f"./logs/{model_label}.txt")
     logger.info(f"Train model [blue]{model_label}[/]. Save to [blue]{checkpoint_dir}[/]")
 
@@ -299,6 +299,7 @@ def train_and_eval_distill(
     valid_data_loader: DataLoader,
     test_data_loader: DataLoader | None = None,
     *,
+    checkpoint_dir: Path | None = None,
     stopper: EarlyStopper | None = None,
     num_epochs: int = 100,
     model_label: str | None = None,
@@ -316,7 +317,7 @@ def train_and_eval_distill(
         test_data_loader = valid_data_loader
     if model_label is None:
         model_label = f"{model.__class__.__name__}-{id(model)}"
-    checkpoint_dir = Path(f"./checkpoints/training/{model_label}")
+    checkpoint_dir = checkpoint_dir or Path(f"./checkpoints/training/{model_label}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     logger.add(f"./logs/{model_label}.txt")
     logger.info(f"Train model [blue]{model_label}[/]. Save to [blue]{checkpoint_dir}[/]")
