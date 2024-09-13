@@ -60,7 +60,7 @@ def seed_everything(seed: int | None = None):
 def provide_meld_datasets(
     dataset_path: Path,
     label_type: DatasetLabelType = "emotion",
-    custom_unique_id: str = "T",
+    custom_unique_id: str = "undefined",
     dataset_class_str: str = "MELDDataset",
 ):
     dataset_class = {
@@ -123,7 +123,7 @@ def generate_preprocessor_and_backbone(
         preprocessor_path = checkpoint / "preprocessor"
         if preprocessor_path.exists():
             preprocessor = Preprocessor.from_pretrained(preprocessor_path)
-            logger.info(f"Load preprocessor from [blue]./{checkpoint}[/]")
+            logger.info(f"Load preprocessor from [blue]{checkpoint}[/]")
             break
     else:
         preprocessor = Preprocessor(device="cuda")
@@ -149,7 +149,7 @@ def generate_preprocessor_and_backbone(
         backbone_path = checkpoint / "backbones"
         if backbone_path.exists():
             backbone = MultimodalBackbone.from_checkpoint(backbone_path)
-            logger.info(f"Load backbone from [blue]./{checkpoint}[/]")
+            logger.info(f"Load backbone from [blue]{checkpoint}[/]")
             break
     else:
         backbone = MultimodalBackbone(

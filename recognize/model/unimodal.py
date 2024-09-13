@@ -34,8 +34,14 @@ class UnimodalModel(ClassifierModel[MultimodalBackbone]):
         }
 
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
-        pooled_embs = self.backbone(inputs)["T"]
-        return self.classify(pooled_embs, inputs.labels)
+        pooled_embs: dict[str, torch.Tensor] = self.backbone(inputs)
+        if len(pooled_embs) != 1:
+            # NOTE: dataset maybe not have some modalities
+            assert inputs.labels is not None, "labels is required"
+            return ClassifierOutput(
+                logits=torch.zeros((inputs.labels.shape[0], self.num_classes), device=inputs.device),
+            )
+        return self.classify(next(iter(pooled_embs.values())), inputs.labels)
 
     @classmethod
     def from_checkpoint(
