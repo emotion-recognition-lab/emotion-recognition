@@ -95,26 +95,10 @@ uv sync --all-extras --dev
 # 如果你在中国大陆，可以使用清华源加速下载
 # uv sync --all-extras --dev --index-url https://pypi.tuna.tsinghua.edu.cn/simple --extra-index-url https://download.pytorch.org/whl/cu121
 ```
-5. 运行接下来的复现脚本。
+5. 接下来按照下列文档的内容进行实验，注意部分内容需要根据文档中给出的 `git commit SHA` 切换到指定 commit 进行实验。
 
-### 基础多模态实验复现
-
-git commit SHA: e3892233039e77c00f0dd3df6583e0f5ff71096d
-
-```sh
-uv run emotion-recognize train configs/MELD--T--ET.toml --seed 114
-uv run emotion-recognize train configs/MELD--T+A--ET.toml --seed 114
-uv run emotion-recognize train configs/MELD--T+A+V--ET.toml --seed 114
-```
-
-| 模态  | 准确率 | weighted-F1 |
-| :---: | :----: | :---------: |
-|   T   | 62.64% |   62.89%    |
-|   A   |        |             |
-|   V   |        |             |
-|  T+A  |        |             |
-| T+A+V |        |             |
-
+[mix-finetuning.md](experiments/mix-finetuning.md)
+[dependency-finetuning.md](experiments/dependency-finetuning.md)
 
 
 ## 实验结果（早期）
