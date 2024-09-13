@@ -1,0 +1,13 @@
+log_level = "INFO"
+batch_size = 1
+
+[model]
+modals = ["V"]
+feature_sizes = [256]
+encoders = ["google/vivit-b-16x2-kinetics400"]
+freeze_backbone = false
+
+[dataset]
+dataset_class = "MELDDataset"
+path = "datasets/MELD"
+label_type = "emotion"

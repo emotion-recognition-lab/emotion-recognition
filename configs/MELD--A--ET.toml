@@ -1,0 +1,13 @@
+log_level = "INFO"
+batch_size = 4
+
+[model]
+modals = ["A"]
+feature_sizes = [256]
+encoders = ["facebook/wav2vec2-base-960h"]
+freeze_backbone = false
+
+[dataset]
+dataset_class = "MELDDataset"
+path = "datasets/MELD"
+label_type = "emotion"
