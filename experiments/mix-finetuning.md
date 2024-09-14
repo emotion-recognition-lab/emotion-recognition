@@ -1,13 +1,13 @@
 ### 所有模态同时微调的各模态组合实验复现
 
-git commit SHA: fd08009357388c847eb417e7ad8bc12436c6df36
+git commit SHA: 0984ab42bb82ee63bdf567112bc844043edfcb4f
 
 ```sh
-uv run emotion-recognize train configs/MELD--T--ET.toml --seed 114
-uv run emotion-recognize train configs/MELD--A--ET.toml --seed 114
-uv run emotion-recognize train configs/MELD--V--ET.toml --seed 114
-uv run emotion-recognize train configs/MELD--T+A--ET.toml --seed 114
-uv run emotion-recognize train configs/MELD--T+A+V--ET.toml --seed 114
+uv run emotion-recognize train configs/T--T.toml configs/dataset/MELD--E.toml --seed 114
+uv run emotion-recognize train configs/A--T.toml configs/dataset/MELD--E.toml --seed 114
+uv run emotion-recognize train configs/V--T.toml configs/dataset/MELD--E.toml --seed 114
+uv run emotion-recognize train configs/T+A--T.toml configs/dataset/MELD--E.toml --seed 114
+uv run emotion-recognize train configs/T+A+V--T.toml configs/dataset/MELD--E.toml --seed 114
 ```
 
 |  模态  | 准确率 | weighted-F1 |
