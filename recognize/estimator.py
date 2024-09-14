@@ -17,7 +17,7 @@ from recognize.preprocessor import Preprocessor
 
 class EmotionEstimator:
     def __init__(self, checkpoint: str) -> None:
-        config = load_inference_config(f"{checkpoint}/inference.toml")
+        config = load_inference_config(Path(checkpoint) / "inference.toml")
 
         backbone = MultimodalBackbone.from_checkpoint(
             Path(f"{checkpoint}/backbones"),

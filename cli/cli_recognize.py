@@ -307,13 +307,13 @@ def distill(
 
 @app.command()
 def train(
-    config_path: Path,
+    config_path: list[Path],
     checkpoint: Path | None = None,
     seed: int | None = None,
 ) -> None:
     seed_everything(seed)
 
-    config = load_training_config(config_path)
+    config = load_training_config(*config_path)
     init_logger(config.log_level)
     config_freeze = config.model.freeze_backbone
     config_encoders = config.model.encoders
@@ -368,7 +368,7 @@ def train(
         preprocessor.save_pretrained(checkpoint_dir / "preprocessor")
 
     inference_config = InferenceConfig(num_classes=train_dataset.num_classes, model=config.model)
-    symlink(config_path, checkpoint_dir / "training.toml")
+    save_config(config, checkpoint_dir / "training.toml")
     save_config(inference_config, checkpoint_dir / "inference.toml")
 
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
@@ -475,7 +475,7 @@ def inference(
     audio_path: Path | None = None,
     video_path: Path | None = None,
 ):
-    config = load_training_config(f"{checkpoint}/training.toml")
+    config = load_training_config(checkpoint / "training.toml")
     config_modals = config.model.modals
     config_feature_sizes = config.model.feature_sizes
     config_fusion = config.model.fusion

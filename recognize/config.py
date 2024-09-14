@@ -109,16 +109,20 @@ def save_dict_to_path(config: dict[str, Any], path: Path) -> None:
             raise NotImplementedError(f"Unsupportted suffix {path.suffix}")
 
 
-def load_training_config(path: str | Path) -> TrainingConfig:
-    config_dict = load_dict_from_path(Path(path))
+def load_training_config(*paths: Path) -> TrainingConfig:
+    config_dict = {}
+    for path in paths:
+        config_dict.update(load_dict_from_path(path))
     return TrainingConfig(**config_dict)
 
 
-def load_inference_config(path: str | Path) -> InferenceConfig:
-    config_dict = load_dict_from_path(Path(path))
+def load_inference_config(*paths: Path) -> InferenceConfig:
+    config_dict = {}
+    for path in paths:
+        config_dict.update(load_dict_from_path(path))
     return InferenceConfig(**config_dict)
 
 
-def save_config(config: BaseModel, path: str | Path) -> None:
+def save_config(config: BaseModel, path: Path) -> None:
     config_dict = config.model_dump(mode="json")
-    save_dict_to_path(config_dict, Path(path))
+    save_dict_to_path(config_dict, path)

@@ -1,0 +1,4 @@
+[dataset]
+dataset_class = "PilotDataset"
+path = "datasets/pilot-emotion"
+label_type = "sentiment"
