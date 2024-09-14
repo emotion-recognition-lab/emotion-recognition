@@ -12,7 +12,7 @@ def prepare_matrix(config_path: str, commit_message: str) -> dict[str, list[dict
 
     matrix = {"include": []}
     for exp_name, exp_config in experiments.items():
-        if f"task-run: {exp_name}" in commit_message.lower() or "task-run-all" in commit_message.lower():
+        if f"run-task: {exp_name}" in commit_message.lower() or "run-task-all" in commit_message.lower():
             matrix["include"].append(
                 {
                     "name": exp_name,
