@@ -1,0 +1,2 @@
+[experiments.mix-finetuning]
+train_command = "experiments/mix-finetuning.sh"
