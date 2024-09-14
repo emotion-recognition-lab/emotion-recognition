@@ -3,7 +3,6 @@ name: Build Python Package
 on:
   push:
     branches: [main]
-  pull_request:
 
 permissions:
   id-token: write
@@ -11,15 +10,13 @@ permissions:
   contents: read
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install python 📦
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
       - name: Install the latest version of uv 📦
         uses: astral-sh/setup-uv@v2
-      # - name: Install dependencies 📦
-      #   run: uv sync --all-extras --dev
+        with:
+          enable-cache: true
+      - name: Install dependencies 📦
+        run: uv sync --all-extras --dev
