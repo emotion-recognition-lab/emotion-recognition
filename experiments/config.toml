@@ -1,2 +1,2 @@
 [experiments.mix-finetuning]
-train_command = "experiments/mix-finetuning.sh"
+train_command = "bash experiments/mix-finetuning.sh"

@@ -40,7 +40,8 @@ jobs:
       - name: Download dataset
         run: |
           mkdir -p ./datasets
-          ln -s ~/MELD.AudioOnly ./datasets/
+          rm -rf ./datasets/MELD
+          ln -s ~/datasets/MELD.AudioOnly ./datasets/MELD
       - name: Select an idle GPU
         id: select-gpu
         run: |
