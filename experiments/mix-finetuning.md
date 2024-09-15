@@ -18,4 +18,4 @@ uv run emotion-recognize train configs/T+A+V--T.toml configs/dataset/MELD--E.tom
 | V(256) | 39.00% |   34.86%    |
 |  T+A   | 63.18% |   63.77%    |
 |  A+V   |        |             |
-| T+A+V  |        |             |
+| T+A+V  | 64.06% |   62.89%    |

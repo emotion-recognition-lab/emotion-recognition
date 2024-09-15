@@ -81,6 +81,10 @@
 这样会导致训练时间过长（即使使用了本项目的缓存技术）。
 为了解决这个问题，我们使用将多个模态的知识蒸馏训练合并到一次训练中，这样可以大幅度减少训练时间。
 
+### 持续集成
+
+本项目实现了基础的持续集成，具体可以参考 [train-and-eval.yml](.github/workflows/train-and-eval.yml)。
+
 ## 实验复现
 1. 下载 MELD 数据集。
 2. 将原始 MELD 数据集中视频文件（mp4）中的音频以 flac 格式提取出来，并按照规定的[数据集结构](docs/structure.md#数据集结构)组织文件。
@@ -95,7 +99,7 @@ uv sync --all-extras --dev
 # 如果你在中国大陆，可以使用清华源加速下载
 # uv sync --all-extras --dev --index-url https://pypi.tuna.tsinghua.edu.cn/simple --extra-index-url https://download.pytorch.org/whl/cu121
 ```
-5. 接下来按照下列文档的内容进行实验，注意部分内容需要根据文档中给出的 `git commit SHA` 切换到指定 commit 进行实验。
+5. 接下来按照下列文档的内容进行实验，注意部分内容需要根据文档中给出的 `git commit SHA` 切换到指定 `commit` 进行实验。
 
 [mix-finetuning.md](experiments/mix-finetuning.md)
 [dependency-finetuning.md](experiments/dependency-finetuning.md)

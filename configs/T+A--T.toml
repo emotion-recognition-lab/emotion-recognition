@@ -10,8 +10,3 @@ encoders = [
 ]
 fusion = "LowRankFusionLayer({'T': 768, 'A': 256, 'V': 32}, 16, 128)"
 freeze_backbone = false
-
-[dataset]
-dataset_class = "MELDDataset"
-path = "datasets/MELD"
-label_type = "emotion"
