@@ -54,21 +54,5 @@ jobs:
           mkdir -p ./datasets
           rm -rf ./datasets/MELD
           ln -s ~/datasets/MELD.AudioOnly ./datasets/MELD
-      - name: Select an idle GPU
-        id: select-gpu
-        run: |
-          while true; do
-            GPU=$(nvidia-smi --query-gpu=index,memory.used --format=csv,noheader,nounits | awk -F, '$2 == 0 {print $1; exit}')
-            if [ -n "$GPU" ]; then
-              echo "Selected GPU: $GPU"
-              echo "GPU=$GPU" >> $GITHUB_ENV
-              break
-            else
-              echo "No idle GPU found. Retrying in 60 seconds..."
-              sleep 60
-            fi
-          done
-      - name: Run training task
-        env:
-          CUDA_VISIBLE_DEVICES: ${{ env.GPU }}
-        run: ${{ matrix.train_command }}
+      - name: Run nanoflow
+        run: uv run nanoflow experiments/mix-finetuning.toml

@@ -86,9 +86,9 @@ typeCheckingMode = "standard"
 reportPrivateImportUsage = false
 
 [tool.uv]
-dev-dependencies = ["viztracer"]
-
-[tool.uv.pip]
+dev-dependencies = [
+    "viztracer",
+]
 extra-index-url = ["https://download.pytorch.org/whl/cu121"]
 
 [tool.pdm.build]
