@@ -8,28 +8,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  prepare:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Python and dependencies
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.12"
-      - run: pip install toml
-      - id: set-matrix
-        run: |
-          python tools/prepare_matrix.py experiments/config.toml "${{ github.event.head_commit.message }}" >> $GITHUB_OUTPUT
-
   train:
-    needs: prepare
     runs-on: [self-hosted, linux]
     timeout-minutes: 3600
-    strategy:
-      matrix: ${{fromJson(needs.prepare.outputs.matrix)}}
-      fail-fast: false
     steps:
       - uses: actions/checkout@v4
       - name: Install the latest version of uv 📦
