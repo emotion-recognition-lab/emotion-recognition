@@ -36,4 +36,4 @@ jobs:
           rm -rf ./datasets/MELD
           ln -s ~/datasets/MELD.AudioOnly ./datasets/MELD
       - name: Run nanoflow
-        run: uv run nanoflow experiments/mix-finetuning.toml
+        run: uv tool run nanoflow experiments/mix-finetuning.toml
