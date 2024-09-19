@@ -17,15 +17,15 @@ jobs:
         uses: astral-sh/setup-uv@v2
       - name: Cache Venv
         id: cache-venv
-        uses: maxnowack/local-cache@v2
+        uses: MasterworksIO/action-local-cache@2
         with:
-          path: .venv
-          key: ${{ runner.os }}-venv
+          path: .venv/
+          key: ${{ runner.os }}-uv
       - name: Cache Checkpoints
         id: cache-checkpoints
-        uses: maxnowack/local-cache@v2
+        uses: MasterworksIO/action-local-cache@2
         with:
-          path: checkpoints
+          path: checkpoints/
           key: ${{ runner.os }}-checkpoints
       - name: Install dependencies 📦
         if: steps.cache-venv.outputs.cache-hit != 'true'
