@@ -21,19 +21,14 @@ jobs:
         with:
           path: .venv/
           key: ${{ runner.os }}-uv
-      - name: Cache Checkpoints
-        id: cache-checkpoints
-        uses: MasterworksIO/action-local-cache@2
-        with:
-          path: checkpoints/
-          key: ${{ runner.os }}-checkpoints
       - name: Install dependencies 📦
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        run: uv sync --all-extras --dev
-      - name: Download dataset
+        run: uv sync --all-extras --index-url https://pypi.tuna.tsinghua.edu.cn/simple
+      - name: Download dataset and checkpoints
         run: |
           mkdir -p ./datasets
           rm -rf ./datasets/MELD
           ln -s ~/datasets/MELD.AudioOnly ./datasets/MELD
+          ln -s ~/checkpoints ./checkpoints
       - name: Run nanoflow
-        run: uv tool run nanoflow experiments/mix-finetuning.toml
+        run: uvx nanoflow experiments/mix-finetuning.toml
