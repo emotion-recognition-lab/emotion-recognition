@@ -9,7 +9,6 @@ from pydantic import BaseModel, Field
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
-from typing_extensions import deprecated
 
 from recognize.evaluate import TrainingResult, calculate_accuracy_and_f1_score
 
@@ -78,19 +77,18 @@ class Trainer:
         self.scheduler = scheduler
         self.max_grad_norm = max_grad_norm
         self.losses = []
+        self.loss_mean_cache: float = -1
 
     def clear_losses(self):
         self.losses.clear()
 
-    @deprecated("Use `training_step` instead")
-    def step(self, loss: torch.Tensor | None) -> float:
-        return self.training_step(loss)
+    def loss_mean(self) -> float:
+        self.loss_mean_cache = torch.stack(self.losses).mean().item()
+        return self.loss_mean_cache
 
-    def training_step(self, loss: torch.Tensor | None) -> float:
+    def training_step(self, loss: torch.Tensor | None) -> None:
         if loss is None:
-            return -1
-
-        self.losses.append(loss.item())
+            return
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -100,7 +98,7 @@ class Trainer:
         if self.scheduler is not None:
             self.scheduler.step()
 
-        return sum(self.losses) / len(self.losses)
+        self.losses.append(loss.detach())
 
     def fit(self) -> TrainingResult:
         logger.warning("Trainer.fit is not implemented!")

@@ -160,8 +160,13 @@ def train_epoch(
     for batch_index, batch in enumerate(train_data_loader):
         output = model(batch)
         loss = output.loss
-        loss_value = trainer.training_step(loss)
+        trainer.training_step(loss)
         if update_hook is not None:
+            if batch_index % (len(train_data_loader) // 10):
+                loss_value = trainer.loss_mean()
+                trainer.clear_losses()
+            else:
+                loss_value = trainer.loss_mean_cache
             update_hook(batch_index, loss_value)
 
 
@@ -287,8 +292,10 @@ def distill_epoch(
             + 5 * student_output.loss
         )
 
-        loss_value = trainer.step(loss)
+        trainer.training_step(loss)
         if update_hook is not None:
+            loss_value = trainer.loss_mean()
+            trainer.clear_losses()
             update_hook(batch_index, loss_value)
 
 
