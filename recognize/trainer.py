@@ -83,6 +83,8 @@ class Trainer:
         self.losses.clear()
 
     def loss_mean(self) -> float:
+        if not self.losses:
+            return -1
         self.loss_mean_cache = torch.stack(self.losses).mean().item()
         return self.loss_mean_cache
 
