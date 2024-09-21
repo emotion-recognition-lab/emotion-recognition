@@ -158,11 +158,13 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             no_cached_inputs = inputs[no_cached_index_list]
             self.save_cache(no_cached_inputs)
             cached_list, no_cached_index_list = self.load_cache(inputs)
-        assert len(no_cached_index_list) == 0, "All tensors should be cached"
+        assert (
+            len(no_cached_index_list) == 0
+        ), f"All tensors should be cached, but {no_cached_index_list} tensors are not cached"
 
         return self.merge_cache(cached_list, inputs.device)
 
-    def forward(self, inputs: ModelInputT):
+    def forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
         if self.is_frozen and self.use_cache and inputs.unique_ids is not None:
             return self.cached_forward(inputs)
         else:

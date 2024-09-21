@@ -9,7 +9,7 @@ on:
 
 jobs:
   train:
-    runs-on: [self-hosted, linux]
+    runs-on: [self-hosted, linux, "3090"]
     timeout-minutes: 3600
     steps:
       - uses: actions/checkout@v4
