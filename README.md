@@ -101,8 +101,8 @@ uv sync --all-extras --dev
 ```
 5. 接下来按照下列文档的内容进行实验，注意部分内容需要根据文档中给出的 `git commit SHA` 切换到指定 `commit` 进行实验。
 
-[mix-finetuning.md](experiments/mix-finetuning.md)
-[dependency-finetuning.md](experiments/dependency-finetuning.md)
+- [mix-finetuning.md](experiments/mix-finetuning.md)
+- [dependency-finetuning.md](experiments/dependency-finetuning.md)
 
 
 ## 实验结果（早期）

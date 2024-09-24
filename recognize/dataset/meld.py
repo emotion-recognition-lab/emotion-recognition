@@ -91,11 +91,7 @@ class MELDDataset(MultimodalDataset):
         if tokenizer is None:
             return
         text_backbone = backbone.named_encoders["T"]
-        tokenizer.add_special_tokens(
-            {
-                "additional_special_tokens": self.speakers  # type: ignore
-            }
-        )
+        tokenizer.add_special_tokens({"additional_special_tokens": self.speakers})
         text_backbone.resize_token_embeddings(len(tokenizer))
 
     @cached_property

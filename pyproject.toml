@@ -6,7 +6,8 @@ authors = [{ name = "Zhan Rongrui", email = "2742392377@qq.com" }]
 dependencies = [
     "transformers>=4.43.1",
     "numpy>=1.26.0",
-    "torch==2.4.0+cu121",
+    "torch>=2.4.0; platform_system=='Darwin'",
+    "torch==2.4.0+cu121; platform_system!='Darwin'",
     "peft>=0.8.2",
     "safetensors>=0.4.2",
     "soundfile>=0.12.1",
@@ -16,14 +17,19 @@ dependencies = [
     "rich>=13.7.1",
     "toml>=0.10.0",
     "pillow>=10.2.0",
+    "typer>=0.12.4",
 ]
 requires-python = ">=3.11"
 readme = "README.md"
 license = { text = "MIT" }
 
 [project.optional-dependencies]
-train = ["opencv-python>=4.0.0", "pandas>=2.0.0", "torch-pruning>=1.4.2"]
-cli = ["typer>=0.12.4"]
+train = [
+    "opencv-python>=4.0.0",
+    "pandas>=2.0.0",
+    "nanoflow>=0.0.5",
+    "torch-pruning>=1.4.2",
+]
 triton = ["triton>=2.2.0"]
 
 [project.urls]
@@ -86,9 +92,7 @@ typeCheckingMode = "standard"
 reportPrivateImportUsage = false
 
 [tool.uv]
-dev-dependencies = [
-    "viztracer",
-]
+dev-dependencies = ["viztracer", "ruff"]
 extra-index-url = ["https://download.pytorch.org/whl/cu121"]
 
 [tool.pdm.build]
