@@ -15,9 +15,8 @@ class Pooler(nn.Module):
         if out_features is None:
             out_features = in_features
         self.pool = nn.Sequential(
-            nn.Dropout(0.4),
             nn.Linear(in_features, out_features, bias=bias),
-            nn.Tanh(),
+            nn.ReLU(),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

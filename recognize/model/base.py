@@ -337,11 +337,7 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
         self.num_classes = num_classes
         self.class_weights = class_weights
         self.feature_size = feature_size
-        self.hidden_size = feature_size  # for compatibility with old code
-        self.classifier = nn.Sequential(
-            nn.Dropout(0.4),
-            nn.Linear(feature_size, num_classes),
-        )
+        self.classifier = nn.Linear(feature_size, num_classes)
 
     def freeze_backbone(self):
         self.backbone.freeze()
