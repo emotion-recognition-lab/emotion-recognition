@@ -146,7 +146,7 @@ def get_trainer(
         num_training_steps=num_training_steps,
     )
 
-    return Trainer(model, data_loaders, optimizer, scheduler)
+    return Trainer(model, data_loaders, optimizer, scheduler, max_grad_norm=10)
 
 
 def train_epoch(
@@ -249,10 +249,12 @@ def train_and_eval(
                     # TODO: maybe model is not better in test set?
                     best_epoch = stopper.best_epoch
                     save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
-                    logger.info(
-                        f"Epoch {best_epoch}: Better model found "
-                        f"[red](Accuracy: {valid_accuracy:.2f}%, F1 Score: {valid_f1_score:.2f}%)",
-                    )
+                    result = trainer.eval("test")
+                    test_f1_score = result.f1_score
+                    test_accuracy = result.accuracy
+                    logger.info(f"Epoch {best_epoch}: Better model found")
+                    logger.info(f"[red]Validation - Accuracy: {valid_accuracy:.2f}%, F1 Score: {valid_f1_score:.2f}%")
+                    logger.info(f"[red]Test - Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%")
 
                 if epoch == num_epochs - 1:
                     save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)

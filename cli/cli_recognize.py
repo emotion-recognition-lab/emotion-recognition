@@ -237,21 +237,21 @@ def distill(
     train_data_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
     dev_data_loader = DataLoader(
         dev_dataset,
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
     test_data_loader = DataLoader(
         test_dataset,
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
@@ -322,12 +322,13 @@ def train(
     config_dataset = config.dataset
 
     model_label = config.model_label
+    dataset_label = config.dataset_label
     batch_size = config.batch_size
 
     if checkpoint is not None:
         checkpoint_dir = checkpoint
     else:
-        checkpoint_dir = Path(f"./checkpoints/training/{model_label}")
+        checkpoint_dir = Path(f"./checkpoints/training/{dataset_label}/{model_label}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
@@ -339,21 +340,21 @@ def train(
     train_data_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
     dev_data_loader = DataLoader(
         dev_dataset,
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
     test_data_loader = DataLoader(
         test_dataset,
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
@@ -443,7 +444,7 @@ def evaluate(checkpoint: Path) -> None:
     test_data_loader = DataLoader(
         test_dataset,
         batch_size=batch_size,
-        shuffle=False,
+        shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )

@@ -45,14 +45,27 @@ class TrainingConfig(BaseModel):
     dataset: DatasetConfig
 
     @cached_property
-    def model_label(self):
-        label_type_mapping = {"sentiment": "S", "emotion": "E"}
-        dataset_class_mapping = {"MELDDataset": "MELD", "PilotDataset": "Pilot", "SIMSDataset": "SIMS"}
+    def model_label(self) -> str:
         freeze_backbone_mapping = {True: "F", False: "T"}
+
+        modals = "+".join(self.model.modals)
+        freeze_backbone = freeze_backbone_mapping[self.model.freeze_backbone]
         model_labels = [
-            "+".join(self.model.modals),
-            dataset_class_mapping[self.dataset.dataset_class],
-            label_type_mapping[self.dataset.label_type] + freeze_backbone_mapping[self.model.freeze_backbone],
+            modals,
+            freeze_backbone,
+        ]
+        return "--".join(model_labels)
+
+    @cached_property
+    def dataset_label(self) -> str:
+        dataset_class_mapping = {"MELDDataset": "MELD", "PilotDataset": "Pilot", "SIMSDataset": "SIMS"}
+        label_type_mapping = {"sentiment": "S", "emotion": "E"}
+
+        dataset_class = dataset_class_mapping[self.dataset.dataset_class]
+        label_type = label_type_mapping[self.dataset.label_type]
+        model_labels = [
+            dataset_class,
+            label_type,
         ]
         return "--".join(model_labels)
 
