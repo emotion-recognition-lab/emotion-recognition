@@ -161,7 +161,8 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
     def compute_embs(self, inputs: MultimodalInput) -> dict[str, torch.Tensor | None]:
         if "T" in self.named_encoders and inputs.text_input_ids is not None:
             text_outputs = self.named_encoders["T"](inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
-            text_embs = text_outputs.last_hidden_state[:, 0]
+            # -1 corresponds to mask_token_id
+            text_embs = text_outputs.last_hidden_state[:, -1]
         else:
             text_embs = None
 

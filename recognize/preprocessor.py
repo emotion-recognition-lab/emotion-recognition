@@ -34,7 +34,12 @@ class Preprocessor:
     def load_text(self, text: str) -> tuple[torch.Tensor | None, torch.Tensor | None]:
         if self.tokenizer is not None:
             tokenized = self.tokenizer.tokenize(text)[-self.tokenizer.model_max_length :]
-            text_input_ids = torch.tensor(self.tokenizer.convert_tokens_to_ids(tokenized))
+            text_input_ids = torch.tensor(
+                [
+                    *self.tokenizer.convert_tokens_to_ids(tokenized),
+                    self.tokenizer.mask_token_id,
+                ]
+            )
             text_attention_mask = torch.ones(len(text_input_ids))
         else:
             text_input_ids = None
@@ -80,15 +85,16 @@ class Preprocessor:
 
     def load_texts(self, texts: list[str]) -> tuple[torch.Tensor | None, torch.Tensor | None]:
         if self.tokenizer is not None:
-            text_inputs = self.tokenizer(
-                texts,
-                return_attention_mask=True,
-                return_tensors="pt",
-                truncation=True,
-                padding=True,
+            text_input_ids_list = []
+            for text in texts:
+                tokenized = self.tokenizer.tokenize(text)[1 - self.tokenizer.model_max_length :]
+                text_input_ids = [*self.tokenizer.convert_tokens_to_ids(tokenized), self.tokenizer.mask_token_id]
+                text_input_ids_list.append(torch.tensor(text_input_ids))
+
+            text_input_ids = pad_sequence(
+                text_input_ids_list, batch_first=True, padding_value=self.tokenizer.pad_token_id
             )
-            text_input_ids = text_inputs["input_ids"]
-            text_attention_mask = text_inputs["attention_mask"]
+            text_attention_mask = (text_input_ids != self.tokenizer.pad_token_id).long()
         else:
             text_input_ids = None
             text_attention_mask = None
