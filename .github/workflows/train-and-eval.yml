@@ -31,4 +31,4 @@ jobs:
           ln -s ~/datasets/MELD.AudioOnly ./datasets/MELD
           ln -s ~/checkpoints ./checkpoints
       - name: Run nanoflow
-        run: uvx nanoflow experiments/mix-finetuning.toml
+        run: uvx nanoflow experiments/basic.toml

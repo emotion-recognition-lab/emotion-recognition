@@ -101,7 +101,7 @@ uv sync --all-extras --dev
 ```
 5. 接下来按照下列文档的内容进行实验，注意部分内容需要根据文档中给出的 `git commit SHA` 切换到指定 `commit` 进行实验。
 
-- [mix-finetuning.md](experiments/mix-finetuning.md)
+- [basic.md](experiments/basic.md)
 - [dependency-finetuning.md](experiments/dependency-finetuning.md)
 
 
@@ -127,10 +127,14 @@ uv sync --all-extras --dev
 
 ## 相关技术与参考文献
 
-### 模型压缩（相关技术）
+### 模型压缩
 - [LoRA](https://huggingface.co/docs/peft/task_guides/lora_based_methods)
 
-### 知识蒸馏（参考文献）
+### 知识蒸馏
 - [KD](https://arxiv.org/pdf/2104.09044)
 - [DIST](https://arxiv.org/pdf/2205.10536)
 - [跨模态知识蒸馏](https://arxiv.org/pdf/2401.12987v2)
+
+### 混合专家模型
+- [TGMoE](https://ftp.saiconference.com/Downloads/Volume15No8/Paper_119-TGMoE_A_Text_Guided_Mixture_of_Experts_Model.pdf)
+-
