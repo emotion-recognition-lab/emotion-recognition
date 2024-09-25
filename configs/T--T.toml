@@ -5,4 +5,4 @@ batch_size = 4
 modals = ["T"]
 feature_sizes = [768]
 encoders = ["roberta-large"]
-freeze_backbone = false
+training_mode = "trainable"

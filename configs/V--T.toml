@@ -5,4 +5,4 @@ batch_size = 1
 modals = ["V"]
 feature_sizes = [256]
 encoders = ["google/vivit-b-16x2-kinetics400"]
-freeze_backbone = false
+training_mode = "trainable"

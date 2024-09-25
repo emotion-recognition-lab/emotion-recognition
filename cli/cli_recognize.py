@@ -167,7 +167,7 @@ app = typer.Typer(pretty_exceptions_show_locals=False)
 
 @app.command()
 def distill(
-    config_path: Path,
+    config_path: list[Path],
     teacher_checkpoint: Path = typer.Option(..., help="The checkpoint of the teacher model"),
     checkpoint: Path | None = None,
     seed: int | None = None,
@@ -181,8 +181,8 @@ def distill(
 
     seed_everything(seed)
 
-    config = load_training_config(config_path)
-    config_freeze = config.model.freeze_backbone
+    config = load_training_config(*config_path)
+    config_training_mode = config.model.training_mode
     config_encoders = config.model.encoders
     config_modals = config.model.modals
     config_feature_sizes = config.model.feature_sizes
@@ -192,8 +192,10 @@ def distill(
     init_logger(config.log_level)
 
     model_label = f"distill--{config.model_label}"
+    dataset_label = config.dataset_label
     batch_size = config.batch_size
 
+    assert config_training_mode != "lora", "Lora is not supported in distillation"
     assert config_fusion is not None
     assert (teacher_checkpoint / "stopper.json").exists()
     assert (teacher_checkpoint / "preprocessor").exists()
@@ -201,14 +203,20 @@ def distill(
     if checkpoint is not None:
         checkpoint_dir = checkpoint
     else:
-        checkpoint_dir = Path(f"./checkpoints/training/{model_label}")
+        checkpoint_dir = Path(f"./checkpoints/training/{dataset_label}/{model_label}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
+    train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
+        config_dataset.path,
+        label_type=config_dataset.label_type,
+        custom_unique_id="+".join(config.model.modals),
+        dataset_class_str=config_dataset.dataset_class,
+    )
     preprocessor, backbone = generate_preprocessor_and_backbone(
         config_encoders,
         config_modals,
         config_feature_sizes,
-        datasets=[],
+        datasets=[train_dataset, dev_dataset, test_dataset],
         checkpoints=[checkpoint_dir],
     )
 
@@ -228,12 +236,6 @@ def distill(
     if not preprocessor_dir.exists():
         preprocessor.save_pretrained(preprocessor_dir)
 
-    train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
-        config_dataset.path,
-        label_type=config_dataset.label_type,
-        custom_unique_id="+".join(config.model.modals),
-        dataset_class_str=config_dataset.dataset_class,
-    )
     train_data_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
@@ -258,7 +260,7 @@ def distill(
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
 
     inference_config = InferenceConfig(num_classes=train_dataset.num_classes, model=config.model)
-    symlink(config_path, checkpoint_dir / "training.toml")
+    save_config(config, checkpoint_dir / "training.toml")
     save_config(inference_config, checkpoint_dir / "inference.toml")
 
     teacher_model = UnimodalModel(
@@ -270,7 +272,7 @@ def distill(
 
     load_best_model(teacher_checkpoint, teacher_model)
     result = TrainingResult.auto_compute(teacher_model, test_data_loader)
-    logger.info("Test result in best [green]teacher[/] model:")
+    logger.info("Test result in [green]best teacher model[/]:")
     result.print()
 
     fusion_layer = gen_fusion_layer(config_fusion, config_modals, config_feature_sizes)
@@ -282,7 +284,7 @@ def distill(
         class_weights=class_weights,
     ).cuda()
 
-    if not config_freeze:
+    if config_training_mode == "trainable":
         model.unfreeze_backbone()
 
     if checkpoint is not None and not (checkpoint_dir / "stopper.json").exists():
@@ -301,7 +303,7 @@ def distill(
         model_label=model_label,
     )
 
-    logger.info("Test result in best model:")
+    logger.info(f"Test result in best model({model_label}):")
     result.print()
 
 
@@ -315,7 +317,7 @@ def train(
 
     config = load_training_config(*config_path)
     init_logger(config.log_level)
-    config_freeze = config.model.freeze_backbone
+    config_training_mode = config.model.training_mode
     config_encoders = config.model.encoders
     config_feature_sizes = config.model.feature_sizes
     config_modals = config.model.modals
@@ -324,6 +326,8 @@ def train(
     model_label = config.model_label
     dataset_label = config.dataset_label
     batch_size = config.batch_size
+
+    assert config_training_mode != "lora", "Lora is not supported in training"
 
     if checkpoint is not None:
         checkpoint_dir = checkpoint
@@ -390,10 +394,8 @@ def train(
             num_classes=train_dataset.num_classes,
             class_weights=class_weights,
         ).cuda()
-
-    if not config_freeze:
+    if config_training_mode == "trainable":
         model.unfreeze_backbone()
-
     if checkpoint is not None and not (checkpoint_dir / "stopper.json").exists():
         load_best_model(checkpoint, model)
         result = TrainingResult.auto_compute(model, test_data_loader)
@@ -409,7 +411,7 @@ def train(
         num_epochs=200,
         model_label=model_label,
     )
-    logger.info("Test result in best model:")
+    logger.info(f"Test result in best model({model_label}):")
     result.print()
 
 

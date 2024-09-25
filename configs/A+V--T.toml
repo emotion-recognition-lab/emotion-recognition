@@ -9,4 +9,4 @@ encoders = [
     "google/vivit-b-16x2-kinetics400",
 ]
 fusion = "LowRankFusionLayer({'A': 256, 'V': 256}, 16, 128)"
-freeze_backbone = false
+training_mode = "trainable"

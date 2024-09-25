@@ -5,7 +5,7 @@ batch_size = 128
 modals = ["T"]
 feature_sizes = [768]
 encoders = ["roberta-large"]
-freeze_backbone = true
+training_mode = "frozen"
 
 [dataset]
 dataset_class = "MELDDataset"

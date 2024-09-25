@@ -15,7 +15,7 @@ class ModelConfig(BaseModel):
     modals: list[ModalType]
     feature_sizes: list[int]
     encoders: list[str]
-    freeze_backbone: bool = True
+    training_mode: Literal["trainable", "lora", "frozen"] = "trainable"
     fusion: str | None = None
 
     @model_validator(mode="after")
@@ -46,13 +46,13 @@ class TrainingConfig(BaseModel):
 
     @cached_property
     def model_label(self) -> str:
-        freeze_backbone_mapping = {True: "F", False: "T"}
+        training_mode_mapping = {"trainable": "T", "lora": "L", "frozen": "F"}
 
         modals = "+".join(self.model.modals)
-        freeze_backbone = freeze_backbone_mapping[self.model.freeze_backbone]
+        training_mode = training_mode_mapping[self.model.training_mode]
         model_labels = [
             modals,
-            freeze_backbone,
+            training_mode,
         ]
         return "--".join(model_labels)
 
