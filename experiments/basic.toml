@@ -12,5 +12,11 @@ command = "uv run emotion-recognize train configs/V--T.toml configs/dataset/MELD
 [tasks.TA]
 command = "uv run emotion-recognize train configs/T+A--T.toml configs/dataset/MELD--E.toml --seed 114"
 
+[tasks.TV]
+command = "uv run emotion-recognize train configs/T+V--T.toml configs/dataset/MELD--E.toml --seed 114"
+
+[tasks.AV]
+command = "uv run emotion-recognize train configs/A+V--T.toml configs/dataset/MELD--E.toml --seed 114"
+
 [tasks.TAV]
 command = "uv run emotion-recognize train configs/T+A+V--T.toml configs/dataset/MELD--E.toml --seed 114"

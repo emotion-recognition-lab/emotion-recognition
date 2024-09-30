@@ -1,5 +1,5 @@
 log_level = "DEBUG"
-batch_size = 1
+batch_size = 8
 
 [model]
 modals = ["A", "V"]
@@ -9,4 +9,4 @@ encoders = [
     "google/vivit-b-16x2-kinetics400",
 ]
 fusion = "LowRankFusionLayer({'A': 768, 'V': 768}, 16, 128)"
-training_mode = "trainable"
+training_mode = "frozen"

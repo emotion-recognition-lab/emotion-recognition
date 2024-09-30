@@ -5,4 +5,4 @@ batch_size = 4
 modals = ["A"]
 feature_sizes = [768]
 encoders = ["facebook/wav2vec2-base-960h"]
-training_mode = "trainable"
+training_mode = "frozen"
