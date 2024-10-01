@@ -53,7 +53,8 @@ class CacheManager:
             self.cache[key] = value
             self.current_size += value_size
         else:
-            logger.debug(f"skip {key} for cache full")
+            logger.info(f"skip {key} for cache full")
+        self.save_disk_cache(key, value)
 
 
 def load_cached_tensors(

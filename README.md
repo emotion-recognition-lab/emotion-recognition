@@ -137,4 +137,9 @@ uv sync --all-extras --dev
 
 ### 混合专家模型
 - [TGMoE](https://ftp.saiconference.com/Downloads/Volume15No8/Paper_119-TGMoE_A_Text_Guided_Mixture_of_Experts_Model.pdf)
--
+
+### 语音识别
+- [faster-whisper](https://github.com/guillaumekln/faster-whisper)
+- [distil-large-v3](https://huggingface.co/distil-whisper/distil-large-v3)
+- [Distil-Whisper](https://arxiv.org/abs/2311.00430)
+- [BELLE](https://github.com/LianjiaTech/BELLE)
