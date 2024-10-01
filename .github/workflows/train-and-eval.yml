@@ -2,10 +2,14 @@ name: Train and Evaluate Models
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    tags:
+      - "*-v[0-9]+"
   workflow_dispatch:
+    inputs:
+      flow-name:
+        description: 'Nanoflow name'
+        type: environment
+        required: true
 
 jobs:
   train:
@@ -31,4 +35,11 @@ jobs:
           ln -s ~/datasets/MELD.AudioOnly ./datasets/MELD
           ln -s ~/checkpoints ./checkpoints
       - name: Run nanoflow
-        run: uvx nanoflow experiments/basic.toml
+        if: github.event_name != 'workflow_dispatch'
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          FLOW_NAME=${TAG_NAME%-v*}
+          uvx nanoflow experiments/$FLOW_NAME.toml
+      - name: Run nanoflow
+        if: github.event_name == 'workflow_dispatch'
+        run: uvx nanoflow experiments/${{ inputs.flow-name }}.toml
