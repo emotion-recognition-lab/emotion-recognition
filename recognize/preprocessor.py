@@ -152,13 +152,13 @@ class Preprocessor:
         if self.whisper_model is None:
             download_root = os.environ.get("WHISPER_DOWNLOAD_ROOT", None)
             self.whisper_model = WhisperModel(
-                "medium",
+                "XA9/Belle-faster-whisper-large-v3-zh-punct",
                 device=self.device,
                 compute_type="float16",
                 download_root=download_root,
                 local_files_only=download_root is not None and os.path.isdir(download_root),
             )
-        segments, _ = self.whisper_model.transcribe(audio_path, language="zh", initial_prompt="简体")
+        segments, _ = self.whisper_model.transcribe(audio_path, language="zh", vad_filter=True)
         text = "。".join(seg.text for seg in segments)
         logger.debug(f"Recognized text: {text}")
         return text
