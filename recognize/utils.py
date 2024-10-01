@@ -240,7 +240,7 @@ def train_and_eval(
                 result = trainer.eval("valid")
                 valid_f1_score = result.f1_score
                 valid_accuracy = result.accuracy
-                if stopper.update(epoch=epoch, f1=valid_f1_score):
+                if stopper.update(epoch=epoch, valid_f1=valid_f1_score):
                     save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
                     break
 
@@ -248,13 +248,14 @@ def train_and_eval(
                 if stopper.best_epoch != best_epoch:
                     # TODO: maybe model is not better in test set?
                     best_epoch = stopper.best_epoch
-                    save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
                     result = trainer.eval("test")
                     test_f1_score = result.f1_score
                     test_accuracy = result.accuracy
                     logger.info(f"Epoch {best_epoch}: Better model found")
                     logger.info(f"[red]Validation - Accuracy: {valid_accuracy:.2f}%, F1 Score: {valid_f1_score:.2f}%")
                     logger.info(f"[red]Test - Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%")
+                    save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
+                    stopper.update(epoch=epoch, test_f1=test_f1_score)
 
                 if epoch == num_epochs - 1:
                     save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
@@ -284,7 +285,7 @@ def distill_epoch(
         student_embs_dict = student_model.backbone(batch)
         if student_embs_dict.get("A") is None:
             continue
-        student_output = student_model.classify(student_model.fusion_layer(*student_embs_dict.values()), batch.labels)
+        student_output = student_model.classify(student_model.fusion_layer(student_embs_dict), batch.labels)
 
         assert student_output.loss is not None
         loss = (
@@ -371,20 +372,23 @@ def train_and_eval_distill(
 
             if (epoch + 1) % eval_interval == 0 or epoch == num_epochs - 1:
                 result = trainer.eval("valid")
-                test_f1_score = result.f1_score
-                test_accuracy = result.accuracy
-                if stopper.update(epoch=epoch, f1=test_f1_score):
+                valid_f1_score = result.f1_score
+                valid_accuracy = result.accuracy
+                if stopper.update(epoch=epoch, valid_f1=valid_f1_score):
                     save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
                     break
 
-                progress.update(task, f1_score=test_f1_score, accuracy=test_accuracy)
+                progress.update(task, f1_score=valid_f1_score, accuracy=valid_accuracy)
                 if stopper.best_epoch != best_epoch:
                     best_epoch = stopper.best_epoch
+                    result = trainer.eval("test")
+                    test_f1_score = result.f1_score
+                    test_accuracy = result.accuracy
                     save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
-                    logger.info(
-                        f"Epoch {best_epoch}: Better model found "
-                        f"[red](Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%)",
-                    )
+                    logger.info(f"Epoch {best_epoch}: Better model found")
+                    logger.info(f"[red]Validation - Accuracy: {valid_accuracy:.2f}%, F1 Score: {valid_f1_score:.2f}%")
+                    logger.info(f"[red]Test - Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%")
+                    stopper.update(epoch=epoch, test_f1=test_f1_score)
                 if epoch == num_epochs - 1:
                     save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
 
