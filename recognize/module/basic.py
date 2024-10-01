@@ -22,3 +22,19 @@ class Pooler(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         pooled_output = self.pool(x)
         return pooled_output
+
+
+class MoE(nn.Module):
+    def __init__(self, input_dim: int, experts: list[nn.Module]):
+        super().__init__()
+        self.experts = nn.ModuleList(experts)
+        self.router = nn.Sequential(
+            nn.Linear(input_dim, len(experts)),
+            nn.Softmax(1),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        gate_outputs = self.router(x)
+        expert_outputs = torch.stack([expert(x) for expert in self.experts], dim=1)
+        output = torch.sum(gate_outputs.unsqueeze(2) * expert_outputs, dim=1)
+        return output
