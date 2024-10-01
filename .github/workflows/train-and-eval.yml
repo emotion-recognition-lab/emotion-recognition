@@ -8,7 +8,7 @@ on:
     inputs:
       flow-name:
         description: 'Nanoflow name'
-        type: environment
+        type: string
         required: true
 
 jobs:
