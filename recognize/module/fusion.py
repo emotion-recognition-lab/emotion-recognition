@@ -47,7 +47,7 @@ class TensorFusionLayer(FusionLayer):
 
 
 class LowRankFusionLayer(FusionLayer):
-    def __init__(self, dims: dict[str, int], rank: int, output_size: int):
+    def __init__(self, dims: dict[str, int], rank: int, output_size: int, *, trainable_placeholder: bool = False):
         super().__init__(output_size)
         self.dims = dims
         self.rank = rank
@@ -55,6 +55,8 @@ class LowRankFusionLayer(FusionLayer):
             {name: nn.Parameter(torch.randn(rank, dim, output_size)) for name, dim in dims.items()}
         )
         self.placeholders = nn.ParameterDict({name: nn.Parameter(torch.randn(1, dim)) for name, dim in dims.items()})
+        if not trainable_placeholder:
+            self.placeholders.requires_grad_(False)
         self.output_layer = nn.Linear(rank, 1)
 
     def forward(self, inputs: dict[str, torch.Tensor | None]):
@@ -64,8 +66,9 @@ class LowRankFusionLayer(FusionLayer):
         # N*d x R*d*h => R*N*h ~reshape~> N*h*R -> N*h*1 ~squeeze~> N*h
         fusion_tensors = [
             torch.matmul(i, self.low_rank_weights[n])
-            for n, i in inputs.items()
             if i is not None and n in self.low_rank_weights
+            else self.placeholders[n]
+            for n, i in inputs.items()
         ]
         product_tensor = torch.prod(torch.stack(fusion_tensors), dim=0)
         output = self.output_layer(product_tensor.permute(1, 2, 0)).squeeze(dim=-1)
