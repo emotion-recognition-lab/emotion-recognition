@@ -18,13 +18,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install the latest version of uv 📦
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v3
+        with:
+          cache-local-path: "~/.cache/uv"
       - name: Cache Venv
         id: cache-venv
         uses: MasterworksIO/action-local-cache@2
         with:
           path: .venv/
-          key: ${{ runner.os }}-uv
+          key: ${{ runner.os }}-venv
+      - name: Cache Log
+        id: cache-log
+        uses: MasterworksIO/action-local-cache@2
+        with:
+          path: logs/
+          key: ${{ runner.os }}-logs
       - name: Install dependencies 📦
         if: steps.cache-venv.outputs.cache-hit != 'true'
         run: uv sync --all-extras --index-url https://pypi.tuna.tsinghua.edu.cn/simple
