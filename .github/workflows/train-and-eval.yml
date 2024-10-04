@@ -34,6 +34,8 @@ jobs:
           path: logs/
           key: ${{ runner.os }}-logs
       - name: Install dependencies 📦
+        env:
+          UV_HTTP_TIMEOUT: 1000
         if: steps.cache-venv.outputs.cache-hit != 'true'
         run: uv sync --all-extras --index-url https://pypi.tuna.tsinghua.edu.cn/simple
       - name: Download dataset and checkpoints
