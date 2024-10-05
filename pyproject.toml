@@ -92,7 +92,10 @@ reportPrivateImportUsage = false
 
 [tool.uv]
 dev-dependencies = ["viztracer", "ruff"]
-extra-index-url = ["https://download.pytorch.org/whl/cu121"]
+extra-index-url = [
+    "https://mirrors.aliyun.com/pytorch-wheels/cu121",
+    "https://download.pytorch.org/whl/cu121",
+]
 
 [tool.pdm.build]
 includes = ["recognize"]
