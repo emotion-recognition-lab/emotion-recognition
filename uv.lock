@@ -3,10 +3,12 @@ requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version < '3.12' and platform_system == 'Darwin'",
     "python_full_version < '3.12' and platform_machine == 'aarch64' and platform_system == 'Linux'",
-    "(python_full_version < '3.12' and platform_machine != 'aarch64' and platform_system != 'Darwin') or (python_full_version < '3.12' and platform_system != 'Darwin' and platform_system != 'Linux')",
+    "(python_full_version < '3.12' and platform_machine != 'aarch64' and platform_system != 'Darwin' and platform_system != 'Windows') or (python_full_version < '3.12' and platform_system != 'Darwin' and platform_system != 'Linux' and platform_system != 'Windows')",
+    "python_full_version < '3.12' and platform_system == 'Windows'",
     "python_full_version >= '3.12' and platform_system == 'Darwin'",
     "python_full_version >= '3.12' and platform_machine == 'aarch64' and platform_system == 'Linux'",
-    "(python_full_version >= '3.12' and platform_machine != 'aarch64' and platform_system != 'Darwin') or (python_full_version >= '3.12' and platform_system != 'Darwin' and platform_system != 'Linux')",
+    "(python_full_version >= '3.12' and platform_machine != 'aarch64' and platform_system != 'Darwin' and platform_system != 'Windows') or (python_full_version >= '3.12' and platform_system != 'Darwin' and platform_system != 'Linux' and platform_system != 'Windows')",
+    "python_full_version >= '3.12' and platform_system == 'Windows'",
 ]
 
 [[package]]
@@ -20,7 +22,8 @@ dependencies = [
     { name = "psutil" },
     { name = "pyyaml" },
     { name = "safetensors" },
-    { name = "torch" },
+    { name = "torch", version = "2.4.1", source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }, marker = "platform_system != 'Windows'" },
+    { name = "torch", version = "2.4.1+cu121", source = { registry = "https://download.pytorch.org/whl/cu121" }, marker = "platform_system == 'Windows'" },
 ]
 sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/d4/24/5e813a41495ec7fdbc6a0f08e38c099caccf49147b8cd84053f4c3007c35/accelerate-0.33.0.tar.gz", hash = "sha256:11ba481ed6ea09191775df55ce464aeeba67a024bd0261a44b77b30fb439e26a", size = 314567 }
 wheels = [
@@ -173,7 +176,8 @@ dependencies = [
     { name = "safetensors" },
     { name = "soundfile" },
     { name = "toml" },
-    { name = "torch" },
+    { name = "torch", version = "2.4.1", source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }, marker = "platform_system != 'Windows'" },
+    { name = "torch", version = "2.4.1+cu121", source = { registry = "https://download.pytorch.org/whl/cu121" }, marker = "platform_system == 'Windows'" },
     { name = "transformers" },
     { name = "typer" },
 ]
@@ -208,8 +212,8 @@ requires-dist = [
     { name = "safetensors", specifier = ">=0.4.2" },
     { name = "soundfile", specifier = ">=0.12.1" },
     { name = "toml", specifier = ">=0.10.0" },
-    { name = "torch", marker = "platform_system != 'Darwin'", specifier = "==2.4.0+cu121" },
-    { name = "torch", marker = "platform_system == 'Darwin'", specifier = ">=2.4.0" },
+    { name = "torch", marker = "platform_system != 'Windows'", specifier = "==2.4.1" },
+    { name = "torch", marker = "platform_system == 'Windows'", specifier = "==2.4.1+cu121" },
     { name = "torch-pruning", marker = "extra == 'train'", specifier = ">=1.4.2" },
     { name = "transformers", specifier = ">=4.43.1" },
     { name = "triton", marker = "extra == 'triton'", specifier = ">=2.2.0" },
@@ -435,7 +439,7 @@ name = "nvidia-cudnn-cu12"
 version = "9.1.0.70"
 source = { registry = "https://download.pytorch.org/whl/cu121" }
 dependencies = [
-    { name = "nvidia-cublas-cu12", marker = "(platform_machine != 'aarch64' and platform_system != 'Darwin') or (platform_system != 'Darwin' and platform_system != 'Linux')" },
+    { name = "nvidia-cublas-cu12", marker = "(platform_machine != 'aarch64' and platform_system != 'Darwin' and platform_system != 'Windows') or (platform_system != 'Darwin' and platform_system != 'Linux' and platform_system != 'Windows')" },
 ]
 wheels = [
     { url = "https://download.pytorch.org/whl/cu121/nvidia_cudnn_cu12-9.1.0.70-py3-none-manylinux2014_x86_64.whl", hash = "sha256:165764f44ef8c61fcdfdfdbe769d687e06374059fbb388b6c89ecb0e28793a6f" },
@@ -462,9 +466,9 @@ name = "nvidia-cusolver-cu12"
 version = "11.4.5.107"
 source = { registry = "https://download.pytorch.org/whl/cu121" }
 dependencies = [
-    { name = "nvidia-cublas-cu12", marker = "(platform_machine != 'aarch64' and platform_system != 'Darwin') or (platform_system != 'Darwin' and platform_system != 'Linux')" },
-    { name = "nvidia-cusparse-cu12", marker = "(platform_machine != 'aarch64' and platform_system != 'Darwin') or (platform_system != 'Darwin' and platform_system != 'Linux')" },
-    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine != 'aarch64' and platform_system != 'Darwin') or (platform_system != 'Darwin' and platform_system != 'Linux')" },
+    { name = "nvidia-cublas-cu12", marker = "(platform_machine != 'aarch64' and platform_system != 'Darwin' and platform_system != 'Windows') or (platform_system != 'Darwin' and platform_system != 'Linux' and platform_system != 'Windows')" },
+    { name = "nvidia-cusparse-cu12", marker = "(platform_machine != 'aarch64' and platform_system != 'Darwin' and platform_system != 'Windows') or (platform_system != 'Darwin' and platform_system != 'Linux' and platform_system != 'Windows')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine != 'aarch64' and platform_system != 'Darwin' and platform_system != 'Windows') or (platform_system != 'Darwin' and platform_system != 'Linux' and platform_system != 'Windows')" },
 ]
 wheels = [
     { url = "https://download.pytorch.org/whl/cu121/nvidia_cusolver_cu12-11.4.5.107-py3-none-manylinux1_x86_64.whl", hash = "sha256:8a7ec542f0412294b15072fa7dab71d31334014a69f953004ea7a118206fe0dd" },
@@ -475,7 +479,7 @@ name = "nvidia-cusparse-cu12"
 version = "12.1.0.106"
 source = { registry = "https://download.pytorch.org/whl/cu121" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine != 'aarch64' and platform_system != 'Darwin') or (platform_system != 'Darwin' and platform_system != 'Linux')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine != 'aarch64' and platform_system != 'Darwin' and platform_system != 'Windows') or (platform_system != 'Darwin' and platform_system != 'Linux' and platform_system != 'Windows')" },
 ]
 wheels = [
     { url = "https://download.pytorch.org/whl/cu121/nvidia_cusparse_cu12-12.1.0.106-py3-none-manylinux1_x86_64.whl", hash = "sha256:f3b50f42cf363f86ab21f720998517a659a48131e8d538dc02f8768237bd884c" },
@@ -604,7 +608,8 @@ dependencies = [
     { name = "psutil" },
     { name = "pyyaml" },
     { name = "safetensors" },
-    { name = "torch" },
+    { name = "torch", version = "2.4.1", source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }, marker = "platform_system != 'Windows'" },
+    { name = "torch", version = "2.4.1+cu121", source = { registry = "https://download.pytorch.org/whl/cu121" }, marker = "platform_system == 'Windows'" },
     { name = "tqdm" },
     { name = "transformers" },
 ]
@@ -1012,13 +1017,21 @@ wheels = [
 
 [[package]]
 name = "torch"
-version = "2.4.0+cu121"
-source = { registry = "https://download.pytorch.org/whl/cu121" }
+version = "2.4.1"
+source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
+resolution-markers = [
+    "python_full_version < '3.12' and platform_system == 'Darwin'",
+    "python_full_version < '3.12' and platform_machine == 'aarch64' and platform_system == 'Linux'",
+    "(python_full_version < '3.12' and platform_machine != 'aarch64' and platform_system != 'Darwin' and platform_system != 'Windows') or (python_full_version < '3.12' and platform_system != 'Darwin' and platform_system != 'Linux' and platform_system != 'Windows')",
+    "python_full_version >= '3.12' and platform_system == 'Darwin'",
+    "python_full_version >= '3.12' and platform_machine == 'aarch64' and platform_system == 'Linux'",
+    "(python_full_version >= '3.12' and platform_machine != 'aarch64' and platform_system != 'Darwin' and platform_system != 'Windows') or (python_full_version >= '3.12' and platform_system != 'Darwin' and platform_system != 'Linux' and platform_system != 'Windows')",
+]
 dependencies = [
-    { name = "filelock" },
-    { name = "fsspec" },
-    { name = "jinja2" },
-    { name = "networkx" },
+    { name = "filelock", marker = "platform_system != 'Windows'" },
+    { name = "fsspec", marker = "platform_system != 'Windows'" },
+    { name = "jinja2", marker = "platform_system != 'Windows'" },
+    { name = "networkx", marker = "platform_system != 'Windows'" },
     { name = "nvidia-cublas-cu12", marker = "platform_machine == 'x86_64' and platform_system == 'Linux'" },
     { name = "nvidia-cuda-cupti-cu12", marker = "platform_machine == 'x86_64' and platform_system == 'Linux'" },
     { name = "nvidia-cuda-nvrtc-cu12", marker = "platform_machine == 'x86_64' and platform_system == 'Linux'" },
@@ -1030,15 +1043,40 @@ dependencies = [
     { name = "nvidia-cusparse-cu12", marker = "platform_machine == 'x86_64' and platform_system == 'Linux'" },
     { name = "nvidia-nccl-cu12", marker = "platform_machine == 'x86_64' and platform_system == 'Linux'" },
     { name = "nvidia-nvtx-cu12", marker = "platform_machine == 'x86_64' and platform_system == 'Linux'" },
-    { name = "sympy" },
+    { name = "sympy", marker = "platform_system != 'Windows'" },
     { name = "triton", marker = "python_full_version < '3.13' and platform_machine == 'x86_64' and platform_system == 'Linux'" },
-    { name = "typing-extensions" },
+    { name = "typing-extensions", marker = "platform_system != 'Windows'" },
 ]
 wheels = [
-    { url = "https://download.pytorch.org/whl/cu121/torch-2.4.0%2Bcu121-cp311-cp311-linux_x86_64.whl", hash = "sha256:a9fff32d365e0c74b6909480548b2e291314a204adb29b6bb6f2c6d33f8be26c" },
-    { url = "https://download.pytorch.org/whl/cu121/torch-2.4.0%2Bcu121-cp311-cp311-win_amd64.whl", hash = "sha256:bada31485e04282b9f099da39b774484d3e4c431b7ea0df3663817295ae764e4" },
-    { url = "https://download.pytorch.org/whl/cu121/torch-2.4.0%2Bcu121-cp312-cp312-linux_x86_64.whl", hash = "sha256:49ac55a6497ddd6d0cdd51b5ea27d8ebe20c9273077855e9c96eb0dc289f07c3" },
-    { url = "https://download.pytorch.org/whl/cu121/torch-2.4.0%2Bcu121-cp312-cp312-win_amd64.whl", hash = "sha256:b5c27549daf5f3209da6e07607f2bb8d02712555734fcd8cd7a23703a6e7d639" },
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/ea/ea/4ab009e953bca6ff35ad75b8ab58c0923308636c182c145dc63084f7d136/torch-2.4.1-cp311-cp311-manylinux1_x86_64.whl", hash = "sha256:0b5f88afdfa05a335d80351e3cea57d38e578c8689f751d35e0ff36bce872113", size = 797111232 },
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/8f/a1/b31f94b4631c1731261db9fdc9a749ef58facc3b76094a6fe974f611f239/torch-2.4.1-cp311-cp311-manylinux2014_aarch64.whl", hash = "sha256:ef503165f2341942bfdf2bd520152f19540d0c0e34961232f134dc59ad435be8", size = 89719574 },
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/1f/34/c93873c37f93154d982172755f7e504fdbae6c760499303a3111ce6ce327/torch-2.4.1-cp311-none-macosx_11_0_arm64.whl", hash = "sha256:ddddbd8b066e743934a4200b3d54267a46db02106876d21cf31f7da7a96f98ea", size = 62145176 },
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/cc/df/5204a13a7a973c23c7ade615bafb1a3112b5d0ec258d8390f078fa4ab0f7/torch-2.4.1-cp312-cp312-manylinux1_x86_64.whl", hash = "sha256:fdc4fe11db3eb93c1115d3e973a27ac7c1a8318af8934ffa36b0370efe28e042", size = 797019590 },
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/4f/16/d23a689e5ef8001ed2ace1a3a59f2fda842889b0c3f3877799089925282a/torch-2.4.1-cp312-cp312-manylinux2014_aarch64.whl", hash = "sha256:18835374f599207a9e82c262153c20ddf42ea49bc76b6eadad8e5f49729f6e4d", size = 89613802 },
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/ac/30/8b6f77ea4ce84f015ee024b8dfef0dac289396254e8bfd493906d4cbb848/torch-2.4.1-cp312-none-macosx_11_0_arm64.whl", hash = "sha256:72b484d5b6cec1a735bf3fa5a1c4883d01748698c5e9cfdbeb4ffab7c7987e0d", size = 62123443 },
+]
+
+[[package]]
+name = "torch"
+version = "2.4.1+cu121"
+source = { registry = "https://download.pytorch.org/whl/cu121" }
+resolution-markers = [
+    "python_full_version < '3.12' and platform_system == 'Windows'",
+    "python_full_version >= '3.12' and platform_system == 'Windows'",
+]
+dependencies = [
+    { name = "filelock", marker = "platform_system == 'Windows'" },
+    { name = "fsspec", marker = "platform_system == 'Windows'" },
+    { name = "jinja2", marker = "platform_system == 'Windows'" },
+    { name = "networkx", marker = "platform_system == 'Windows'" },
+    { name = "sympy", marker = "platform_system == 'Windows'" },
+    { name = "typing-extensions", marker = "platform_system == 'Windows'" },
+]
+wheels = [
+    { url = "https://download.pytorch.org/whl/cu121/torch-2.4.1%2Bcu121-cp311-cp311-linux_x86_64.whl", hash = "sha256:914d128e5abcbbe79ca1b9eb5311b185444f1b2d7117df555fe418487ecfb894" },
+    { url = "https://download.pytorch.org/whl/cu121/torch-2.4.1%2Bcu121-cp311-cp311-win_amd64.whl", hash = "sha256:bc1e21d7412a2f06f552a9afb92c56c8b23d174884e9383259c3cf5db4687c98" },
+    { url = "https://download.pytorch.org/whl/cu121/torch-2.4.1%2Bcu121-cp312-cp312-linux_x86_64.whl", hash = "sha256:ab491610b15551e08da74bab29d0933e6bf10bab44fb7d4b1328f1e845c05a53" },
+    { url = "https://download.pytorch.org/whl/cu121/torch-2.4.1%2Bcu121-cp312-cp312-win_amd64.whl", hash = "sha256:b30faf3224697eaed131939690e8877b05b4d4cb6da5b12cfdcba3d742e9afd0" },
 ]
 
 [[package]]
@@ -1047,7 +1085,8 @@ version = "1.4.2"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
 dependencies = [
     { name = "numpy" },
-    { name = "torch" },
+    { name = "torch", version = "2.4.1", source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }, marker = "platform_system != 'Windows'" },
+    { name = "torch", version = "2.4.1+cu121", source = { registry = "https://download.pytorch.org/whl/cu121" }, marker = "platform_system == 'Windows'" },
 ]
 sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/92/11/8f3527006c4ec1e8f5e59ede42250dde6783251e9eefa7cb4bbc9e984f7d/torch_pruning-1.4.2.tar.gz", hash = "sha256:b0e416351867fd1c1caa45a5afba26530a37170c4750819c424bf38221c860de", size = 71868 }
 wheels = [

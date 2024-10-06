@@ -6,8 +6,8 @@ authors = [{ name = "Zhan Rongrui", email = "2742392377@qq.com" }]
 dependencies = [
     "transformers>=4.43.1",
     "numpy>=1.26.0",
-    "torch>=2.4.0; platform_system=='Darwin'",
-    "torch==2.4.0+cu121; platform_system!='Darwin'",
+    "torch==2.4.1; platform_system!='Windows'",
+    "torch==2.4.1+cu121; platform_system=='Windows'",
     "peft>=0.8.2",
     "safetensors>=0.4.2",
     "soundfile>=0.12.1",
@@ -92,8 +92,8 @@ reportPrivateImportUsage = false
 
 [tool.uv]
 dev-dependencies = ["viztracer", "ruff"]
+index-strategy = "unsafe-best-match"
 extra-index-url = [
-    "https://mirrors.aliyun.com/pytorch-wheels/cu121",
     "https://download.pytorch.org/whl/cu121",
 ]
 
