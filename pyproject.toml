@@ -94,6 +94,7 @@ reportPrivateImportUsage = false
 dev-dependencies = ["viztracer", "ruff"]
 index-strategy = "unsafe-best-match"
 extra-index-url = [
+    "https://pypi.tuna.tsinghua.edu.cn/simple",
     "https://download.pytorch.org/whl/cu121",
 ]
 

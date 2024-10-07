@@ -37,7 +37,7 @@ jobs:
         env:
           UV_HTTP_TIMEOUT: 1000
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        run: uv sync --all-extras --index-url https://pypi.tuna.tsinghua.edu.cn/simple
+        run: uv sync --all-extras
       - name: Download dataset and checkpoints
         run: |
           mkdir -p ./datasets
