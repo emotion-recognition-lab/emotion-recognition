@@ -1,0 +1,29 @@
+name = "distillation"
+resources = "gpus"
+
+[tasks.T]
+command = "uv run emotion-recognize train configs/T--T.toml configs/dataset/MELD--E.toml --seed 114"
+
+[tasks.TA]
+command = "uv run emotion-recognize train configs/T+A--T.toml configs/dataset/MELD--E.toml --seed 114"
+
+[tasks.TV]
+command = "uv run emotion-recognize train configs/T+V--T.toml configs/dataset/MELD--E.toml --seed 114"
+
+[tasks.AV]
+command = "uv run emotion-recognize train configs/A+V--T.toml configs/dataset/MELD--E.toml --seed 114"
+
+[tasks.TAV]
+command = "uv run emotion-recognize train configs/T+A+V--T.toml configs/dataset/MELD--E.toml --seed 114"
+
+[tasks.distill--TA]
+command = "uv run emotion-recognize distill configs/T+A--T.toml configs/dataset/MELD--E.toml --teacher-checkpoint checkpoints/training/MELD--E/T--T --seed 114"
+
+[tasks.distill--TV]
+command = "uv run emotion-recognize distill configs/T+V--T.toml configs/dataset/MELD--E.toml --teacher-checkpoint checkpoints/training/MELD--E/T--T --seed 114"
+
+[tasks.distill--AV]
+command = "uv run emotion-recognize distill configs/A+V--T.toml configs/dataset/MELD--E.toml --teacher-checkpoint checkpoints/training/MELD--E/T--T --seed 114"
+
+[tasks.distill--TAV]
+command = "uv run emotion-recognize distill configs/T+A+V--T.toml configs/dataset/MELD--E.toml --teacher-checkpoint checkpoints/training/MELD--E/T--T --seed 114"

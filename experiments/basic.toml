@@ -1,4 +1,5 @@
 name = "basic"
+resources = "gpus"
 
 [tasks.T]
 command = "uv run emotion-recognize train configs/T--T.toml configs/dataset/MELD--E.toml --seed 114"
