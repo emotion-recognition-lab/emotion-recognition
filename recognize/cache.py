@@ -6,20 +6,50 @@ from pathlib import Path
 
 import torch
 from loguru import logger
+from pydantic import BaseModel, ConfigDict, Field
 from safetensors.torch import load_file, save_file
 
 from .typing import StateDict
 
 
-class CacheManager:
-    cache: dict[str, StateDict]
-    maxsize: int
-    current_size: int
+class Cache(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def __init__(self, maxsize: int, *, cache_dir: Path = Path("./cache")):
-        self.maxsize = maxsize
-        self.current_size = 0
-        self.cache = {}
+    maxsize: int
+    cache: dict[str, StateDict] = Field(default_factory=dict)
+    current_size: int = 0
+
+    def get(self, key: str) -> StateDict | None:
+        return self.cache.get(key)
+
+    def set(self, key: str, value: StateDict):
+        value_size = sys.getsizeof(value)
+        if self.current_size + value_size < self.maxsize:
+            self.cache[key] = value
+            self.current_size += value_size
+        else:
+            logger.info(f"skip {key} for cache full")
+
+
+class CacheManager:
+    cache: Cache
+    deivce_cache: Cache | None
+    maxsize: tuple[int, int]
+
+    def __init__(
+        self,
+        maxsize: int | tuple[int, int],
+        device: torch.device = torch.device("cuda"),
+        *,
+        cache_dir: Path = Path("./cache"),
+    ):
+        self.maxsize = maxsize if isinstance(maxsize, tuple) else (maxsize, maxsize)
+        self.cache = Cache(maxsize=self.maxsize[0])
+        self.device = device
+        if device.type == "cpu":
+            self.deivce_cache = None
+        else:
+            self.deivce_cache = Cache(maxsize=self.maxsize[1])
         self.cache_dir = cache_dir
 
     @property
@@ -35,7 +65,7 @@ class CacheManager:
         cache_file = self.cache_dir / f"{key}.safetensors"
         if cache_file.exists():
             value = load_file(cache_file)
-            self.cache[key] = value
+            self.cache.set(key, value)
             return value
         else:
             return None
@@ -45,15 +75,31 @@ class CacheManager:
         save_file(value, cache_file)
 
     def get(self, key: str) -> StateDict | None:
-        return self.cache.get(key) or self.load_disk_cache(key)
+        if self.deivce_cache is None:
+            if value := self.cache.get(key):
+                return value
+            if value := self.load_disk_cache(key):
+                self.cache.set(key, value)
+                return value
+        else:
+            if value := self.deivce_cache.get(key):
+                return value
+            if value := self.cache.get(key):
+                value = {k: v.to(self.device) for k, v in value.items()}
+                self.deivce_cache.set(key, value)
+                return value
+            if value := self.load_disk_cache(key):
+                self.cache.set(key, value)
+                value = {k: v.to(self.device) for k, v in value.items()}
+                self.deivce_cache.set(key, value)
+                return value
+        return None
 
     def set(self, key: str, value: StateDict):
-        value_size = sys.getsizeof(value)
-        if self.current_size + value_size < self.maxsize:
-            self.cache[key] = value
-            self.current_size += value_size
-        else:
-            logger.info(f"skip {key} for cache full")
+        self.cache.set(key, value)
+        if self.deivce_cache is not None:
+            value = {k: v.to(self.device) for k, v in value.items()}
+            self.deivce_cache.set(key, value)
         self.save_disk_cache(key, value)
 
 

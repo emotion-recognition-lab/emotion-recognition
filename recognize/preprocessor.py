@@ -18,6 +18,7 @@ class Preprocessor:
         self.feature_extractor = feature_extractor
         self.image_processor = image_processor
         self.whisper_model: WhisperModel | None = None
+        # TODO: device should be set in collate_fn, the self.device should be removed
         self.device = device
 
     @property
@@ -101,6 +102,7 @@ class Preprocessor:
         return text_input_ids, text_attention_mask
 
     def load_audios(self, audio_paths: list[str]) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+        # TODO: when one of audio_paths is not exist, return other exist audio instead of None
         if self.feature_extractor is None:
             return None, None
         audio_input_values_list, audio_attention_mask_list = [], []
