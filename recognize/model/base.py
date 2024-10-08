@@ -137,14 +137,14 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             pooler_output = self.direct_forward(no_cached_inputs)
         save_cached_tensors(no_cached_inputs.unique_ids, pooler_output, cache_manager=self.cache_manager)
 
-    def merge_cache(self, cached_list: list[dict[str, torch.Tensor]], device: torch.device) -> dict[str, torch.Tensor]:
+    def merge_cache(self, cached_list: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
         embs_list_dict: dict[str, list[torch.Tensor]] = {}
         for cache in cached_list:
             for k, v in cache.items():
                 if k not in embs_list_dict:
                     embs_list_dict[k] = []
                 embs_list_dict[k].append(v)
-        embs_dict: dict[str, torch.Tensor] = {k: torch.stack(v).to(device) for k, v in embs_list_dict.items()}
+        embs_dict: dict[str, torch.Tensor] = {k: torch.stack(v) for k, v in embs_list_dict.items()}
         return embs_dict
 
     def direct_forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
@@ -158,11 +158,13 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             no_cached_inputs = inputs[no_cached_index_list]
             self.save_cache(no_cached_inputs)
             cached_list, no_cached_index_list = self.load_cache(inputs)
-        assert (
-            len(no_cached_index_list) == 0
-        ), f"All tensors should be cached, but {no_cached_index_list} tensors are not cached"
+            if len(no_cached_index_list) != 0:
+                # NOTE: some files might not exist, causing no_cached_index_list to remain non-empty
+                # TODO: currently affecting all items in the batch, need to change to affect only specific items
+                logger.warning(f"some files are not exist: {no_cached_inputs.unique_ids}")
+                return {}
 
-        return self.merge_cache(cached_list, inputs.device)
+        return self.merge_cache(cached_list)
 
     def forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
         if self.is_frozen and self.use_cache and inputs.unique_ids is not None:
