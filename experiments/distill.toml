@@ -6,12 +6,16 @@ command = "uv run emotion-recognize train configs/T--T.toml configs/dataset/MELD
 
 [tasks.distill--TA]
 command = "uv run emotion-recognize distill configs/T+A--T.toml configs/dataset/MELD--E.toml --teacher-checkpoint checkpoints/training/MELD--E/T--T --seed 114"
+deps = ["T"]
 
 [tasks.distill--TV]
 command = "uv run emotion-recognize distill configs/T+V--T.toml configs/dataset/MELD--E.toml --teacher-checkpoint checkpoints/training/MELD--E/T--T --seed 114"
+deps = ["T"]
 
 [tasks.distill--AV]
 command = "uv run emotion-recognize distill configs/A+V--T.toml configs/dataset/MELD--E.toml --teacher-checkpoint checkpoints/training/MELD--E/T--T --seed 114"
+deps = ["T"]
 
 [tasks.distill--TAV]
 command = "uv run emotion-recognize distill configs/T+A+V--T.toml configs/dataset/MELD--E.toml --teacher-checkpoint checkpoints/training/MELD--E/T--T --seed 114"
+deps = ["T"]
