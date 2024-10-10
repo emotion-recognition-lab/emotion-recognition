@@ -99,7 +99,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         )
         if init_hook is not None:
             init_hook(self)
-        self.cache_manager = CacheManager(4 * 2**30, cache_dir=Path(f"./cache/{self.hash}"))
+        self.cache_manager = CacheManager((8 * 2**30, 4 * 2**30), cache_dir=Path(f"./cache/{self.hash}"))
 
     @property
     def hyperparameter(self):

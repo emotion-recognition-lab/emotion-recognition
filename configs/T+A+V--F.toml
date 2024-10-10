@@ -9,7 +9,7 @@ encoders = [
     "facebook/wav2vec2-base-960h",
     "google/vivit-b-16x2-kinetics400",
 ]
-fusion = "LowRankFusionLayer({'T': 768, 'A': 256, 'V': 256}, 16, 128)"
+fusion = "LowRankFusionLayer(feature_sizes_dict, 16, 128)"
 training_mode = "frozen"
 
 [dataset]

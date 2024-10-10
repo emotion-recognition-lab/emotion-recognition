@@ -8,5 +8,5 @@ encoders = [
     "roberta-large",
     "google/vivit-b-16x2-kinetics400",
 ]
-fusion = "LowRankFusionLayer({'T': 768, 'V': 768}, 16, 128)"
+fusion = "LowRankFusionLayer(feature_sizes_dict, 16, 128)"
 training_mode = "frozen"
