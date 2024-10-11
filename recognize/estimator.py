@@ -20,7 +20,7 @@ class EmotionEstimator:
         config = load_inference_config(Path(checkpoint) / "inference.toml")
 
         backbone = MultimodalBackbone.from_checkpoint(
-            Path(f"{checkpoint}/backbones"),
+            Path(f"{checkpoint}/backbone"),
             use_cache=False,
         )
         preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")

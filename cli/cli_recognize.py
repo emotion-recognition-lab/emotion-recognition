@@ -12,6 +12,7 @@ import typer
 from loguru import logger
 from rich.highlighter import NullHighlighter
 from rich.logging import RichHandler
+from safetensors.torch import load_file
 from torch.utils.data import DataLoader
 
 from recognize.config import InferenceConfig, load_training_config, save_config
@@ -117,7 +118,14 @@ def generate_preprocessor_and_backbone(
     datasets: list[MultimodalDataset],
     checkpoints: Sequence[Path] = (),
 ):
-    from transformers import AutoFeatureExtractor, AutoImageProcessor, AutoModel, AutoTokenizer, VivitImageProcessor
+    from transformers import (
+        AutoConfig,
+        AutoFeatureExtractor,
+        AutoImageProcessor,
+        AutoModel,
+        AutoTokenizer,
+        VivitImageProcessor,
+    )
 
     for checkpoint in checkpoints:
         preprocessor_path = checkpoint / "preprocessor"
@@ -128,35 +136,47 @@ def generate_preprocessor_and_backbone(
     else:
         preprocessor = Preprocessor(device="cuda")
 
-    for modal, model_name in zip(modals, encoders, strict=True):
+    for modal, encoder_config in zip(modals, encoders, strict=True):
+        # TODO: use more elegant way to handle extra information
+        encoder_name = encoder_config.split("@")[0]
         if modal == "T":
-            preprocessor.tokenizer = preprocessor.tokenizer or AutoTokenizer.from_pretrained(model_name)
+            preprocessor.tokenizer = preprocessor.tokenizer or AutoTokenizer.from_pretrained(encoder_name)
         elif modal == "A":
             preprocessor.feature_extractor = preprocessor.feature_extractor or AutoFeatureExtractor.from_pretrained(
-                model_name
+                encoder_name
             )
         elif modal == "V":
             preprocessor.image_processor = preprocessor.image_processor or VivitImageProcessor.from_pretrained(
-                model_name
+                encoder_name
             )
         else:
             preprocessor.image_processor = preprocessor.image_processor or AutoImageProcessor.from_pretrained(
-                model_name
+                encoder_name
             )
     for dataset in datasets:
         dataset.set_preprocessor(preprocessor)
     for checkpoint in checkpoints:
-        backbone_path = checkpoint / "backbones"
+        backbone_path = checkpoint / "backbone"
         if backbone_path.exists():
             backbone = MultimodalBackbone.from_checkpoint(backbone_path)
             logger.info(f"Load backbone from [blue]{checkpoint}[/]")
             break
     else:
+        backbone_encoders = {}
+        for modal, encoder_config, feature_size in zip(modals, encoders, feature_sizes, strict=True):
+            # TODO: use more elegant way to handle extra information
+            encoder_name, *encoder_extra = encoder_config.split("@")
+            if len(encoder_extra) > 0:
+                logger.info(f"Load {modal} encoder from [blue]{encoder_extra[0]}[/]")
+                checkpoint_path = Path(encoder_extra[0])
+                config = AutoConfig.from_pretrained(checkpoint_path / f"backbone/{modal}/config.json")
+                backbone_encoder = AutoModel.from_config(config)
+                backbone_encoder.load_state_dict(load_file(checkpoint_path / f"backbone/{modal}.safetensors"))
+            else:
+                backbone_encoder = AutoModel.from_pretrained(encoder_name)
+            backbone_encoders[modal] = (backbone_encoder, feature_size)
         backbone = MultimodalBackbone(
-            {
-                modal: (AutoModel.from_pretrained(model_name), feature_size)
-                for modal, model_name, feature_size in zip(modals, encoders, feature_sizes, strict=True)
-            },
+            backbone_encoders,
             init_hook=datasets[0].special_process if len(datasets) > 0 else None,
         )
     return preprocessor, backbone
@@ -220,7 +240,7 @@ def distill(
         checkpoints=[checkpoint_dir],
     )
 
-    teacher_backbone = MultimodalBackbone.from_checkpoint(teacher_checkpoint / "backbones")
+    teacher_backbone = MultimodalBackbone.from_checkpoint(teacher_checkpoint / "backbone")
     teacher_preprocessor = Preprocessor.from_pretrained(teacher_checkpoint / "preprocessor")
     # TODO: maybe those will be covered by load_best_model
     backbone.named_encoders.load_state_dict(teacher_backbone.named_encoders.state_dict(), strict=False)
@@ -487,7 +507,7 @@ def inference(
     preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
     model_checkpoint = f"{checkpoint}/{find_best_model(checkpoint)}"
 
-    backbone = MultimodalBackbone.from_checkpoint(Path(f"{model_checkpoint}/backbones"))
+    backbone = MultimodalBackbone.from_checkpoint(Path(f"{model_checkpoint}/backbone"))
     if config_fusion is None:
         model = UnimodalModel.from_checkpoint(model_checkpoint, backbone=backbone).cuda()
     else:

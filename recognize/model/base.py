@@ -78,11 +78,11 @@ class Backbone(nn.Module, Generic[ModelInputT]):
     def __init__(
         self,
         encoders: Mapping[str, tuple[nn.Module, int]],
-        use_cache: bool = True,
+        use_cache: bool = False,
         is_frozen: bool = True,
         use_peft: bool = False,
         *,
-        encoder_dir: Path = Path("./checkpoints/training/backbones"),
+        encoder_dir: Path = Path("./checkpoints/training/encoders"),
         init_hook: Callable[[Self], None] | None = None,
     ):
         super().__init__()
@@ -141,6 +141,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         embs_list_dict: dict[str, list[torch.Tensor]] = {}
         for cache in cached_list:
             for k, v in cache.items():
+                # TODO: cache mechanism needs to be improved
                 if k not in embs_list_dict:
                     embs_list_dict[k] = []
                 embs_list_dict[k].append(v)
@@ -290,10 +291,10 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         cls,
         checkpoint_path: Path,
         *,
-        use_cache: bool = True,
+        use_cache: bool = False,
         is_frozen: bool = True,
         use_peft: bool = False,
-        encoder_dir: Path = Path("./checkpoints/training/backbones"),
+        encoder_dir: Path = Path("./checkpoints/training/encoders"),
     ) -> Self:
         from transformers import AutoConfig, AutoModel
 

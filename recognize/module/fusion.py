@@ -65,10 +65,10 @@ class LowRankFusionLayer(FusionLayer):
         ), f"Number of inputs ({len(inputs)}) should be less equal to number of weights ({len(self.low_rank_weights)})"
         # N*d x R*d*h => R*N*h ~reshape~> N*h*R -> N*h*1 ~squeeze~> N*h
         fusion_tensors = [
-            torch.matmul(i, self.low_rank_weights[n])
-            if i is not None and n in self.low_rank_weights
-            else self.placeholders[n]
-            for n, i in inputs.items()
+            torch.matmul(input, self.low_rank_weights[name])
+            if input is not None and name in self.low_rank_weights
+            else self.placeholders[name]
+            for name, input in inputs.items()
         ]
         product_tensor = torch.prod(torch.stack(fusion_tensors), dim=0)
         output = self.output_layer(product_tensor.permute(1, 2, 0)).squeeze(dim=-1)

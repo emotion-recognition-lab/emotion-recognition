@@ -37,12 +37,12 @@ def save_checkpoint(
     epoch_checkpoint_dir.mkdir(parents=True, exist_ok=True)
     model.save_checkpoint(epoch_checkpoint_dir)
 
-    epoch_encoder_dir = epoch_checkpoint_dir / "backbones"
-    original_encoder_dir = checkpoint_dir / "backbones"
+    epoch_encoder_dir = epoch_checkpoint_dir / "backbone"
+    original_encoder_dir = checkpoint_dir / "backbone"
     if model.backbone.is_frozen:
         # save and link original backbone state_dict
         epoch_encoder_dir.symlink_to(
-            "../backbones",
+            "../backbone",
             target_is_directory=True,
         )
         if not original_encoder_dir.exists():
@@ -95,8 +95,8 @@ def load_model(checkpoint_dir: Path | str, model: ClassifierModel):
     checkpoint_dir = Path(checkpoint_dir)
     model_state_dict = load_file(checkpoint_dir / "model.safetensors")
     model.load_state_dict(model_state_dict, strict=False)
-    if (checkpoint_dir / "backbones").exists():
-        model.backbone = model.backbone.from_checkpoint(checkpoint_dir / "backbones").cuda()
+    if (checkpoint_dir / "backbone").exists():
+        model.backbone = model.backbone.from_checkpoint(checkpoint_dir / "backbone").cuda()
 
 
 def find_best_model(checkpoint_dir: Path | str) -> int:
