@@ -1,5 +1,5 @@
 log_level = "DEBUG"
-batch_size = 4
+batch_size = 32
 custom_label = "MoE"
 
 [model]
@@ -10,4 +10,4 @@ encoders = [
     "facebook/wav2vec2-base-960h@checkpoints/training/MELD--E/T+A--T",
 ]
 fusion = "MoELowRankFusionLayer(feature_sizes_dict, 16, 128)"
-training_mode = "trainable"
+training_mode = "frozen"

@@ -6,7 +6,6 @@ from typing import Any, Literal, Self
 
 from loguru import logger
 from pydantic import BaseModel, model_validator
-from typing_extensions import deprecated
 
 from .typing import LogLevel, ModalType
 
@@ -24,11 +23,6 @@ class ModelConfig(BaseModel):
             len(self.modals) == len(self.feature_sizes) == len(self.encoders)
         ), "Number of modals, feature_sizes and encoders should be the same"
         return self
-
-    @property
-    @deprecated("Use `encoders` instead")
-    def backbones(self) -> list[str]:
-        return self.encoders
 
 
 class DatasetConfig(BaseModel):

@@ -9,8 +9,8 @@ from loguru import logger
 from torch.nn.utils.rnn import pad_sequence
 
 from recognize.config import load_inference_config
-from recognize.module.fusion import FusionLayer
 from recognize.preprocessor import Preprocessor
+from recognize.typing import FusionLayerLike
 
 from .base import Backbone, ClassifierModel, ClassifierOutput, ModelInput
 
@@ -191,7 +191,7 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
     def __init__(
         self,
         backbone: MultimodalBackbone,
-        fusion_layer: FusionLayer,
+        fusion_layer: FusionLayerLike,
         feature_sizes: Sequence[int],
         *,
         num_classes: int = 2,
@@ -221,7 +221,7 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
         cls,
         checkpoint_path: str | Path,
         backbone: MultimodalBackbone,
-        fusion_layer: FusionLayer,
+        fusion_layer: FusionLayerLike,
         *,
         class_weights: torch.Tensor | None = None,
     ):

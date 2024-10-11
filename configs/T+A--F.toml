@@ -2,10 +2,10 @@ log_level = "DEBUG"
 
 [model]
 modals = ["T", "A"]
-feature_sizes = [768, 256]
+feature_sizes = [768, 768]
 encoders = [
-    "roberta-large",
-    "facebook/wav2vec2-base-960h",
+    "roberta-large@checkpoints/training/MELD--E/T+A--T",
+    "facebook/wav2vec2-base-960h@checkpoints/training/MELD--E/T+A--T",
 ]
 fusion = "LowRankFusionLayer(feature_sizes_dict, 16, 128)"
 training_mode = "frozen"
