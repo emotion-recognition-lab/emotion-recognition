@@ -40,6 +40,7 @@ class DatasetConfig(BaseModel):
 class TrainingConfig(BaseModel):
     log_level: LogLevel = "INFO"  # TODO: remove after typer supports Literal
     batch_size: int = 32
+    custom_label: str | None = None
 
     model: ModelConfig
     dataset: DatasetConfig
@@ -54,6 +55,8 @@ class TrainingConfig(BaseModel):
             modals,
             training_mode,
         ]
+        if self.custom_label:
+            model_labels.insert(0, self.custom_label)
         return "--".join(model_labels)
 
     @cached_property
@@ -85,9 +88,9 @@ def load_dict_from_path(path: Path) -> dict[str, Any]:
 
             config = json.load(f)
         elif path.suffix == ".toml":
-            import toml
+            import rtoml
 
-            config = toml.load(f)
+            config = rtoml.load(f)
         elif path.suffix == ".yaml":
             import yaml
             from yaml import FullLoader
@@ -111,9 +114,9 @@ def save_dict_to_path(config: dict[str, Any], path: Path) -> None:
 
             json.dump(config, f)
         elif path.suffix == ".toml":
-            import toml
+            import rtoml
 
-            toml.dump(config, f)
+            rtoml.dump(config, f)
         elif path.suffix == ".yaml":
             import yaml
 
