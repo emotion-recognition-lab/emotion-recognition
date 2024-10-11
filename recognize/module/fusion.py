@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Mapping
 
 import torch
 from torch import nn
@@ -59,10 +59,10 @@ class LowRankFusionLayer(FusionLayer):
             self.placeholders.requires_grad_(False)
         self.output_layer = nn.Linear(rank, 1)
 
-    def forward(self, inputs: dict[str, torch.Tensor | None]):
-        assert len(inputs) <= len(
-            self.low_rank_weights
-        ), "Number of inputs should be less than or equal to number of weights"
+    def forward(self, inputs: Mapping[str, torch.Tensor | None]):
+        assert (
+            0 < len(inputs) <= len(self.low_rank_weights)
+        ), f"Number of inputs ({len(inputs)}) should be less equal to number of weights ({len(self.low_rank_weights)})"
         # N*d x R*d*h => R*N*h ~reshape~> N*h*R -> N*h*1 ~squeeze~> N*h
         fusion_tensors = [
             torch.matmul(i, self.low_rank_weights[n])
@@ -75,11 +75,10 @@ class LowRankFusionLayer(FusionLayer):
         return output
 
 
-# class __FusionLayer(FusionLayer):
-# def mean_embs(self, embs_list: list[torch.Tensor | None]):
-#     filtered_embs_list = [emb for emb in embs_list if emb is not None]
-#     return sum(filtered_embs_list) / len(filtered_embs_list)
+class MeanEmbeddingsFusionLayer(FusionLayer):
+    def mean_embs(self, embs_list: Iterable[torch.Tensor | None]):
+        filtered_embs_list = [emb for emb in embs_list if emb is not None]
+        return sum(filtered_embs_list) / len(filtered_embs_list)
 
-# def forward(self, inputs: MultimodalInput):
-#     text_pooled_embs, audio_pooled_embs, video_pooled_embs = self.compute_pooled_embs(inputs)
-#     return self.mean_embs([text_pooled_embs, audio_pooled_embs, video_pooled_embs])
+    def forward(self, inputs: Mapping[str, torch.Tensor | None]):
+        return self.mean_embs(inputs.values())

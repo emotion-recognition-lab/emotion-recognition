@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal, TypeAlias
+from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias, runtime_checkable
 
 import torch
 from torch import nn
@@ -22,3 +22,10 @@ LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 DatasetSplit = Literal["train", "valid", "test", "dev"]
 DatasetLabelType = Literal["emotion", "sentiment"]
+
+
+@runtime_checkable
+class FusionLayerLike(Protocol):
+    output_size: int
+
+    def __call__(self, inputs: dict[str, torch.Tensor | None]) -> torch.Tensor: ...
