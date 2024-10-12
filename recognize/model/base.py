@@ -153,6 +153,12 @@ class Backbone(nn.Module, Generic[ModelInputT]):
                     embs_list_dict[k] = []
                 embs_list_dict[k].append(v)
         embs_dict: dict[str, torch.Tensor] = {k: torch.stack(v) for k, v in embs_list_dict.items()}
+
+        num_cached = len(cached_list)
+        for embs in embs_dict.values():
+            assert (
+                embs.shape[0] == num_cached
+            ), f"number of cached tensors must be the same, but got {embs.shape[0]} and {num_cached}"
         return embs_dict
 
     def direct_forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
@@ -169,16 +175,16 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             if len(no_cached_index_list) != 0:
                 # NOTE: some files might not exist, causing no_cached_index_list to remain non-empty
                 # TODO: currently affecting all items in the batch, need to change to affect only specific items
-                logger.warning(f"some files are not exist: {no_cached_inputs.unique_ids}")
-                return {}
-
+                raise RuntimeError(f"some files are not exist: {no_cached_inputs.get_unique_keys()}")
         return self.merge_cache(cached_list)
 
     def forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
-        if self.is_frozen and self.use_cache and inputs.unique_ids is not None:
-            return self.cached_forward(inputs)
-        else:
-            return self.direct_forward(inputs)
+        if self.is_frozen and self.use_cache:
+            try:
+                return self.cached_forward(inputs)
+            except Exception as e:
+                logger.warning(f"use direct_forward because of error in cached_forward: {e}")
+        return self.direct_forward(inputs)
 
     @overload
     def pretrained_module(self, module: nn.Module) -> nn.Module: ...
