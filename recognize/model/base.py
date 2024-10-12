@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import itertools
 import json
 import pickle
@@ -18,15 +17,9 @@ from safetensors.torch import load_file, save, save_file
 from torch import nn
 from torch.nn import CrossEntropyLoss
 
-from recognize.cache import CacheManager, load_cached_tensors, save_cached_tensors
+from recognize.cache import CacheManager, hash_bytes, load_cached_tensors, save_cached_tensors
 from recognize.module.basic import Pooler
 from recognize.typing import BackboneT, ModelInputT, StateDicts
-
-
-def hash_bytes(bytes_data: bytes) -> str:
-    hasher = hashlib.sha256()
-    hasher.update(bytes_data)
-    return hasher.hexdigest()[:16]
 
 
 class ModelOutput(BaseModel):
@@ -57,9 +50,18 @@ class ModelInput(BaseModel):
                 setattr(self, field, field_value.pin_memory().cuda())
         return self
 
+    def get_unique_keys(self) -> list[str]:
+        assert (
+            self.unique_ids is not None
+        ), f"unique_ids must be a list, or you can use LazyMultimodalInput instead of {self.__class__.__name__}"
+        return self.unique_ids
+
+    def hash(self) -> str:
+        assert self.unique_ids is not None, "unique_ids must be a list for hashing, or you can use LazyMultimodalInput"
+        return hash_bytes(pickle.dumps(self.unique_ids))
+
     def __hash__(self) -> int:
-        assert self.unique_ids is not None, "unique_ids must be a list"
-        return hash(tuple(self.unique_ids))
+        return int(self.hash(), 16)
 
     def __getitem__(self, index: int | list[int] | slice) -> Self:
         raise NotImplementedError("__getitem__ method must be implemented in subclass")
@@ -132,15 +134,15 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         }
 
     def load_cache(self, inputs: ModelInputT) -> tuple[list[dict[str, torch.Tensor]], list[int]]:
-        assert inputs.unique_ids is not None, "unique_ids must be a list"
-        cached_list, _, no_cached_index_list = load_cached_tensors(inputs.unique_ids, cache_manager=self.cache_manager)
+        cached_list, _, no_cached_index_list = load_cached_tensors(
+            inputs.get_unique_keys(), cache_manager=self.cache_manager
+        )
         return cached_list, no_cached_index_list
 
     def save_cache(self, no_cached_inputs: ModelInputT) -> None:
-        assert no_cached_inputs.unique_ids is not None
         with torch.no_grad():
             pooler_output = self.direct_forward(no_cached_inputs)
-        save_cached_tensors(no_cached_inputs.unique_ids, pooler_output, cache_manager=self.cache_manager)
+        save_cached_tensors(no_cached_inputs.get_unique_keys(), pooler_output, cache_manager=self.cache_manager)
 
     def merge_cache(self, cached_list: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
         embs_list_dict: dict[str, list[torch.Tensor]] = {}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pickle
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Self
@@ -8,6 +9,7 @@ import torch
 from loguru import logger
 from torch.nn.utils.rnn import pad_sequence
 
+from recognize.cache import hash_bytes
 from recognize.config import load_inference_config
 from recognize.preprocessor import Preprocessor
 from recognize.typing import FusionLayerLike
@@ -39,6 +41,8 @@ class MultimodalInput(ModelInput):
 
         if self.unique_ids is None:
             unique_ids = None
+            if isinstance(self, LazyMultimodalInput):
+                unique_ids = self.get_unique_keys()
         elif isinstance(index, list):
             unique_ids = [self.unique_ids[i] for i in index]
         elif isinstance(index, int):
@@ -99,6 +103,8 @@ class LazyMultimodalInput(MultimodalInput):
     audio_paths: list[str] | None = None
     video_paths: list[str] | None = None
 
+    # TODO: add model_validator
+
     def __getattribute__(self, __name: str):
         if __name in ["text_input_ids", "text_attention_mask"] and self.texts is None and self.audio_paths is not None:
             logger.debug("Texts is not provided, but audio_paths is provided, so use audio_paths")
@@ -123,6 +129,19 @@ class LazyMultimodalInput(MultimodalInput):
             self.video_pixel_values = self.preprocessor.load_videos(self.video_paths)
 
         return super().__getattribute__(__name)
+
+    def get_unique_keys(self) -> list[str]:
+        return [
+            hash_bytes(pickle.dumps(values))
+            for values in zip(
+                *[d for d in [self.texts, self.audio_paths, self.video_paths] if d is not None], strict=True
+            )
+        ]
+
+    def hash(self) -> str:
+        if self.unique_ids is not None:
+            logger.warning("unique_ids is not necessary for LazyMultimodalInput.")
+        return hash_bytes(pickle.dumps((self.texts, self.audio_paths, self.video_paths)))
 
     @classmethod
     def collate_fn(cls, batch: Sequence[Self]) -> Self:

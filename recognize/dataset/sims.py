@@ -16,7 +16,6 @@ class SIMSDataset(MultimodalDataset):
         dataset_path: str,
         *,
         split: DatasetSplit = "train",
-        custom_unique_id: str = "",
     ):
         import pandas as pd
 
@@ -27,7 +26,6 @@ class SIMSDataset(MultimodalDataset):
             meta,
             num_classes=1,
             split=split,
-            custom_unique_id=custom_unique_id,
         )
 
     @cached_property
@@ -56,7 +54,6 @@ class SIMSDataset(MultimodalDataset):
         assert self.preprocessor is not None, "Preprocessor is not set"
         return LazyMultimodalInput(
             preprocessor=self.preprocessor,
-            unique_ids=[f"{self.custom_unique_id}--{self.split}_{index}"],
             texts=[item["T"]],
             audio_paths=[audio_path],
             video_paths=[video_path],
