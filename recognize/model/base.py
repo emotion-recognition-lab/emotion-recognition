@@ -34,7 +34,6 @@ class ClassifierOutput(ModelOutput):
 
 class ModelInput(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    unique_ids: list[str] | None = None  # TODO: maybe better name
 
     def cuda(self) -> Self:
         for field in self.model_fields.keys():
@@ -50,21 +49,17 @@ class ModelInput(BaseModel):
                 setattr(self, field, field_value.pin_memory().cuda())
         return self
 
-    def get_unique_keys(self) -> list[str]:
-        assert (
-            self.unique_ids is not None
-        ), f"unique_ids must be a list, or you can use LazyMultimodalInput instead of {self.__class__.__name__}"
-        return self.unique_ids
-
     def hash(self) -> str:
-        assert self.unique_ids is not None, "unique_ids must be a list for hashing, or you can use LazyMultimodalInput"
-        return hash_bytes(pickle.dumps(self.unique_ids))
+        return hash_bytes(pickle.dumps(self.model_dump()))
 
     def __hash__(self) -> int:
         return int(self.hash(), 16)
 
     def __getitem__(self, index: int | list[int] | slice) -> Self:
         raise NotImplementedError("__getitem__ method must be implemented in subclass")
+
+    def get_unique_keys(self) -> list[str]:
+        raise NotImplementedError("You should use LazyMultimodalInput instead")
 
     @staticmethod
     def merge(batch: Sequence[ModelInputT], attr_name: str):
