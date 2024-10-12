@@ -4,7 +4,6 @@ import hashlib
 import itertools
 import json
 import pickle
-import zlib
 from collections.abc import Callable, Mapping, Sequence
 from functools import cached_property
 from pathlib import Path
@@ -22,6 +21,12 @@ from torch.nn import CrossEntropyLoss
 from recognize.cache import CacheManager, load_cached_tensors, save_cached_tensors
 from recognize.module.basic import Pooler
 from recognize.typing import BackboneT, ModelInputT, StateDicts
+
+
+def hash_bytes(bytes_data: bytes) -> str:
+    hasher = hashlib.sha256()
+    hasher.update(bytes_data)
+    return hasher.hexdigest()[:16]
 
 
 class ModelOutput(BaseModel):
@@ -78,7 +83,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
     def __init__(
         self,
         encoders: Mapping[str, tuple[nn.Module, int]],
-        use_cache: bool = False,
+        use_cache: bool = True,
         is_frozen: bool = True,
         use_peft: bool = False,
         *,
@@ -251,7 +256,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         for name, state_dict in itertools.chain(state_dicts.items(), peft_state_dicts.items()):
             bytes_dict[name] = save(state_dict)
         serialized_dict = pickle.dumps(bytes_dict)
-        return f"{zlib.crc32(serialized_dict):08x}"
+        return hash_bytes(serialized_dict)
 
     def save(self, original_encoder_dir: Path) -> dict[str, Path]:
         state_path_dict: dict[str, Path] = {}
@@ -260,9 +265,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         for name, state_dict in state_dicts.items():
             self.named_encoders[name].config.save_pretrained(original_encoder_dir / name)
             state_bytes = save(state_dict)
-            hasher = hashlib.md5()
-            hasher.update(state_bytes)
-            model_hash = hasher.hexdigest()
+            model_hash = hash_bytes(state_bytes)
             model_path = Path(f"{self.encoder_dir}/{model_hash}.safetensors")
             state_path_dict[name] = model_path.absolute()
             if model_path.exists():
@@ -271,9 +274,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
                 f.write(state_bytes)
         for name, state_dict in peft_state_dicts.items():
             state_bytes = save(state_dict)
-            hasher = hashlib.md5()
-            hasher.update(state_bytes)
-            model_hash = hasher.hexdigest()
+            model_hash = hash_bytes(state_bytes)
             model_path = Path(f"{self.encoder_dir}/peft_{model_hash}.safetensors")
             state_path_dict[f"peft_{name}"] = model_path.absolute()
             if model_path.exists():
@@ -291,7 +292,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         cls,
         checkpoint_path: Path,
         *,
-        use_cache: bool = False,
+        use_cache: bool = True,
         is_frozen: bool = True,
         use_peft: bool = False,
         encoder_dir: Path = Path("./checkpoints/training/encoders"),
