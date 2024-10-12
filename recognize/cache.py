@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -10,6 +11,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from safetensors.torch import load_file, save_file
 
 from .typing import StateDict
+
+
+def hash_bytes(bytes_data: bytes) -> str:
+    hasher = hashlib.sha256()
+    hasher.update(bytes_data)
+    return hasher.hexdigest()[:16]
 
 
 class Cache(BaseModel):
@@ -62,7 +69,7 @@ class CacheManager:
         self._cache_dir = cache_dir
 
     def load_disk_cache(self, key: str) -> StateDict | None:
-        cache_file = self.cache_dir / f"{key}.safetensors"
+        cache_file = self.cache_dir / key
         if cache_file.exists():
             value = load_file(cache_file)
             self.cache.set(key, value)
@@ -71,7 +78,7 @@ class CacheManager:
             return None
 
     def save_disk_cache(self, key: str, value: StateDict):
-        cache_file = self.cache_dir / f"{key}.safetensors"
+        cache_file = self.cache_dir / key
         save_file(value, cache_file)
 
     def get(self, key: str) -> StateDict | None:

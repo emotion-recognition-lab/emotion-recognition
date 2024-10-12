@@ -28,7 +28,6 @@ class PilotDataset(MultimodalDataset):
         *,
         label_type: DatasetLabelType = "sentiment",
         split: DatasetSplit = "train",
-        custom_unique_id: str = "",
     ):
         import pandas as pd
 
@@ -45,7 +44,6 @@ class PilotDataset(MultimodalDataset):
             pd.read_csv(f"{dataset_path}/pilot_data.csv", sep=",", index_col=0, header=0),
             num_classes=self.num_classes,
             split=split,
-            custom_unique_id=custom_unique_id,
         )
 
         self.data = self._generate_data(split)
@@ -95,7 +93,6 @@ class PilotDataset(MultimodalDataset):
         assert self.preprocessor is not None, "Preprocessor is not set"
         return LazyMultimodalInput(
             preprocessor=self.preprocessor,
-            unique_ids=[f"{self.custom_unique_id}--{self.split}_{index}"],
             texts=[text],
             labels=torch.tensor([label], dtype=torch.int64),
         )

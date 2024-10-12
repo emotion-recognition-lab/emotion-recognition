@@ -61,31 +61,26 @@ def seed_everything(seed: int | None = None):
 def provide_meld_datasets(
     dataset_path: Path,
     label_type: DatasetLabelType = "emotion",
-    custom_unique_id: str = "undefined",
     dataset_class_str: str = "MELDDataset",
 ):
     dataset_class = {
         "MELDDataset": MELDDataset,
         "PilotDataset": PilotDataset,
     }[dataset_class_str]
-    custom_unique_id = f"{dataset_class_str}--{custom_unique_id}"
     train_dataset = dataset_class(
         dataset_path.as_posix(),
         split="train",
         label_type=label_type,
-        custom_unique_id=custom_unique_id,
     )
     dev_dataset = dataset_class(
         dataset_path.as_posix(),
         split="valid",
         label_type=label_type,
-        custom_unique_id=custom_unique_id,
     )
     test_dataset = dataset_class(
         dataset_path.as_posix(),
         split="test",
         label_type=label_type,
-        custom_unique_id=custom_unique_id,
     )
     return train_dataset, dev_dataset, test_dataset
 
@@ -229,7 +224,6 @@ def distill(
     train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
         config_dataset.path,
         label_type=config_dataset.label_type,
-        custom_unique_id="+".join(config.model.modals),
         dataset_class_str=config_dataset.dataset_class,
     )
     preprocessor, backbone = generate_preprocessor_and_backbone(
@@ -358,7 +352,6 @@ def train(
     train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
         config_dataset.path,
         label_type=config_dataset.label_type,
-        custom_unique_id="+".join(config.model.modals),
         dataset_class_str=config_dataset.dataset_class,
     )
     train_data_loader = DataLoader(
@@ -451,7 +444,6 @@ def evaluate(checkpoint: Path) -> None:
     _, _, test_dataset = provide_meld_datasets(
         config_dataset.path,
         label_type=config_dataset.label_type,
-        custom_unique_id="+".join(config.model.modals),
         dataset_class_str=config_dataset.dataset_class,
     )
 

@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import hashlib
 import itertools
 import json
 import pickle
-import zlib
 from collections.abc import Callable, Mapping, Sequence
 from functools import cached_property
 from pathlib import Path
@@ -19,7 +17,7 @@ from safetensors.torch import load_file, save, save_file
 from torch import nn
 from torch.nn import CrossEntropyLoss
 
-from recognize.cache import CacheManager, load_cached_tensors, save_cached_tensors
+from recognize.cache import CacheManager, hash_bytes, load_cached_tensors, save_cached_tensors
 from recognize.module.basic import Pooler
 from recognize.typing import BackboneT, ModelInputT, StateDicts
 
@@ -52,9 +50,18 @@ class ModelInput(BaseModel):
                 setattr(self, field, field_value.pin_memory().cuda())
         return self
 
+    def get_unique_keys(self) -> list[str]:
+        assert (
+            self.unique_ids is not None
+        ), f"unique_ids must be a list, or you can use LazyMultimodalInput instead of {self.__class__.__name__}"
+        return self.unique_ids
+
+    def hash(self) -> str:
+        assert self.unique_ids is not None, "unique_ids must be a list for hashing, or you can use LazyMultimodalInput"
+        return hash_bytes(pickle.dumps(self.unique_ids))
+
     def __hash__(self) -> int:
-        assert self.unique_ids is not None, "unique_ids must be a list"
-        return hash(tuple(self.unique_ids))
+        return int(self.hash(), 16)
 
     def __getitem__(self, index: int | list[int] | slice) -> Self:
         raise NotImplementedError("__getitem__ method must be implemented in subclass")
@@ -78,7 +85,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
     def __init__(
         self,
         encoders: Mapping[str, tuple[nn.Module, int]],
-        use_cache: bool = False,
+        use_cache: bool = True,
         is_frozen: bool = True,
         use_peft: bool = False,
         *,
@@ -127,15 +134,15 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         }
 
     def load_cache(self, inputs: ModelInputT) -> tuple[list[dict[str, torch.Tensor]], list[int]]:
-        assert inputs.unique_ids is not None, "unique_ids must be a list"
-        cached_list, _, no_cached_index_list = load_cached_tensors(inputs.unique_ids, cache_manager=self.cache_manager)
+        cached_list, _, no_cached_index_list = load_cached_tensors(
+            inputs.get_unique_keys(), cache_manager=self.cache_manager
+        )
         return cached_list, no_cached_index_list
 
     def save_cache(self, no_cached_inputs: ModelInputT) -> None:
-        assert no_cached_inputs.unique_ids is not None
         with torch.no_grad():
             pooler_output = self.direct_forward(no_cached_inputs)
-        save_cached_tensors(no_cached_inputs.unique_ids, pooler_output, cache_manager=self.cache_manager)
+        save_cached_tensors(no_cached_inputs.get_unique_keys(), pooler_output, cache_manager=self.cache_manager)
 
     def merge_cache(self, cached_list: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
         embs_list_dict: dict[str, list[torch.Tensor]] = {}
@@ -251,7 +258,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         for name, state_dict in itertools.chain(state_dicts.items(), peft_state_dicts.items()):
             bytes_dict[name] = save(state_dict)
         serialized_dict = pickle.dumps(bytes_dict)
-        return f"{zlib.crc32(serialized_dict):08x}"
+        return hash_bytes(serialized_dict)
 
     def save(self, original_encoder_dir: Path) -> dict[str, Path]:
         state_path_dict: dict[str, Path] = {}
@@ -260,9 +267,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         for name, state_dict in state_dicts.items():
             self.named_encoders[name].config.save_pretrained(original_encoder_dir / name)
             state_bytes = save(state_dict)
-            hasher = hashlib.md5()
-            hasher.update(state_bytes)
-            model_hash = hasher.hexdigest()
+            model_hash = hash_bytes(state_bytes)
             model_path = Path(f"{self.encoder_dir}/{model_hash}.safetensors")
             state_path_dict[name] = model_path.absolute()
             if model_path.exists():
@@ -271,9 +276,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
                 f.write(state_bytes)
         for name, state_dict in peft_state_dicts.items():
             state_bytes = save(state_dict)
-            hasher = hashlib.md5()
-            hasher.update(state_bytes)
-            model_hash = hasher.hexdigest()
+            model_hash = hash_bytes(state_bytes)
             model_path = Path(f"{self.encoder_dir}/peft_{model_hash}.safetensors")
             state_path_dict[f"peft_{name}"] = model_path.absolute()
             if model_path.exists():
@@ -291,7 +294,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         cls,
         checkpoint_path: Path,
         *,
-        use_cache: bool = False,
+        use_cache: bool = True,
         is_frozen: bool = True,
         use_peft: bool = False,
         encoder_dir: Path = Path("./checkpoints/training/encoders"),

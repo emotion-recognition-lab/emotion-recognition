@@ -42,7 +42,6 @@ class MELDDataset(MultimodalDataset):
         *,
         split: DatasetSplit = "train",
         label_type: DatasetLabelType = "emotion",
-        custom_unique_id: str = "MELD",
     ):
         import pandas as pd
 
@@ -67,7 +66,6 @@ class MELDDataset(MultimodalDataset):
             pd.read_csv(f"{dataset_path}/{self.split}_sent_emo.csv", sep=",", index_col=0, header=0),
             num_classes=self.num_classes,
             split=split,
-            custom_unique_id=custom_unique_id,
         )
 
         self._generate_session()
@@ -123,7 +121,6 @@ class MELDDataset(MultimodalDataset):
         assert self.preprocessor is not None, "Preprocessor is not set"
         return LazyMultimodalInput(
             preprocessor=self.preprocessor,
-            unique_ids=[f"{self.custom_unique_id}--{self.split}_{utt_id}_{dia_id}"],
             texts=[text],
             audio_paths=[audio_path],
             video_paths=[video_path],

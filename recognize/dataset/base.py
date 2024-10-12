@@ -19,7 +19,6 @@ class MultimodalDataset(Dataset):
     meta: DataFrame
     num_classes: int
     split: DatasetSplit
-    custom_unique_id: str
     preprocessor: Preprocessor | None
 
     def __init__(
@@ -29,14 +28,12 @@ class MultimodalDataset(Dataset):
         *,
         num_classes: int = 2,
         split: DatasetSplit = "train",
-        custom_unique_id: str = "",
     ):
         self.dataset_path = dataset_path
         self.meta = meta
 
         self.num_classes = num_classes
         self.split = split
-        self.custom_unique_id = custom_unique_id
 
         self.preprocessor = None
 
