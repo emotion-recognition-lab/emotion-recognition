@@ -39,27 +39,31 @@ class MultimodalInput(ModelInput):
 
         labels = self.labels[index] if self.labels is not None else None
 
-        if self.unique_ids is None:
-            unique_ids = None
-            if isinstance(self, LazyMultimodalInput):
-                unique_ids = self.get_unique_keys()
-        elif isinstance(index, list):
-            unique_ids = [self.unique_ids[i] for i in index]
-        elif isinstance(index, int):
-            unique_ids = [self.unique_ids[index]]
-        elif isinstance(index, slice):
-            unique_ids = self.unique_ids[index]
+        if isinstance(self, LazyMultimodalInput):
+            return LazyMultimodalInput(
+                texts=self.texts,
+                audio_paths=self.audio_paths,
+                video_paths=self.video_paths,
+                preprocessor=self.preprocessor,
+                text_input_ids=text_input_ids,
+                text_attention_mask=text_attention_mask,
+                audio_input_values=audio_input_values,
+                audio_attention_mask=audio_attention_mask,
+                video_pixel_values=video_pixel_values,
+                video_head_mask=video_head_mask,
+                labels=labels,
+            )
 
-        return MultimodalInput(
-            text_input_ids=text_input_ids,
-            text_attention_mask=text_attention_mask,
-            audio_input_values=audio_input_values,
-            audio_attention_mask=audio_attention_mask,
-            video_pixel_values=video_pixel_values,
-            video_head_mask=video_head_mask,
-            labels=labels,
-            unique_ids=unique_ids,
-        )
+        else:
+            return MultimodalInput(
+                text_input_ids=text_input_ids,
+                text_attention_mask=text_attention_mask,
+                audio_input_values=audio_input_values,
+                audio_attention_mask=audio_attention_mask,
+                video_pixel_values=video_pixel_values,
+                video_head_mask=video_head_mask,
+                labels=labels,
+            )
 
     @property
     def device(self):
@@ -130,17 +134,20 @@ class LazyMultimodalInput(MultimodalInput):
 
         return super().__getattribute__(__name)
 
-    def get_unique_keys(self) -> list[str]:
-        return [
-            hash_bytes(pickle.dumps(values))
-            for values in zip(
-                *[d for d in [self.texts, self.audio_paths, self.video_paths] if d is not None], strict=True
-            )
-        ]
+    def get_unique_keys(self) -> dict[str, list[str]]:
+        input_metas = {
+            "T": self.texts,
+            "A": self.audio_paths,
+            "V": self.video_paths,
+        }
+        unique_keys = {
+            modal: [hash_bytes(pickle.dumps((modal, v_))) for v_ in metas]
+            for modal, metas in input_metas.items()
+            if metas is not None
+        }
+        return unique_keys
 
     def hash(self) -> str:
-        if self.unique_ids is not None:
-            logger.warning("unique_ids is not necessary for LazyMultimodalInput.")
         return hash_bytes(pickle.dumps((self.texts, self.audio_paths, self.video_paths)))
 
     @classmethod

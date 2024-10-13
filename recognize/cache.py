@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import torch
@@ -111,29 +111,40 @@ class CacheManager:
 
 
 def load_cached_tensors(
-    keys: list[str],
+    keys_mapping: Mapping[str, Sequence[str]],
     *,
     cache_manager: CacheManager,
-) -> tuple[list[StateDict], list[int], list[int]]:
-    no_cache_index_list: list[int] = []
-    cache_index_list: list[int] = []
-    cache_list: list[dict[str, torch.Tensor]] = []
-    for i, n in enumerate(keys):
-        cache = cache_manager.get(n)
-        if cache is not None:
-            cache_index_list.append(i)
-            cache_list.append(cache)
-        else:
-            no_cache_index_list.append(i)
-    return cache_list, cache_index_list, no_cache_index_list
+) -> dict[str, list[torch.Tensor]] | None:
+    lengths = [len(v) for v in keys_mapping.values()]
+    if len(set(lengths)) != 1:
+        raise ValueError("All sequences must have the same length")
+    length = lengths[0]
+    modal_names = list(keys_mapping.keys())
+
+    values_mapping: dict[str, list[torch.Tensor]] = {modal_name: [] for modal_name in modal_names}
+    for modal_name in modal_names:
+        for i in range(length):
+            cache = cache_manager.get(keys_mapping[modal_name][i])
+            if cache is None:
+                logger.trace(f"{modal_name} not found")
+                del values_mapping[modal_name]
+                break
+            values_mapping[modal_name].append(cache[modal_name])
+
+    if not values_mapping:
+        return None
+    return values_mapping
 
 
 def save_cached_tensors(
-    keys: Sequence[str],
-    value: StateDict,
+    keys_mapping: Mapping[str, Sequence[str]],
+    values_mapping: StateDict,
     *,
     cache_manager: CacheManager,
 ):
-    for i, n in enumerate(keys):
-        tensor_dict = {k: v[i] for k, v in value.items()}
-        cache_manager.set(n, tensor_dict)
+    for modal_name, keys in keys_mapping.items():
+        if (values := values_mapping.get(modal_name)) is None:
+            continue
+        for k, v in zip(keys, values, strict=True):
+            tensor_dict = {modal_name: v.unsqueeze(0)}
+            cache_manager.set(k, tensor_dict)
