@@ -58,7 +58,7 @@ class ModelInput(BaseModel):
     def __getitem__(self, index: int | list[int] | slice) -> Self:
         raise NotImplementedError("__getitem__ method must be implemented in subclass")
 
-    def get_unique_keys(self) -> list[str]:
+    def get_unique_keys(self) -> dict[str, list[str]]:
         raise NotImplementedError("You should use LazyMultimodalInput instead")
 
     @staticmethod
@@ -128,33 +128,17 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             if (embs := embs_dict.get(name)) is not None
         }
 
-    def load_cache(self, inputs: ModelInputT) -> tuple[list[dict[str, torch.Tensor]], list[int]]:
-        cached_list, _, no_cached_index_list = load_cached_tensors(
-            inputs.get_unique_keys(), cache_manager=self.cache_manager
-        )
-        return cached_list, no_cached_index_list
+    def load_cache(self, inputs: ModelInputT) -> dict[str, list[torch.Tensor]] | None:
+        unique_keys = inputs.get_unique_keys()
+        cache = load_cached_tensors(unique_keys, cache_manager=self.cache_manager)
+        return cache
 
-    def save_cache(self, no_cached_inputs: ModelInputT) -> None:
+    def save_cache(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
         with torch.no_grad():
-            pooler_output = self.direct_forward(no_cached_inputs)
-        save_cached_tensors(no_cached_inputs.get_unique_keys(), pooler_output, cache_manager=self.cache_manager)
-
-    def merge_cache(self, cached_list: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
-        embs_list_dict: dict[str, list[torch.Tensor]] = {}
-        for cache in cached_list:
-            for k, v in cache.items():
-                # TODO: cache mechanism needs to be improved
-                if k not in embs_list_dict:
-                    embs_list_dict[k] = []
-                embs_list_dict[k].append(v)
-        embs_dict: dict[str, torch.Tensor] = {k: torch.stack(v) for k, v in embs_list_dict.items()}
-
-        num_cached = len(cached_list)
-        for embs in embs_dict.values():
-            assert (
-                embs.shape[0] == num_cached
-            ), f"number of cached tensors must be the same, but got {embs.shape[0]} and {num_cached}"
-        return embs_dict
+            pooler_output = self.direct_forward(inputs)
+        unique_keys = inputs.get_unique_keys()
+        save_cached_tensors(unique_keys, pooler_output, cache_manager=self.cache_manager)
+        return pooler_output
 
     def direct_forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
         embs_tuple = self.compute_embs(inputs)
@@ -162,16 +146,11 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         return pooler_output
 
     def cached_forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
-        cached_list, no_cached_index_list = self.load_cache(inputs)
-        if len(no_cached_index_list) != 0:
-            no_cached_inputs = inputs[no_cached_index_list]
-            self.save_cache(no_cached_inputs)
-            cached_list, no_cached_index_list = self.load_cache(inputs)
-            if len(no_cached_index_list) != 0:
-                # NOTE: some files might not exist, causing no_cached_index_list to remain non-empty
-                # TODO: currently affecting all items in the batch, need to change to affect only specific items
-                raise RuntimeError(f"some files are not exist: {no_cached_inputs.get_unique_keys()}")
-        return self.merge_cache(cached_list)
+        cached_list = self.load_cache(inputs)
+        if cached_list is None:
+            logger.debug("cache missed")
+            return self.save_cache(inputs)
+        return {modal: torch.cat(cache) for modal, cache in cached_list.items()}
 
     def forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
         if self.is_frozen and self.use_cache:
