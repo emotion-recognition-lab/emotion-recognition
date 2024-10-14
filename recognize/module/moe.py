@@ -36,7 +36,7 @@ class MultiHeadMoE(nn.Module):
         self.experts = nn.ModuleDict(experts)
 
     def forward(self, inputs: Mapping[str, torch.Tensor | None]) -> torch.Tensor:
-        gate_outputs = self.router(inputs)
+        gate_outputs = torch.softmax(self.router(inputs), dim=-1)
         sum_weights = torch.zeros(gate_outputs.shape[0], device=gate_outputs.device)
         outputs = []
         for i, name in enumerate(self.expert_names):
@@ -55,3 +55,12 @@ class MoELowRankFusionLayer(MultiHeadMoE, LowRankFusionLayer):
         self.expert_names = sorted(dims.keys())
         self.experts = nn.ModuleDict({name: Pooler(dim, output_size) for name, dim in dims.items()})
         self.output_size = output_size
+
+
+# class MoELowRankFusionLayer(MultiHeadMoE, LowRankFusionLayer):
+#     def __init__(self, dims: dict[str, int], rank: int, output_size: int, *, trainable_placeholder: bool = False):
+#         LowRankFusionLayer.__init__(self, dims, rank, len(dims), trainable_placeholder=trainable_placeholder)
+#         self.router = partial(LowRankFusionLayer.forward, self)
+#         self.expert_names = sorted(dims.keys())
+#         self.experts = nn.ModuleDict({name: Pooler(dim, output_size) for name, dim in dims.items()})
+#         self.output_size = output_size

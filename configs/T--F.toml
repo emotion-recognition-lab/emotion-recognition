@@ -4,7 +4,7 @@ batch_size = 128
 [model]
 modals = ["T"]
 feature_sizes = [768]
-encoders = ["roberta-large"]
+encoders = ["roberta-large@checkpoints/training/MELD--E/T+A--T"]
 training_mode = "frozen"
 
 [dataset]

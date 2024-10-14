@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Literal, Self
 
 from loguru import logger
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from .typing import LogLevel, ModalType
 
@@ -34,7 +34,7 @@ class DatasetConfig(BaseModel):
 class TrainingConfig(BaseModel):
     log_level: LogLevel = "INFO"  # TODO: remove after typer supports Literal
     batch_size: int = 32
-    custom_label: str | None = None
+    custom_label: str | None = Field(default=None, description="To mark the model, e.g. MoE")
 
     model: ModelConfig
     dataset: DatasetConfig
@@ -110,7 +110,7 @@ def save_dict_to_path(config: dict[str, Any], path: Path) -> None:
         elif path.suffix == ".toml":
             import rtoml
 
-            rtoml.dump(config, f)
+            rtoml.dump(config, f, none_value=None)
         elif path.suffix == ".yaml":
             import yaml
 
