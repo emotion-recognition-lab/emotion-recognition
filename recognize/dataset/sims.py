@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import os
-from functools import cached_property
 
 import torch
+from loguru import logger
 
-from recognize.typing import DatasetSplit
+from recognize.typing import DatasetLabelType, DatasetSplit
 
 from .base import MultimodalDataset
 
@@ -16,7 +16,10 @@ class SIMSDataset(MultimodalDataset):
         dataset_path: str,
         *,
         split: DatasetSplit = "train",
+        label_type: DatasetLabelType = "sentiment",
     ):
+        if label_type != "sentiment":
+            logger.warning("SIMS only supports sentiment label type")
         import pandas as pd
 
         meta = pd.read_csv(os.path.join(dataset_path, "label.csv"))
@@ -24,20 +27,15 @@ class SIMSDataset(MultimodalDataset):
         super().__init__(
             dataset_path,
             meta,
-            num_classes=1,
+            num_classes=3,
             split=split,
         )
 
-    @cached_property
-    def class_weights(self) -> list[float]:
-        labels = self.meta.apply(self.label2int, axis=1)
-        positive_counts = (labels > 0).sum() / len(labels)
-        return [positive_counts, 1 - positive_counts]
-
     @staticmethod
     def label2int(item):
-        sentiment = item["label"]
-        return float(sentiment)
+        sentiment = item["annotation"]
+        str2int = {"Neutral": 0, "Positive": 1, "Negative": 2}
+        return str2int[sentiment]
 
     def __getitem__(self, index: int):
         from recognize.model import LazyMultimodalInput
@@ -46,7 +44,7 @@ class SIMSDataset(MultimodalDataset):
         label = self.label2int(item)
 
         video_id = item["video_id"]
-        audio_id = video_id.replace("V", "A")
+        audio_id = video_id.replace("video", "audio")
         clip_id = item["clip_id"]
         audio_path = f"{self.dataset_path}/Raw/{audio_id}/{clip_id}.flac"
         video_path = f"{self.dataset_path}/Raw/{video_id}/{clip_id}.mp4"
@@ -54,8 +52,8 @@ class SIMSDataset(MultimodalDataset):
         assert self.preprocessor is not None, "Preprocessor is not set"
         return LazyMultimodalInput(
             preprocessor=self.preprocessor,
-            texts=[item["T"]],
+            texts=[item["text"]],
             audio_paths=[audio_path],
             video_paths=[video_path],
-            labels=torch.tensor(label, dtype=torch.int64),
+            labels=torch.tensor([label], dtype=torch.int64),
         )

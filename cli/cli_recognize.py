@@ -4,7 +4,7 @@ import os
 import random
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import torch
@@ -16,7 +16,7 @@ from safetensors.torch import load_file
 from torch.utils.data import DataLoader
 
 from recognize.config import InferenceConfig, load_training_config, save_config
-from recognize.dataset import MELDDataset, PilotDataset
+from recognize.dataset import MELDDataset, PilotDataset, SIMSDataset
 from recognize.evaluate import TrainingResult
 from recognize.model import (
     LazyMultimodalInput,
@@ -58,14 +58,15 @@ def seed_everything(seed: int | None = None):
     torch.backends.cudnn.benchmark = False
 
 
-def provide_meld_datasets(
+def provide_datasets(
     dataset_path: Path,
     label_type: DatasetLabelType = "emotion",
-    dataset_class_str: str = "MELDDataset",
+    dataset_class_str: Literal["MELDDataset", "PilotDataset", "SIMSDataset"] = "MELDDataset",
 ):
-    dataset_class = {
+    dataset_class: type[MELDDataset | PilotDataset | SIMSDataset] = {
         "MELDDataset": MELDDataset,
         "PilotDataset": PilotDataset,
+        "SIMSDataset": SIMSDataset,
     }[dataset_class_str]
     train_dataset = dataset_class(
         dataset_path.as_posix(),
@@ -221,7 +222,7 @@ def distill(
         checkpoint_dir = Path(f"./checkpoints/training/{dataset_label}/{model_label}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-    train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
+    train_dataset, dev_dataset, test_dataset = provide_datasets(
         config_dataset.path,
         label_type=config_dataset.label_type,
         dataset_class_str=config_dataset.dataset_class,
@@ -349,7 +350,7 @@ def train(
         checkpoint_dir = Path(f"./checkpoints/training/{dataset_label}/{model_label}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-    train_dataset, dev_dataset, test_dataset = provide_meld_datasets(
+    train_dataset, dev_dataset, test_dataset = provide_datasets(
         config_dataset.path,
         label_type=config_dataset.label_type,
         dataset_class_str=config_dataset.dataset_class,
@@ -441,7 +442,7 @@ def evaluate(checkpoint: Path) -> None:
 
     assert (checkpoint / "preprocessor").exists(), "Preprocessor not found, the checkpoint is not valid"
 
-    _, _, test_dataset = provide_meld_datasets(
+    _, _, test_dataset = provide_datasets(
         config_dataset.path,
         label_type=config_dataset.label_type,
         dataset_class_str=config_dataset.dataset_class,

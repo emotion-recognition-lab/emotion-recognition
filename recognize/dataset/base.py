@@ -43,9 +43,17 @@ class MultimodalDataset(Dataset):
     @abstractmethod
     def special_process(self, backbone: MultimodalBackbone): ...
 
-    @cached_property
+    @staticmethod
     @abstractmethod
-    def class_weights(self) -> list[float]: ...
+    def label2int(item) -> int: ...
+
+    @cached_property
+    def class_weights(self) -> list[float]:
+        labels = self.meta.apply(self.label2int, axis=1)
+        class_counts = [(labels == i).sum() for i in range(self.num_classes)]
+        total_samples = sum(class_counts)
+        class_weights = [class_count / total_samples for class_count in class_counts]
+        return class_weights
 
     @abstractmethod
     def __getitem__(self, index: int) -> MultimodalInput: ...

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import itertools
-from functools import cached_property
 from typing import TYPE_CHECKING
 
 import torch
@@ -74,14 +73,6 @@ class PilotDataset(MultimodalDataset):
             )
 
         return pd.DataFrame(data, columns=["text", "label"])
-
-    @cached_property
-    def class_weights(self) -> list[float]:
-        labels = self.meta.apply(self.label2int, axis=1)
-        class_counts = [(labels == i).sum() for i in range(self.num_classes)]
-        total_samples = sum(class_counts)
-        class_weights = [class_count / total_samples for class_count in class_counts]
-        return class_weights
 
     def __getitem__(self, index: int):
         from recognize.model import LazyMultimodalInput

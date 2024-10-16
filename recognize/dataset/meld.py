@@ -93,14 +93,6 @@ class MELDDataset(MultimodalDataset):
         text_backbone.resize_token_embeddings(len(tokenizer))
 
     @cached_property
-    def class_weights(self) -> list[float]:
-        labels = self.meta.apply(self.label2int, axis=1)
-        class_counts = [(labels == i).sum() for i in range(self.num_classes)]
-        total_samples = sum(class_counts)
-        class_weights = [class_count / total_samples for class_count in class_counts]
-        return class_weights
-
-    @cached_property
     def speakers(self) -> list[str]:
         return self.meta["Speaker"].unique().tolist()
 
