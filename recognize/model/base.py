@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import itertools
-import json
 import pickle
 from collections.abc import Callable, Mapping, Sequence
 from functools import cached_property
@@ -18,6 +17,7 @@ from torch import nn
 from torch.nn import CrossEntropyLoss
 
 from recognize.cache import CacheManager, hash_bytes, load_cached_tensors, save_cached_tensors
+from recognize.config import load_dict_from_path, save_dict_to_path
 from recognize.module.basic import Pooler
 from recognize.typing import BackboneT, ModelInputT, StateDicts
 
@@ -264,8 +264,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             with open(model_path, "wb") as f:
                 f.write(state_bytes)
 
-        with open(original_encoder_dir / "config.json", "w") as f:
-            json.dump(self.hyperparameter, f)
+        save_dict_to_path(self.hyperparameter, original_encoder_dir / "config.json")
         save_file(self.named_poolers.state_dict(), original_encoder_dir / "poolers.safetensors")
         return state_path_dict
 
@@ -284,8 +283,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         checkpoint_path = Path(checkpoint_path)
         encoders: dict[str, tuple[nn.Module, int]] = {}
 
-        with open(checkpoint_path / "config.json") as f:
-            backbone_config = json.load(f)
+        backbone_config = load_dict_from_path(checkpoint_path / "config.json")
 
         for name, feature_size in backbone_config["feature_sizes"].items():
             if not (checkpoint_path / name).exists():
@@ -364,5 +362,4 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
         checkpoint_path = Path(checkpoint_path)
         model_state_dict = {key: value for key, value in self.state_dict().items() if not key.startswith("backbone.")}
         save_file(model_state_dict, checkpoint_path / "model.safetensors")
-        with open(checkpoint_path / "config.json", "w") as f:
-            json.dump(self.hyperparameter, f)
+        save_dict_to_path(self.hyperparameter, checkpoint_path / "config.json")

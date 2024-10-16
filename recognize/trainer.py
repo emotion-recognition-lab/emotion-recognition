@@ -10,6 +10,7 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 
+from recognize.config import load_dict_from_path, save_dict_to_path
 from recognize.evaluate import TrainingResult, calculate_accuracy_and_f1_score
 
 if TYPE_CHECKING:
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
 
 class EarlyStopper(BaseModel):
     patience: int = 20
+    history: list[tuple[int, dict[str, Any]]] = Field(default_factory=list)
     best_scores: dict[str, Any] = Field(default_factory=dict)
     best_epoch: int = -1
 
@@ -27,16 +29,14 @@ class EarlyStopper(BaseModel):
             state_dict = f.read()
         return cls.model_validate_json(state_dict)
 
-    def load(self, path: str | Path):
-        with open(path) as f:
-            state_dict = self.model_validate_json(f.read()).model_dump()
+    def load(self, path: Path):
+        state_dict = load_dict_from_path(path)
         self.patience = state_dict["patience"]
         self.best_scores = state_dict["best_scores"]
         self.best_epoch = state_dict["best_epoch"]
 
-    def save(self, path: str | Path):
-        with open(path, "w") as f:
-            f.write(self.model_dump_json())
+    def save(self, path: Path):
+        save_dict_to_path(self.model_dump(), path)
 
     def update(self, epoch: int, **kwargs: float):
         for key, value in kwargs.items():
