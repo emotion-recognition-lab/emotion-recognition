@@ -99,47 +99,11 @@ def get_outputs(model: ClassifierModel, data_loader: DataLoader) -> tuple[list[i
     return predicted_list, labels_list
 
 
-class ModelResult(BaseModel):
-    accuracy: float = 0
-    f1_score: float = 0
-
-    confusion_matrix: list[list[int]] | None = None
-    best_epoch: int = 0
-
-    def print(self, *, print_table: bool = False):
-        logger.info(f"Accuracy: {self.accuracy:.2f}%, F1 Score: {self.f1_score:.2f}%")
-        if not print_table or self.confusion_matrix is None:
-            return
-
-        from rich import print
-
-        logger.info("Confusion Matrix:")
-        table = Table(show_header=False, show_lines=True)
-        for i, row in enumerate(self.confusion_matrix):
-            str_row = [f"[red]{v}" if i == j else f"{v}" for j, v in enumerate(row)]
-            table.add_row(*str_row)
-        print(table)
-
-    @classmethod
-    def auto_compute(cls, model: ClassifierModel, data_loader: DataLoader):
-        accuracy, f1_score = calculate_accuracy_and_f1_score(model, data_loader)
-
-        return cls(
-            accuracy=accuracy,
-            f1_score=f1_score,
-            confusion_matrix=confusion_matrix(model, data_loader),
-        )
-
-
 class TrainingResult(BaseModel):
     accuracy: float = 0
     f1_score: float = 0
 
     confusion_matrix: list[list[int]] | None = None
-
-    def save(self, path: str):
-        with open(path, "w") as f:
-            f.write(self.model_dump_json())
 
     def print(self, *, print_table: bool = False):
         logger.info(f"Accuracy: {self.accuracy:.2f}%, F1 Score: {self.f1_score:.2f}%")
