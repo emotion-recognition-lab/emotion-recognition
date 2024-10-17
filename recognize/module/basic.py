@@ -19,6 +19,7 @@ class Pooler(nn.Module):
             nn.ReLU(),
         )
 
+    @torch.compile(dynamic=True, fullgraph=True)
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         pooled_output = self.pool(x)
         return pooled_output

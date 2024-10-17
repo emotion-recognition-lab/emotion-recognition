@@ -18,7 +18,6 @@ from torch.nn import CrossEntropyLoss
 
 from recognize.cache import CacheManager, hash_bytes, load_cached_tensors, save_cached_tensors
 from recognize.config import load_dict_from_path, save_dict_to_path
-from recognize.module.basic import Pooler
 from recognize.typing import BackboneT, ModelInputT, StateDicts
 
 
@@ -97,7 +96,10 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             {name: self.pretrained_module(module) for name, (module, _) in encoders.items()}
         )
         self.named_poolers = nn.ModuleDict(
-            {name: Pooler(module.config.hidden_size, feature_size) for name, (module, feature_size) in encoders.items()}
+            {
+                name: nn.Linear(module.config.hidden_size, feature_size)
+                for name, (module, feature_size) in encoders.items()
+            }
         )
         if init_hook is not None:
             init_hook(self)
@@ -320,6 +322,7 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
         self.backbone = backbone
         self.num_classes = num_classes
         self.class_weights = class_weights
+        self.sample_weights = 1 / self.class_weights if self.class_weights is not None else None
         self.feature_size = feature_size
         self.classifier = nn.Linear(feature_size, num_classes)
 
@@ -329,10 +332,6 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
     def unfreeze_backbone(self):
         self.backbone.unfreeze()
 
-    @cached_property
-    def sample_weights(self):
-        return 1 / self.class_weights if self.class_weights is not None else None
-
     def compute_loss(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         if self.num_classes == 1:
             loss_fn = nn.MSELoss()
@@ -341,6 +340,7 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
             loss_fn = CrossEntropyLoss(weight=self.sample_weights)
             return loss_fn(logits, labels)
 
+    @torch.compile(dynamic=True)
     def classify(self, features: torch.Tensor, labels: torch.Tensor | None) -> ClassifierOutput:
         logits = self.classifier(features)
         loss = None

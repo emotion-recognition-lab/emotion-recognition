@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from functools import partial
 
 import torch
@@ -11,7 +11,7 @@ from .fusion import LowRankFusionLayer
 
 
 class MoE(nn.Module):
-    def __init__(self, input_dim: int, experts: list[nn.Module]):
+    def __init__(self, input_dim: int, experts: Sequence[nn.Module]):
         super().__init__()
         self.experts = nn.ModuleList(experts)
         self.router = nn.Sequential(
@@ -50,17 +50,9 @@ class MultiHeadMoE(nn.Module):
 
 class MoELowRankFusionLayer(MultiHeadMoE, LowRankFusionLayer):
     def __init__(self, dims: dict[str, int], rank: int, output_size: int, *, trainable_placeholder: bool = False):
+        # NOTE: __init__ of MultiHeadMoE or LowRankFusionLayer all has Module.__init__, so only one can be used.
         LowRankFusionLayer.__init__(self, dims, rank, len(dims), trainable_placeholder=trainable_placeholder)
         self.router = partial(LowRankFusionLayer.forward, self)
         self.expert_names = sorted(dims.keys())
         self.experts = nn.ModuleDict({name: Pooler(dim, output_size) for name, dim in dims.items()})
         self.output_size = output_size
-
-
-# class MoELowRankFusionLayer(MultiHeadMoE, LowRankFusionLayer):
-#     def __init__(self, dims: dict[str, int], rank: int, output_size: int, *, trainable_placeholder: bool = False):
-#         LowRankFusionLayer.__init__(self, dims, rank, len(dims), trainable_placeholder=trainable_placeholder)
-#         self.router = partial(LowRankFusionLayer.forward, self)
-#         self.expert_names = sorted(dims.keys())
-#         self.experts = nn.ModuleDict({name: Pooler(dim, output_size) for name, dim in dims.items()})
-#         self.output_size = output_size
