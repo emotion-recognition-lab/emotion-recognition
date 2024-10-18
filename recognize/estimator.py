@@ -11,7 +11,7 @@ from recognize.model import (
     MultimodalModel,
 )
 from recognize.model.unimodal import UnimodalModel
-from recognize.module import gen_fusion_layer
+from recognize.module import gen_fusion_layer, get_feature_sizes_dict
 from recognize.preprocessor import Preprocessor
 
 
@@ -35,7 +35,8 @@ class EmotionEstimator:
                 .eval()
             )
         else:
-            fusion_layer = gen_fusion_layer(config.model.fusion, config.model.modals, config.model.feature_sizes)
+            feature_sizes_dict = get_feature_sizes_dict(config.model.modals, config.model.feature_sizes)
+            fusion_layer = gen_fusion_layer(config.model.fusion, feature_sizes_dict)
             model = (
                 MultimodalModel.from_checkpoint(
                     checkpoint,

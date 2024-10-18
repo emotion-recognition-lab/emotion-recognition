@@ -5,14 +5,18 @@ from recognize.module.moe import MoELowRankFusionLayer
 from recognize.typing import FusionLayerLike, ModalType
 
 
-def gen_fusion_layer(fusion: str, modals: list[ModalType], feature_sizes: list[int]) -> FusionLayerLike:
+def get_feature_sizes_dict(modals: list[ModalType], feature_sizes: list[int]) -> dict[str, int]:
+    return dict(zip(modals, feature_sizes, strict=True))
+
+
+def gen_fusion_layer(fusion: str, feature_sizes_dict: dict[str, int]) -> FusionLayerLike:
     fusion = eval(
         fusion,
         {
             "TensorFusionLayer": TensorFusionLayer,
             "LowRankFusionLayer": LowRankFusionLayer,
             "MoELowRankFusionLayer": MoELowRankFusionLayer,
-            "feature_sizes_dict": dict(zip(modals, feature_sizes, strict=True)),
+            "feature_sizes_dict": feature_sizes_dict,
         },
     )
 

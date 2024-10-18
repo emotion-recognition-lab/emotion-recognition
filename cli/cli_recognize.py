@@ -25,7 +25,7 @@ from recognize.model import (
     MultimodalModel,
     UnimodalModel,
 )
-from recognize.module import gen_fusion_layer
+from recognize.module import gen_fusion_layer, get_feature_sizes_dict
 from recognize.preprocessor import Preprocessor
 from recognize.trainer import EarlyStopper
 from recognize.typing import DatasetLabelType
@@ -292,11 +292,12 @@ def distill(
     logger.info("Test result in [green]best teacher model[/]:")
     result.print()
 
-    fusion_layer = gen_fusion_layer(config_fusion, config_modals, config_feature_sizes)
+    feature_sizes_dict = get_feature_sizes_dict(config_modals, config_feature_sizes)
+    fusion_layer = gen_fusion_layer(config_fusion, feature_sizes_dict)
     model = MultimodalModel(
         backbone,
         fusion_layer,
-        feature_sizes=config.model.feature_sizes,
+        feature_sizes_dict=feature_sizes_dict,
         num_classes=train_dataset.num_classes,
         class_weights=class_weights,
     ).cuda()
@@ -403,11 +404,12 @@ def train(
             class_weights=class_weights,
         ).cuda()
     else:
-        fusion_layer = gen_fusion_layer(config.model.fusion, config_modals, config_feature_sizes)
+        feature_sizes_dict = get_feature_sizes_dict(config_modals, config_feature_sizes)
+        fusion_layer = gen_fusion_layer(config.model.fusion, feature_sizes_dict)
         model = MultimodalModel(
             backbone,
             fusion_layer,
-            feature_sizes=config.model.feature_sizes,
+            feature_sizes_dict=feature_sizes_dict,
             num_classes=train_dataset.num_classes,
             class_weights=class_weights,
         ).cuda()
@@ -473,11 +475,12 @@ def evaluate(checkpoint: Path) -> None:
             num_classes=test_dataset.num_classes,
         ).cuda()
     else:
-        fusion_layer = gen_fusion_layer(config.model.fusion, config_modals, config_feature_sizes)
+        feature_sizes_dict = get_feature_sizes_dict(config_modals, config_feature_sizes)
+        fusion_layer = gen_fusion_layer(config.model.fusion, feature_sizes_dict)
         model = MultimodalModel(
             backbone,
             fusion_layer,
-            feature_sizes=config.model.feature_sizes,
+            feature_sizes_dict=feature_sizes_dict,
             num_classes=test_dataset.num_classes,
         ).cuda()
 
@@ -507,7 +510,8 @@ def inference(
     if config_fusion is None:
         model = UnimodalModel.from_checkpoint(model_checkpoint, backbone=backbone).cuda()
     else:
-        fusion_layer = gen_fusion_layer(config_fusion, config_modals, config_feature_sizes)
+        feature_sizes_dict = get_feature_sizes_dict(config_modals, config_feature_sizes)
+        fusion_layer = gen_fusion_layer(config_fusion, feature_sizes_dict)
         model = MultimodalModel.from_checkpoint(model_checkpoint, backbone=backbone, fusion_layer=fusion_layer).cuda()
     model.eval()
     inputs = LazyMultimodalInput(

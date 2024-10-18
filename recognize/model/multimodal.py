@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import pickle
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Self
 
 import torch
 from loguru import logger
+from torch import nn
 from torch.nn.utils.rnn import pad_sequence
 
 from recognize.cache import hash_bytes
 from recognize.config import load_inference_config
+from recognize.module import get_feature_sizes_dict
+from recognize.module.basic import Projector
 from recognize.preprocessor import Preprocessor
 from recognize.typing import FusionLayerLike
 
@@ -218,7 +221,7 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
         self,
         backbone: MultimodalBackbone,
         fusion_layer: FusionLayerLike,
-        feature_sizes: Sequence[int],
+        feature_sizes_dict: Mapping[str, int],
         *,
         num_classes: int = 2,
         class_weights: torch.Tensor | None = None,
@@ -229,7 +232,9 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
             num_classes=num_classes,
             class_weights=class_weights,
         )
-        self.feature_sizes = list(feature_sizes)
+        self.projectors = nn.ModuleDict(
+            {modal: Projector(feature_size) for modal, feature_size in feature_sizes_dict.items()}
+        )
         self.fusion_layer = fusion_layer
 
     def get_hyperparameter(self):
@@ -239,6 +244,8 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
 
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
         embs_dict = self.backbone(inputs)
+        for modal, embs in embs_dict.items():
+            embs_dict[modal] = self.projectors[modal](embs)
         fusion_features = self.fusion_layer(embs_dict)
         return self.classify(fusion_features, inputs.labels)
 
@@ -255,10 +262,11 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
 
         checkpoint_path = Path(checkpoint_path)
         config = load_inference_config(checkpoint_path / "inference.toml")
+        feature_sizes_dict = get_feature_sizes_dict(config.model.modals, config.model.feature_sizes)
         model = cls(
             backbone,
             fusion_layer,
-            feature_sizes=config.model.feature_sizes,
+            feature_sizes_dict=feature_sizes_dict,
             num_classes=config.num_classes,
             class_weights=class_weights,
         )
