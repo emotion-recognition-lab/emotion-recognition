@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
+from typing import ParamSpec, overload
 
 import torch
 from loguru import logger
@@ -11,6 +12,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from safetensors.torch import load_file, save_file
 
 from .typing import StateDict
+
+P = ParamSpec("P")
 
 
 def hash_bytes(bytes_data: bytes) -> str:
@@ -108,6 +111,39 @@ class CacheManager:
             value = {k: v.to(self.device) for k, v in value.items()}
             self.deivce_cache.set(key, value)
         self.save_disk_cache(key, value)
+
+    @overload
+    def cached(
+        self,
+        fn: None = None,
+        *,
+        condition: bool = True,
+    ) -> Callable[[Callable[P, dict[str, torch.Tensor]]], Callable[P, dict[str, torch.Tensor]]]: ...
+
+    @overload
+    def cached(self, fn: Callable[P, dict[str, torch.Tensor]]) -> Callable[P, dict[str, torch.Tensor]]: ...
+
+    def cached(
+        self,
+        fn: Callable[P, dict[str, torch.Tensor]] | None = None,
+        *,
+        condition: bool = True,
+    ) -> (
+        Callable[[Callable[P, dict[str, torch.Tensor]]], Callable[P, dict[str, torch.Tensor]]]
+        | Callable[P, dict[str, torch.Tensor]]
+    ):
+        def wrapper(fn: Callable[P, dict[str, torch.Tensor]]) -> Callable[P, dict[str, torch.Tensor]]: ...
+
+        if fn is None:
+            return wrapper
+
+        if not condition:
+            return fn
+
+        def cached_fn(*args: P.args, **kwargs: P.kwargs) -> dict[str, torch.Tensor]:
+            raise NotImplementedError("CacheManager.cached is not implemented")
+
+        return cached_fn
 
 
 def load_cached_tensors(
