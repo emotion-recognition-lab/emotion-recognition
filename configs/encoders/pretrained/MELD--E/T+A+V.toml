@@ -1,0 +1,8 @@
+[model]
+modals = ["T", "A", "V"]
+feature_sizes = [768, 768, 768]
+encoders = [
+    "roberta-large@checkpoints/training/MELD--E/T+A+V--T",
+    "facebook/wav2vec2-base-960h@checkpoints/training/MELD--E/T+A+V--T",
+    "google/vivit-b-16x2-kinetics400@checkpoints/training/MELD--E/T+A+V--T",
+]

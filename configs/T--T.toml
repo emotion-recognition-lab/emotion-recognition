@@ -1,8 +1,0 @@
-log_level = "INFO"
-batch_size = 4
-
-[model]
-modals = ["T"]
-feature_sizes = [768]
-encoders = ["roberta-large"]
-training_mode = "trainable"

@@ -393,6 +393,7 @@ def train(
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
 
     if config.model.fusion is None:
+        assert len(config_modals) == 1, "Multiple modals must give a fusion layer"
         model = UnimodalModel(
             backbone,
             feature_size=config.model.feature_sizes[0],

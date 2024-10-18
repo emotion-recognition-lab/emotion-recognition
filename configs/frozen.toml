@@ -1,0 +1,4 @@
+batch_size = 4
+
+[model]
+training_mode = "frozen"

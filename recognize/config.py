@@ -10,6 +10,15 @@ from pydantic import BaseModel, Field, model_validator
 from .typing import LogLevel, ModalType
 
 
+def recursive_update(d: dict, u: dict) -> dict:
+    for k, v in u.items():
+        if isinstance(v, dict) and isinstance(d.get(k), dict):
+            d[k] = recursive_update(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
+
+
 class ModelConfig(BaseModel):
     modals: list[ModalType]
     feature_sizes: list[int]
@@ -122,14 +131,14 @@ def save_dict_to_path(config: dict[str, Any], path: Path) -> None:
 def load_training_config(*paths: Path) -> TrainingConfig:
     config_dict = {}
     for path in paths:
-        config_dict.update(load_dict_from_path(path))
+        recursive_update(config_dict, load_dict_from_path(path))
     return TrainingConfig(**config_dict)
 
 
 def load_inference_config(*paths: Path) -> InferenceConfig:
     config_dict = {}
     for path in paths:
-        config_dict.update(load_dict_from_path(path))
+        recursive_update(config_dict, load_dict_from_path(path))
     return InferenceConfig(**config_dict)
 
 

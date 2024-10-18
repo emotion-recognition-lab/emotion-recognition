@@ -1,8 +1,0 @@
-log_level = "INFO"
-batch_size = 1
-
-[model]
-modals = ["V"]
-feature_sizes = [768]
-encoders = ["google/vivit-b-16x2-kinetics400"]
-training_mode = "trainable"
