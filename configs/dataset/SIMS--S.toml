@@ -1,0 +1,4 @@
+[dataset]
+dataset_class = "SIMSDataset"
+path = "datasets/SIMS"
+label_type = "sentiment"
