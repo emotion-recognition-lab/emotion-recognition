@@ -42,7 +42,7 @@ class DatasetConfig(BaseModel):
 
 
 class TrainingConfig(BaseModel):
-    log_level: LogLevel = "INFO"  # TODO: remove after typer supports Literal
+    log_level: LogLevel = "DEBUG"  # TODO: remove after typer supports Literal
     batch_size: int = 32
     custom_label: str | None = Field(default=None, description="To mark the model, e.g. MoE")
 

@@ -26,11 +26,11 @@ class Pooler(nn.Module):
 
 
 class Projector(nn.Module):
-    def __init__(self, feature_size: int, *, depth: int = 2):
+    def __init__(self, feature_size: int, *, depth: int = 1):
         super().__init__()
         self.proj = nn.Sequential(
             nn.Linear(feature_size, feature_size),
-            *[nn.GELU(), nn.Linear(feature_size, feature_size)] * (depth - 1),
+            *[nn.Tanh(), nn.Linear(feature_size, feature_size)] * (depth - 1),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
