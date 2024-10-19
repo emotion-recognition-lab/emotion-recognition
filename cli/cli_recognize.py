@@ -48,6 +48,10 @@ def init_logger(log_level: LogLevel, model_label: str):
     logger.add(handler, format="{message}", level=log_level)
 
 
+def init_torch():
+    torch.set_float32_matmul_precision("high")
+
+
 def seed_everything(seed: int | None = None):
     if seed is None:
         return
@@ -64,7 +68,7 @@ def provide_datasets(
     dataset_path: Path,
     label_type: DatasetLabelType = "emotion",
     dataset_class_str: Literal["MELDDataset", "PilotDataset", "SIMSDataset"] = "MELDDataset",
-):
+) -> tuple[MultimodalDataset, MultimodalDataset, MultimodalDataset]:
     dataset_class: type[MELDDataset | PilotDataset | SIMSDataset] = {
         "MELDDataset": MELDDataset,
         "PilotDataset": PilotDataset,
@@ -198,6 +202,7 @@ def distill(
     """
 
     seed_everything(seed)
+    init_torch()
 
     config = load_training_config(*config_path)
     config_training_mode = config.model.training_mode
@@ -332,6 +337,7 @@ def train(
     seed: int | None = None,
 ) -> None:
     seed_everything(seed)
+    init_torch()
 
     config = load_training_config(*config_path)
     init_logger(config.log_level, config.model_label)

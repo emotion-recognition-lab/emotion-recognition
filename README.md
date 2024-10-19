@@ -16,16 +16,16 @@
 - audio: A
 - video: V
 
-其中分类任务分为`emotion`和`sentiment`，简称如下：
-
-- emotion: E
-- sentiment: S
-
 训练方式分为`Full Tuning`、`LoRA` 和 `Froze Backbones`，简称如下：
 
 - Full Tuning: T
 - LoRA: L
 - Froze Backbones: F
+
+其中数据集类型分为`emotion`和`sentiment`，简称如下：
+
+- emotion: E
+- sentiment: S
 
 
 ## 技术选型

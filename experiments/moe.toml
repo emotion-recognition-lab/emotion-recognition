@@ -2,46 +2,52 @@ name = "MoE"
 resources = "gpus"
 
 [matrix]
-dataset = ["configs/dataset/MELD--E.toml"]
+dataset = ["MELD--E"]
+modals = [
+    "T+A",
+    # "T+V",
+    # "A+V",
+    "T+A+V",
+]
 
-[tasks.TA-T]
+[tasks.trainable]
 command = "uv run emotion-recognize train"
 args = [
-    "{dataset}",
-    "configs/encoders/T+A.toml",
+    "configs/dataset/{dataset}.toml",
+    "configs/encoders/{modals}.toml",
     "configs/fusion/LMF.toml",
     "--seed 114",
 ]
 
-[tasks.MoE-TA-T]
+[tasks.MoE-trainable]
 command = "uv run emotion-recognize train"
 args = [
-    "{dataset}",
-    "configs/encoders/T+A.toml",
+    "configs/dataset/{dataset}.toml",
+    "configs/encoders/{modals}.toml",
     "configs/fusion/MoE/LMF.toml",
     "--seed 114",
 ]
 
-[tasks.TA-F]
+[tasks.frozen]
 command = "uv run emotion-recognize train"
 args = [
-    "{dataset}",
-    "configs/encoders/T+A.toml",
-    "configs/encoders/pretrained/MELD--E/T+A.toml",
+    "configs/dataset/{dataset}.toml",
+    "configs/encoders/{modals}.toml",
+    "configs/encoders/pretrained/{dataset}/{modals}.toml",
     "configs/fusion/LMF.toml",
     "configs/frozen.toml",
     "--seed 114",
 ]
-deps = ["TA-T"]
+deps = ["trainable"]
 
-[tasks.MoE-TA-F]
+[tasks.MoE-frozen]
 command = "uv run emotion-recognize train"
 args = [
-    "{dataset}",
-    "configs/encoders/T+A.toml",
-    "configs/encoders/pretrained/MELD--E/T+A.toml",
+    "configs/dataset/{dataset}.toml",
+    "configs/encoders/{modals}.toml",
+    "configs/encoders/pretrained/{dataset}/{modals}.toml",
     "configs/fusion/MoE/LMF.toml",
     "configs/frozen.toml",
     "--seed 114",
 ]
-deps = ["TA-T"]
+deps = ["trainable"]

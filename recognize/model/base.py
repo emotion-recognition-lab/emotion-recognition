@@ -17,7 +17,8 @@ from torch import nn
 from torch.nn import CrossEntropyLoss
 
 from recognize.cache import CacheManager, hash_bytes, load_cached_tensors, save_cached_tensors
-from recognize.config import load_dict_from_path, save_dict_to_path
+from recognize.config import load_dict_from_path, save_dict_to_file
+from recognize.module.moe import MoE
 from recognize.typing import BackboneT, ModelInputT, StateDicts
 
 
@@ -266,7 +267,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             with open(model_path, "wb") as f:
                 f.write(state_bytes)
 
-        save_dict_to_path(self.hyperparameter, original_encoder_dir / "config.json")
+        save_dict_to_file(self.hyperparameter, original_encoder_dir / "config.json")
         save_file(self.named_poolers.state_dict(), original_encoder_dir / "poolers.safetensors")
         return state_path_dict
 
@@ -316,6 +317,7 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
         feature_size: int,
         num_classes: int,
         *,
+        num_experts: int = 1,
         class_weights: torch.Tensor | None = None,
     ):
         super().__init__()
@@ -324,7 +326,10 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
         self.class_weights = class_weights
         self.sample_weights = 1 / self.class_weights if self.class_weights is not None else None
         self.feature_size = feature_size
-        self.classifier = nn.Linear(feature_size, num_classes)
+        if num_experts == 1:
+            self.classifier = nn.Linear(feature_size, num_classes)
+        else:
+            self.classifier = MoE(feature_size, [nn.Linear(feature_size, num_classes) for _ in range(num_experts)])
 
     def freeze_backbone(self):
         self.backbone.freeze()
@@ -362,4 +367,4 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
         checkpoint_path = Path(checkpoint_path)
         model_state_dict = {key: value for key, value in self.state_dict().items() if not key.startswith("backbone.")}
         save_file(model_state_dict, checkpoint_path / "model.safetensors")
-        save_dict_to_path(self.hyperparameter, checkpoint_path / "config.json")
+        save_dict_to_file(self.hyperparameter, checkpoint_path / "config.json")

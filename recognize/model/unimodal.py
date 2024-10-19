@@ -18,12 +18,14 @@ class UnimodalModel(ClassifierModel[MultimodalBackbone]):
         *,
         feature_size: int = 128,
         num_classes: int = 2,
+        num_experts: int = 1,
         class_weights: torch.Tensor | None = None,
     ):
         super().__init__(
             backbone,
             feature_size,
             num_classes=num_classes,
+            num_experts=num_experts,
             class_weights=class_weights,
         )
         self.feature_size = feature_size
@@ -60,6 +62,7 @@ class UnimodalModel(ClassifierModel[MultimodalBackbone]):
             backbone,
             feature_size=config.model.feature_sizes[0],
             num_classes=config.num_classes,
+            num_experts=config.model.num_experts,
             class_weights=class_weights,
         )
         load_model(checkpoint_path, model)

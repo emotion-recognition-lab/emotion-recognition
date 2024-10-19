@@ -10,7 +10,7 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 
-from recognize.config import load_dict_from_path, save_dict_to_path
+from recognize.config import load_dict_from_path, save_dict_to_file
 from recognize.evaluate import TrainingResult, calculate_accuracy_and_f1_score
 
 if TYPE_CHECKING:
@@ -36,7 +36,7 @@ class EarlyStopper(BaseModel):
         self.best_epoch = state_dict["best_epoch"]
 
     def save(self, path: Path):
-        save_dict_to_path(self.model_dump(), path)
+        save_dict_to_file(self.model_dump(), path)
 
     def update(self, epoch: int, **kwargs: float):
         for key, value in kwargs.items():
@@ -55,12 +55,6 @@ class EarlyStopper(BaseModel):
 
 
 class Trainer:
-    @staticmethod
-    def init_torch():
-        torch.set_float32_matmul_precision("high")
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-
     def __init__(
         self,
         model: ClassifierModel,
@@ -70,7 +64,6 @@ class Trainer:
         *,
         max_grad_norm: float | None = None,
     ):
-        self.init_torch()
         self.model = model
         self.data_loaders = data_loaders
         self.optimizer = optimizer

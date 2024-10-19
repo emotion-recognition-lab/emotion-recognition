@@ -48,7 +48,7 @@ class MultiHeadMoE(nn.Module):
         return sum(outputs) / sum_weights.unsqueeze(1)
 
 
-class MoELowRankFusionLayer(MultiHeadMoE, LowRankFusionLayer):
+class MultimodalMoE(MultiHeadMoE, LowRankFusionLayer):
     def __init__(self, dims: dict[str, int], rank: int, output_size: int, *, trainable_placeholder: bool = False):
         # NOTE: __init__ of MultiHeadMoE or LowRankFusionLayer all has Module.__init__, so only one can be used.
         LowRankFusionLayer.__init__(self, dims, rank, len(dims), trainable_placeholder=trainable_placeholder)

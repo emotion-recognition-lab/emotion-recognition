@@ -25,6 +25,7 @@ class ModelConfig(BaseModel):
     encoders: list[str]
     training_mode: Literal["trainable", "lora", "frozen"] = "trainable"
     fusion: str | None = None
+    num_experts: int = 1
 
     @model_validator(mode="after")
     def verify_model_config(self) -> Self:
@@ -105,7 +106,7 @@ def load_dict_from_path(path: Path) -> dict[str, Any]:
     return config
 
 
-def save_dict_to_path(config: dict[str, Any], path: Path) -> None:
+def save_dict_to_file(config: dict[str, Any], path: Path) -> None:
     if path.exists():
         logger.warning(f"{path} already exists, will be overwritten")
     else:
@@ -144,4 +145,4 @@ def load_inference_config(*paths: Path) -> InferenceConfig:
 
 def save_config(config: BaseModel, path: Path) -> None:
     config_dict = config.model_dump(mode="json")
-    save_dict_to_path(config_dict, path)
+    save_dict_to_file(config_dict, path)

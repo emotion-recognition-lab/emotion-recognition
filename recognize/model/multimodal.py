@@ -224,12 +224,14 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
         feature_sizes_dict: Mapping[str, int],
         *,
         num_classes: int = 2,
+        num_experts: int = 1,
         class_weights: torch.Tensor | None = None,
     ):
         super().__init__(
             backbone,
             fusion_layer.output_size,
             num_classes=num_classes,
+            num_experts=num_experts,
             class_weights=class_weights,
         )
         self.projectors = nn.ModuleDict(
@@ -268,6 +270,7 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
             fusion_layer,
             feature_sizes_dict=feature_sizes_dict,
             num_classes=config.num_classes,
+            num_experts=config.model.num_experts,
             class_weights=class_weights,
         )
         load_model(checkpoint_path, model)
