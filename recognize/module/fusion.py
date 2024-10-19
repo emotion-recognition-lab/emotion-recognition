@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 
 import torch
 from torch import nn
@@ -73,6 +73,39 @@ class LowRankFusionLayer(FusionLayer):
         product_tensor = torch.prod(torch.stack(fusion_tensors), dim=0)
         output = self.output_layer(product_tensor.permute(1, 2, 0)).squeeze(dim=-1)
         return output
+
+
+class MultiHeadFusionMoE(FusionLayer):
+    def __init__(
+        self,
+        dims: dict[str, int],
+        experts: Sequence[tuple[tuple[str, ...], nn.Module, int]],
+        output_size: int,
+    ):
+        """
+        Experts are expected to be a sequence of tuples of the form (needed_inputs, expert_module, output_dim).
+        """
+        super().__init__(output_size)
+        self.dim_names = sorted(dims.keys())
+        # TODO: router maybe can be scaled up
+        self.router = nn.ModuleDict({name: nn.Linear(dims[name], len(experts)) for name in self.dim_names})
+        self.experts = nn.ModuleList(
+            nn.Sequential(
+                expert_module,
+                nn.Linear(output_dim, output_size),
+            )
+            for _, expert_module, output_dim in experts
+        )
+        self.expert_needed_inputs = [needed_inputs for needed_inputs, _, _ in experts]
+
+    def forward(self, inputs: Mapping[str, torch.Tensor | None]) -> torch.Tensor:
+        importances = torch.stack([self.router[name](inputs[name]) for name in self.dim_names if name in inputs])
+        gate_outputs = torch.softmax(torch.sum(importances, dim=0), dim=1)
+        outputs = []
+        for i, expert in enumerate(self.experts):
+            expert_outputs = expert(inputs)
+            outputs.append(gate_outputs[:, i : i + 1] * expert_outputs)
+        return torch.sum(torch.stack(outputs), dim=0)
 
 
 class MeanEmbeddingsFusionLayer(FusionLayer):

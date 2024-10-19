@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from recognize.module.fusion import LowRankFusionLayer, TensorFusionLayer
+from recognize.module.fusion import LowRankFusionLayer, MultiHeadFusionMoE, TensorFusionLayer
 from recognize.module.moe import MultimodalMoE
 from recognize.typing import FusionLayerLike, ModalType
 
@@ -16,6 +16,7 @@ def gen_fusion_layer(fusion: str, feature_sizes_dict: dict[str, int]) -> FusionL
             "TensorFusionLayer": TensorFusionLayer,
             "LowRankFusionLayer": LowRankFusionLayer,
             "MultimodalMoE": MultimodalMoE,
+            "MultiHeadFusionMoE": MultiHeadFusionMoE,
             "feature_sizes_dict": feature_sizes_dict,
         },
     )
