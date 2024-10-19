@@ -220,7 +220,7 @@ def distill(
 
     assert config_training_mode != "lora", "Lora is not supported in distillation"
     assert config_fusion is not None
-    assert (teacher_checkpoint / "stopper.json").exists()
+    assert (teacher_checkpoint / "stopper.toml").exists()
     assert (teacher_checkpoint / "preprocessor").exists()
 
     if checkpoint is not None:
@@ -310,7 +310,7 @@ def distill(
     if config_training_mode == "trainable":
         model.unfreeze_backbone()
 
-    if checkpoint is not None and not (checkpoint_dir / "stopper.json").exists():
+    if checkpoint is not None and not (checkpoint_dir / "stopper.toml").exists():
         load_best_model(checkpoint, model)
         result = TrainingResult.auto_compute(model, test_data_loader)
         result.print()
@@ -421,7 +421,7 @@ def train(
         ).cuda()
     if config_training_mode == "trainable":
         model.unfreeze_backbone()
-    if checkpoint is not None and not (checkpoint_dir / "stopper.json").exists():
+    if checkpoint is not None and not (checkpoint_dir / "stopper.toml").exists():
         load_best_model(checkpoint, model)
         result = TrainingResult.auto_compute(model, test_data_loader)
         result.print()

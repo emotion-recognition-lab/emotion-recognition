@@ -106,8 +106,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             init_hook(self)
         self.cache_manager = CacheManager((8 * 2**30, 4 * 2**30), cache_dir=Path(f"./cache/{self.hash}"))
 
-    @property
-    def hyperparameter(self):
+    def get_meta_info(self):
         return {
             "feature_sizes": self.feature_sizes,
         }
@@ -267,7 +266,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             with open(model_path, "wb") as f:
                 f.write(state_bytes)
 
-        save_dict_to_file(self.hyperparameter, original_encoder_dir / "config.json")
+        save_dict_to_file(self.get_meta_info(), original_encoder_dir / "meta.toml")
         save_file(self.named_poolers.state_dict(), original_encoder_dir / "poolers.safetensors")
         return state_path_dict
 
@@ -286,7 +285,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         checkpoint_path = Path(checkpoint_path)
         encoders: dict[str, tuple[nn.Module, int]] = {}
 
-        backbone_config = load_dict_from_path(checkpoint_path / "config.json")
+        backbone_config = load_dict_from_path(checkpoint_path / "meta.toml")
 
         for name, feature_size in backbone_config["feature_sizes"].items():
             if not (checkpoint_path / name).exists():
@@ -353,18 +352,7 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
             loss = self.compute_loss(logits, labels)
         return ClassifierOutput(logits=logits, loss=loss)
 
-    def get_hyperparameter(self):
-        return {
-            "num_classes": self.num_classes,
-            "feature_size": self.feature_size,
-        }
-
-    @property
-    def hyperparameter(self):
-        return self.get_hyperparameter()
-
     def save_checkpoint(self, checkpoint_path: str | Path):
         checkpoint_path = Path(checkpoint_path)
         model_state_dict = {key: value for key, value in self.state_dict().items() if not key.startswith("backbone.")}
         save_file(model_state_dict, checkpoint_path / "model.safetensors")
-        save_dict_to_file(self.hyperparameter, checkpoint_path / "config.json")

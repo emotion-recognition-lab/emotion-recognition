@@ -30,11 +30,6 @@ class UnimodalModel(ClassifierModel[MultimodalBackbone]):
         )
         self.feature_size = feature_size
 
-    def get_hyperparameter(self):
-        return {
-            "num_classes": self.num_classes,
-        }
-
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
         pooled_embs: dict[str, torch.Tensor] = self.backbone(inputs)
         if len(pooled_embs) != 1:

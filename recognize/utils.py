@@ -70,7 +70,7 @@ def save_checkpoint(
 
     # TODO: improve optimizer size
     torch.save(optimizer.state_dict(), checkpoint_dir / "optimizer.pt")
-    stopper.save(checkpoint_dir / "stopper.json")
+    stopper.save(checkpoint_dir / "stopper.toml")
 
 
 def load_checkpoint(
@@ -83,8 +83,8 @@ def load_checkpoint(
     checkpoint_dir = Path(checkpoint_dir)
     if optimizer is not None and os.path.exists(checkpoint_dir / "optimizer.pt"):
         optimizer.load_state_dict(torch.load(checkpoint_dir / "optimizer.pt", weights_only=True))
-    if stopper is not None and os.path.exists(checkpoint_dir / "stopper.json"):
-        stopper.load(checkpoint_dir / "stopper.json")
+    if stopper is not None and os.path.exists(checkpoint_dir / "stopper.toml"):
+        stopper.load(checkpoint_dir / "stopper.toml")
     if epoch == -1:
         return
 
@@ -100,8 +100,8 @@ def load_model(checkpoint_dir: Path | str, model: ClassifierModel):
 
 
 def find_best_model(checkpoint_dir: Path | str) -> int:
-    if os.path.exists(f"{checkpoint_dir}/stopper.json"):
-        stopper = EarlyStopper.from_file(f"{checkpoint_dir}/stopper.json")
+    if os.path.exists(f"{checkpoint_dir}/stopper.toml"):
+        stopper = EarlyStopper.from_file(f"{checkpoint_dir}/stopper.toml")
         best_epoch = stopper.best_epoch
     else:
         logger.warning(f"No stopper or result file found in [blue]{checkpoint_dir}")

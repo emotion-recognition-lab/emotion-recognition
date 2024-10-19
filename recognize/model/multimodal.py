@@ -239,11 +239,6 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
         )
         self.fusion_layer = fusion_layer
 
-    def get_hyperparameter(self):
-        return {
-            "num_classes": self.num_classes,
-        }
-
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
         embs_dict = self.backbone(inputs)
         for modal, embs in embs_dict.items():
