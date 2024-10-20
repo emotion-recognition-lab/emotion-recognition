@@ -220,6 +220,7 @@ def train_and_eval(
     if test_data_loader is None:
         test_data_loader = valid_data_loader
     if model_label is None:
+        # TODO: improve default model label
         model_label = f"{model.__class__.__name__}-{id(model)}"
     logger.info(f"Train model [blue]{model_label}[/]. Save to [blue]{checkpoint_dir}[/]")
 

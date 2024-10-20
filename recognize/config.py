@@ -35,7 +35,7 @@ class ModelConfig(BaseModel):
     num_experts: int = 1
 
     @cached_property
-    def model_label(self) -> str:
+    def label(self) -> str:
         modals = "+".join(self.modals)
         # TODO: fusion need more explicit label
         encoders_hash = hash_string("".join(self.modals) + str(self.fusion))
@@ -59,6 +59,19 @@ class DatasetConfig(BaseModel):
     dataset_class: Literal["MELDDataset", "PilotDataset", "SIMSDataset"]
     label_type: Literal["sentiment", "emotion"] = "sentiment"
 
+    @cached_property
+    def label(self) -> str:
+        dataset_class_mapping = {"MELDDataset": "MELD", "PilotDataset": "Pilot", "SIMSDataset": "SIMS"}
+        label_type_mapping = {"sentiment": "S", "emotion": "E"}
+
+        dataset_class = dataset_class_mapping[self.dataset_class]
+        label_type = label_type_mapping[self.label_type]
+        model_labels = [
+            dataset_class,
+            label_type,
+        ]
+        return "--".join(model_labels)
+
 
 class TrainingConfig(BaseModel):
     log_level: LogLevel = "DEBUG"  # TODO: remove after typer supports Literal
@@ -69,23 +82,18 @@ class TrainingConfig(BaseModel):
     dataset: DatasetConfig
 
     @cached_property
+    def label(self) -> str:
+        return f"{self.dataset_label}/{self.model_label}"
+
+    @cached_property
     def model_label(self) -> str:
         if self.custom_label:
-            return f"{self.custom_label}--{self.model.model_label}"
-        return self.model.model_label
+            return f"{self.custom_label}--{self.model.label}"
+        return self.model.label
 
     @cached_property
     def dataset_label(self) -> str:
-        dataset_class_mapping = {"MELDDataset": "MELD", "PilotDataset": "Pilot", "SIMSDataset": "SIMS"}
-        label_type_mapping = {"sentiment": "S", "emotion": "E"}
-
-        dataset_class = dataset_class_mapping[self.dataset.dataset_class]
-        label_type = label_type_mapping[self.dataset.label_type]
-        model_labels = [
-            dataset_class,
-            label_type,
-        ]
-        return "--".join(model_labels)
+        return self.dataset.label
 
 
 class InferenceConfig(BaseModel):

@@ -24,8 +24,13 @@ command = "uv run emotion-recognize train"
 args = [
     "configs/dataset/{dataset}.toml",
     "configs/encoders/{modals}.toml",
-    "configs/fusion/MoE/LMF.toml",
+    "{method}",
     "--seed 114",
+]
+[tasks.MoE-trainable.matrix]
+method = [
+    "configs/fusion/MoE/LMF.toml",
+    "configs/8xE.toml configs/fusion/LMF.toml",
 ]
 
 [tasks.frozen]
@@ -48,6 +53,12 @@ args = [
     "configs/encoders/pretrained/{dataset}/{modals}.toml",
     "configs/fusion/MoE/LMF.toml",
     "configs/frozen.toml",
+    "{method}",
     "--seed 114",
 ]
 deps = ["trainable"]
+[tasks.MoE-frozen.matrix]
+method = [
+    "configs/fusion/MoE/LMF.toml",
+    "configs/8xE.toml configs/fusion/LMF.toml",
+]
