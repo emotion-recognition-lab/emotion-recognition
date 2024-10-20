@@ -8,7 +8,7 @@ from typing import Any, Literal, Self
 from loguru import logger
 from pydantic import BaseModel, Field, model_validator
 
-from .typing import LogLevel, ModalType, SupportedFusionLayer
+from .typing import LogLevel, ModalType
 
 
 def hash_string(string: str) -> str:
@@ -31,7 +31,7 @@ class ModelConfig(BaseModel):
     feature_sizes: list[int]
     encoders: list[str]
     training_mode: Literal["trainable", "lora", "frozen"] = "trainable"
-    fusion: SupportedFusionLayer | None = None
+    fusion: str | None = None
     num_experts: int = 1
 
     @cached_property
