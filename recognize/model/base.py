@@ -50,7 +50,7 @@ class ModelInput(BaseModel):
         return self
 
     def hash(self) -> str:
-        return hash_bytes(pickle.dumps(self.model_dump()))
+        return hash_bytes(pickle.dumps(self.model_dump(mode="json")))
 
     def __hash__(self) -> int:
         return int(self.hash(), 16)

@@ -70,7 +70,7 @@ def save_checkpoint(
 
     # TODO: improve optimizer size
     torch.save(optimizer.state_dict(), checkpoint_dir / "optimizer.pt")
-    stopper.save(checkpoint_dir / "stopper.toml")
+    stopper.save(checkpoint_dir / "stopper.yaml")
 
 
 def load_model(checkpoint_dir: Path | str, model: ClassifierModel):
@@ -82,8 +82,8 @@ def load_model(checkpoint_dir: Path | str, model: ClassifierModel):
 
 
 def find_best_model(checkpoint_dir: Path) -> int:
-    if (checkpoint_dir / "stopper.toml").exists():
-        stopper = EarlyStopper.from_file(checkpoint_dir / "stopper.toml")
+    if (checkpoint_dir / "stopper.yaml").exists():
+        stopper = EarlyStopper.from_file(checkpoint_dir / "stopper.yaml")
         best_epoch = stopper.best_epoch
     else:
         logger.warning(f"No stopper or result file found in [blue]{checkpoint_dir}")
@@ -213,7 +213,7 @@ def train_and_eval(
     checkpoint_dir = checkpoint_dir or Path(f"./checkpoints/training/{model_label}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     if stopper is None:
-        stopper = EarlyStopper.from_file(checkpoint_dir / "stopper.toml", create=True)
+        stopper = EarlyStopper.from_file(checkpoint_dir / "stopper.yaml", create=True)
         if stopper.finished:
             result = trainer.eval("test")
             return result

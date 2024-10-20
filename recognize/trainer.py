@@ -41,7 +41,7 @@ class EarlyStopper(BaseModel):
         self.best_epoch = state_dict["best_epoch"]
 
     def save(self, path: Path):
-        save_dict_to_file(self.model_dump(), path)
+        save_dict_to_file(self.model_dump(mode="json"), path)
 
     def update(self, epoch: int, **kwargs: float) -> bool:
         self.history.append((epoch, kwargs))

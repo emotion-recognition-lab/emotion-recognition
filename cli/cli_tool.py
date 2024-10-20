@@ -8,6 +8,7 @@ import typer
 from loguru import logger
 from rich.highlighter import NullHighlighter
 from rich.logging import RichHandler
+from rich.table import Table
 
 if TYPE_CHECKING:
     from recognize.typing import LogLevel
@@ -47,6 +48,37 @@ def create_standalone(
         else:
             shutil.copytree(subpath, target_checkpoint / subpath.name)
     logger.info(f"Inference checkpoints generated: [blue]{target_checkpoint}")
+
+
+@app.command()
+def info(
+    checkpoint: Path,
+):
+    # TODO: add more information
+    # TODO: support auto detect directory
+    from rich import print
+
+    from recognize.config import load_training_config
+    from recognize.trainer import EarlyStopper
+
+    training_config = load_training_config(checkpoint / "training.toml")
+    init_logger(training_config.log_level)
+
+    stopper = EarlyStopper.from_file(checkpoint / "stopper.yaml")
+    logger.info(f"Best epoch found: [blue]{stopper.best_epoch}")
+    result: dict[int, dict] = {}
+    score_names = set()
+    for epoch, record in stopper.history:
+        result.setdefault(epoch, {})
+        result[epoch].update(record)
+        score_names.update(record.keys())
+
+    table = Table(show_header=False, show_lines=True)
+    table.add_row("epoch", *[f"[bold]{k}[/]" for k in score_names])
+    for epoch, v in result.items():
+        str_row = [f"{v[k]:.4f}" if k in v else "" for k in score_names]
+        table.add_row(str(epoch), *str_row)
+    print(table)
 
 
 @app.command()
