@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias, runtime_checkable
 
 import torch
@@ -28,4 +29,4 @@ DatasetLabelType = Literal["emotion", "sentiment"]
 class FusionLayerLike(Protocol):
     output_size: int
 
-    def __call__(self, inputs: dict[str, torch.Tensor | None]) -> torch.Tensor: ...
+    def __call__(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor: ...

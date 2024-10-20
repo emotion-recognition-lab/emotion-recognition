@@ -154,6 +154,8 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             return self.save_cache(inputs)
         return {modal: torch.cat(cache) for modal, cache in cached_list.items()}
 
+    __call__: Callable[[ModelInputT], dict[str, torch.Tensor]]
+
     def forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
         if self.is_frozen and self.use_cache:
             try:

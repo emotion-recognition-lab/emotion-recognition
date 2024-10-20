@@ -59,7 +59,7 @@ class LowRankFusionLayer(FusionLayer):
             self.placeholders.requires_grad_(False)
         self.output_layer = nn.Linear(rank, 1)
 
-    def forward(self, inputs: Mapping[str, torch.Tensor | None]):
+    def forward(self, inputs: Mapping[str, torch.Tensor]):
         assert (
             0 < len(inputs) <= len(self.low_rank_weights)
         ), f"Number of inputs ({len(inputs)}) should be less equal to number of weights ({len(self.low_rank_weights)})"
@@ -98,7 +98,7 @@ class MultiHeadFusionMoE(FusionLayer):
         )
         self.expert_needed_inputs = [needed_inputs for needed_inputs, _, _ in experts]
 
-    def forward(self, inputs: Mapping[str, torch.Tensor | None]) -> torch.Tensor:
+    def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
         importances = torch.stack([self.router[name](inputs[name]) for name in self.dim_names if name in inputs])
         gate_outputs = torch.softmax(torch.sum(importances, dim=0), dim=1)
         outputs = []
@@ -113,5 +113,5 @@ class MeanEmbeddingsFusionLayer(FusionLayer):
         filtered_embs_list = [emb for emb in embs_list if emb is not None]
         return sum(filtered_embs_list) / len(filtered_embs_list)
 
-    def forward(self, inputs: Mapping[str, torch.Tensor | None]):
+    def forward(self, inputs: Mapping[str, torch.Tensor]):
         return self.mean_embs(inputs.values())

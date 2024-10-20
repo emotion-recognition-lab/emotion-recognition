@@ -27,15 +27,13 @@ class MoE(nn.Module):
 
 
 class MultiHeadMoE(nn.Module):
-    def __init__(
-        self, router: Callable[[Mapping[str, torch.Tensor | None]], torch.Tensor], experts: Mapping[str, nn.Module]
-    ):
+    def __init__(self, router: Callable[[Mapping[str, torch.Tensor]], torch.Tensor], experts: Mapping[str, nn.Module]):
         super().__init__()
         self.router = router
         self.expert_names = sorted(experts.keys())
         self.experts = nn.ModuleDict(experts)
 
-    def forward(self, inputs: Mapping[str, torch.Tensor | None]) -> torch.Tensor:
+    def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
         gate_outputs = torch.softmax(self.router(inputs), dim=-1)
         sum_weights = torch.zeros(gate_outputs.shape[0], device=gate_outputs.device)
         outputs = []
