@@ -24,7 +24,12 @@ class EarlyStopper(BaseModel):
     best_epoch: int = -1
 
     @classmethod
-    def from_file(cls, path: str):
+    def from_file(cls, path: str | Path, create: bool = False):
+        if not Path(path).exists():
+            if not create:
+                raise FileNotFoundError(f"Early stopper file [blue]{path}[/] not found, set create=True to create it")
+            logger.info(f"Early stopper file [blue]{path}[/] not found, use default config")
+            return cls()
         with open(path) as f:
             state_dict = f.read()
         return cls.model_validate_json(state_dict)

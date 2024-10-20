@@ -73,24 +73,6 @@ def save_checkpoint(
     stopper.save(checkpoint_dir / "stopper.toml")
 
 
-def load_checkpoint(
-    checkpoint_dir: Path | str,
-    epoch: int,
-    model: ClassifierModel[Backbone],
-    optimizer: Optimizer | None = None,
-    stopper: EarlyStopper | None = None,
-):
-    checkpoint_dir = Path(checkpoint_dir)
-    if optimizer is not None and os.path.exists(checkpoint_dir / "optimizer.pt"):
-        optimizer.load_state_dict(torch.load(checkpoint_dir / "optimizer.pt", weights_only=True))
-    if stopper is not None and os.path.exists(checkpoint_dir / "stopper.toml"):
-        stopper.load(checkpoint_dir / "stopper.toml")
-    if epoch == -1:
-        return
-
-    load_model(f"{checkpoint_dir}/{epoch}", model)
-
-
 def load_model(checkpoint_dir: Path | str, model: ClassifierModel):
     checkpoint_dir = Path(checkpoint_dir)
     model_state_dict = load_file(checkpoint_dir / "model.safetensors")
@@ -120,13 +102,17 @@ def load_last_checkpoint(
     checkpoint_dir: Path | str,
     model: ClassifierModel,
     optimizer: Optimizer | None = None,
-    stopper: EarlyStopper | None = None,
 ) -> int:
     checkpoint_dir = Path(checkpoint_dir)
     model_list = os.listdir(checkpoint_dir)
     model_list = [int(model_name) for model_name in model_list if model_name.isdigit()]
     epoch_start = max(model_list, default=-1)
-    load_checkpoint(checkpoint_dir, epoch_start, model, optimizer, stopper)
+    checkpoint_dir = Path(checkpoint_dir)
+    if optimizer is not None and os.path.exists(checkpoint_dir / "optimizer.pt"):
+        optimizer.load_state_dict(torch.load(checkpoint_dir / "optimizer.pt", weights_only=True))
+    if epoch_start != -1:
+        load_model(f"{checkpoint_dir}/{epoch_start}", model)
+
     return epoch_start
 
 
@@ -189,20 +175,20 @@ def train_and_eval(
         len(train_data_loader) * num_epochs,
     )
 
+    checkpoint_dir = checkpoint_dir or Path(f"./checkpoints/training/{model_label}")
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
     if stopper is None:
-        stopper = EarlyStopper()
+        stopper = EarlyStopper.from_file(checkpoint_dir / "stopper.toml", create=True)
     if test_data_loader is None:
         test_data_loader = valid_data_loader
     if model_label is None:
         model_label = f"{model.__class__.__name__}-{id(model)}"
-    checkpoint_dir = checkpoint_dir or Path(f"./checkpoints/training/{model_label}")
     logger.info(f"Train model [blue]{model_label}[/]. Save to [blue]{checkpoint_dir}[/]")
 
     epoch_start = load_last_checkpoint(
         checkpoint_dir,
         model,
         trainer.optimizer,
-        stopper,
     )
 
     best_epoch = stopper.best_epoch
@@ -320,21 +306,20 @@ def train_and_eval_distill(
         len(train_data_loader),
         len(train_data_loader) * num_epochs,
     )
+    checkpoint_dir = checkpoint_dir or Path(f"./checkpoints/training/{model_label}")
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
     if stopper is None:
-        stopper = EarlyStopper()
+        stopper = EarlyStopper.from_file(checkpoint_dir / "stopper.toml", create=True)
     if test_data_loader is None:
         test_data_loader = valid_data_loader
     if model_label is None:
         model_label = f"{model.__class__.__name__}-{id(model)}"
-    checkpoint_dir = checkpoint_dir or Path(f"./checkpoints/training/{model_label}")
-    checkpoint_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Train model [blue]{model_label}[/]. Save to [blue]{checkpoint_dir}[/]")
 
     epoch_start = load_last_checkpoint(
         checkpoint_dir,
         model,
         trainer.optimizer,
-        stopper,
     )
 
     best_epoch = stopper.best_epoch
