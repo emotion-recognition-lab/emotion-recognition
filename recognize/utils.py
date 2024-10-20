@@ -81,9 +81,9 @@ def load_model(checkpoint_dir: Path | str, model: ClassifierModel):
         model.backbone = model.backbone.from_checkpoint(checkpoint_dir / "backbone").cuda()
 
 
-def find_best_model(checkpoint_dir: Path | str) -> int:
-    if os.path.exists(f"{checkpoint_dir}/stopper.toml"):
-        stopper = EarlyStopper.from_file(f"{checkpoint_dir}/stopper.toml")
+def find_best_model(checkpoint_dir: Path) -> int:
+    if (checkpoint_dir / "stopper.toml").exists():
+        stopper = EarlyStopper.from_file(checkpoint_dir / "stopper.toml")
         best_epoch = stopper.best_epoch
     else:
         logger.warning(f"No stopper or result file found in [blue]{checkpoint_dir}")
@@ -91,7 +91,7 @@ def find_best_model(checkpoint_dir: Path | str) -> int:
     return best_epoch
 
 
-def load_best_model(checkpoint_dir: Path | str, model: ClassifierModel) -> int:
+def load_best_model(checkpoint_dir: Path, model: ClassifierModel) -> int:
     best_epoch = find_best_model(checkpoint_dir)
     logger.info(f"Load best model from [blue]{checkpoint_dir}/{best_epoch}")
     load_model(f"{checkpoint_dir}/{best_epoch}", model)
@@ -214,6 +214,9 @@ def train_and_eval(
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     if stopper is None:
         stopper = EarlyStopper.from_file(checkpoint_dir / "stopper.toml", create=True)
+        if stopper.finished:
+            result = trainer.eval("test")
+            return result
     if test_data_loader is None:
         test_data_loader = valid_data_loader
     if model_label is None:

@@ -27,7 +27,6 @@ from recognize.model import (
 )
 from recognize.module import gen_fusion_layer, get_feature_sizes_dict
 from recognize.preprocessor import Preprocessor
-from recognize.trainer import EarlyStopper
 from recognize.typing import DatasetLabelType
 from recognize.utils import (
     find_best_model,
@@ -431,7 +430,6 @@ def train(
         dev_data_loader,
         test_data_loader,
         checkpoint_dir=checkpoint_dir,
-        stopper=EarlyStopper(patience=20),
         num_epochs=200,
         model_label=model_label,
     )
@@ -509,7 +507,7 @@ def inference(
     init_logger(config.log_level, config.model_label)
 
     preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
-    model_checkpoint = f"{checkpoint}/{find_best_model(checkpoint)}"
+    model_checkpoint = checkpoint / str(find_best_model(checkpoint))
 
     backbone = MultimodalBackbone.from_checkpoint(Path(f"{model_checkpoint}/backbone"))
     if config_fusion is None:

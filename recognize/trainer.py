@@ -22,17 +22,17 @@ class EarlyStopper(BaseModel):
     history: list[tuple[int, dict[str, Any]]] = Field(default_factory=list)
     best_scores: dict[str, Any] = Field(default_factory=dict)
     best_epoch: int = -1
+    finished: bool = False
 
     @classmethod
-    def from_file(cls, path: str | Path, create: bool = False):
+    def from_file(cls, path: Path, create: bool = False):
         if not Path(path).exists():
             if not create:
                 raise FileNotFoundError(f"Early stopper file [blue]{path}[/] not found, set create=True to create it")
             logger.info(f"Early stopper file [blue]{path}[/] not found, use default config")
             return cls()
-        with open(path) as f:
-            state_dict = f.read()
-        return cls.model_validate_json(state_dict)
+        state_dict = load_dict_from_path(path)
+        return cls.model_validate(state_dict)
 
     def load(self, path: Path):
         state_dict = load_dict_from_path(path)
@@ -43,7 +43,8 @@ class EarlyStopper(BaseModel):
     def save(self, path: Path):
         save_dict_to_file(self.model_dump(), path)
 
-    def update(self, epoch: int, **kwargs: float):
+    def update(self, epoch: int, **kwargs: float) -> bool:
+        self.history.append((epoch, kwargs))
         for key, value in kwargs.items():
             if key not in self.best_scores:
                 self.best_scores[key] = (float("-inf"), 0)
@@ -55,6 +56,7 @@ class EarlyStopper(BaseModel):
                 self.best_scores[key] = (self.best_scores[key][0], repeat_times + 1)
                 if self.best_scores[key][1] >= self.patience:
                     logger.info(f"Early stopping by {key}!")
+                    self.finished = True
                     return True
         return False
 
