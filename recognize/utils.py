@@ -156,102 +156,6 @@ def train_epoch(
             update_hook(batch_index, loss_value)
 
 
-def train_and_eval(
-    model: ClassifierModel,
-    train_data_loader: DataLoader,
-    valid_data_loader: DataLoader,
-    test_data_loader: DataLoader | None = None,
-    *,
-    checkpoint_dir: Path | None = None,
-    stopper: EarlyStopper | None = None,
-    num_epochs: int = 100,
-    model_label: str | None = None,
-    eval_interval: int = 1,
-):
-    trainer = get_trainer(
-        model,
-        {"train": train_data_loader, "valid": valid_data_loader, "test": test_data_loader or valid_data_loader},
-        len(train_data_loader),
-        len(train_data_loader) * num_epochs,
-    )
-
-    checkpoint_dir = checkpoint_dir or Path(f"./checkpoints/training/{model_label}")
-    checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    if stopper is None:
-        stopper = EarlyStopper.from_file(checkpoint_dir / "stopper.toml", create=True)
-    if test_data_loader is None:
-        test_data_loader = valid_data_loader
-    if model_label is None:
-        model_label = f"{model.__class__.__name__}-{id(model)}"
-    logger.info(f"Train model [blue]{model_label}[/]. Save to [blue]{checkpoint_dir}[/]")
-
-    epoch_start = load_last_checkpoint(
-        checkpoint_dir,
-        model,
-        trainer.optimizer,
-    )
-
-    best_epoch = stopper.best_epoch
-    batch_num = len(train_data_loader)
-    result: TrainingResult | None = None
-    with Progress(
-        "[red](Loss: {task.fields[loss]:.6f}, "
-        "Accuracy: {task.fields[accuracy]:.2f}%, F1 Score: {task.fields[f1_score]:.2f}%)",
-        TextColumn("[progress.description]{task.description}"),
-        TaskProgressColumn("[progress.percentage](Epoch {task.completed}/{task.total})"),
-        BarColumn(bar_width=40),
-        TaskProgressColumn(f"[progress.percentage]({{task.fields[batch_index]}}/{batch_num})"),
-        TimeRemainingColumn(),
-    ) as progress:
-        loss_value = float("inf")
-        task = progress.add_task(
-            "[green]Training model",
-            total=num_epochs,
-            loss=loss_value,
-            accuracy=0,
-            f1_score=0,
-            completed=epoch_start + 1,
-            batch_index=0,
-        )
-        for epoch in range(epoch_start + 1, num_epochs):
-            train_epoch(
-                model,
-                trainer,
-                train_data_loader,
-                lambda batch_index, loss_value: progress.update(task, loss=loss_value, batch_index=batch_index + 1),
-            )
-
-            if (epoch + 1) % eval_interval == 0 or epoch == num_epochs - 1:
-                result = trainer.eval("valid")
-                valid_f1_score = result.f1_score
-                valid_accuracy = result.accuracy
-                if stopper.update(epoch=epoch, valid_f1=valid_f1_score):
-                    save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
-                    break
-
-                progress.update(task, f1_score=valid_f1_score, accuracy=valid_accuracy)
-                if stopper.best_epoch != best_epoch:
-                    # TODO: maybe model is not better in test set?
-                    best_epoch = stopper.best_epoch
-                    result = trainer.eval("test")
-                    test_f1_score = result.f1_score
-                    test_accuracy = result.accuracy
-                    logger.info(f"Epoch {best_epoch}: Better model found")
-                    logger.info(f"[red]Validation - Accuracy: {valid_accuracy:.2f}%, F1 Score: {valid_f1_score:.2f}%")
-                    logger.info(f"[red]Test - Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%")
-                    save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
-                    stopper.update(epoch=epoch, test_f1=test_f1_score)
-
-                if epoch == num_epochs - 1:
-                    save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
-
-            progress.update(task, advance=1)
-
-    load_model(checkpoint_dir / str(best_epoch), model)
-    result = trainer.eval("test")
-    return result
-
-
 def distill_epoch(
     teacher_model: ClassifierModel,
     student_model: ClassifierModel,
@@ -287,12 +191,12 @@ def distill_epoch(
             update_hook(batch_index, loss_value)
 
 
-def train_and_eval_distill(
-    teacher_model: ClassifierModel,
+def train_and_eval(
     model: ClassifierModel,
     train_data_loader: DataLoader,
     valid_data_loader: DataLoader,
     test_data_loader: DataLoader | None = None,
+    teacher_model: ClassifierModel | None = None,
     *,
     checkpoint_dir: Path | None = None,
     stopper: EarlyStopper | None = None,
@@ -345,13 +249,21 @@ def train_and_eval_distill(
             batch_index=0,
         )
         for epoch in range(epoch_start + 1, num_epochs):
-            distill_epoch(
-                teacher_model,
-                model,
-                trainer,
-                train_data_loader,
-                lambda batch_index, loss_value: progress.update(task, loss=loss_value, batch_index=batch_index + 1),
-            )
+            if teacher_model is not None:
+                distill_epoch(
+                    teacher_model,
+                    model,
+                    trainer,
+                    train_data_loader,
+                    lambda batch_index, loss_value: progress.update(task, loss=loss_value, batch_index=batch_index + 1),
+                )
+            else:
+                train_epoch(
+                    model,
+                    trainer,
+                    train_data_loader,
+                    lambda batch_index, loss_value: progress.update(task, loss=loss_value, batch_index=batch_index + 1),
+                )
 
             if (epoch + 1) % eval_interval == 0 or epoch == num_epochs - 1:
                 result = trainer.eval("valid")

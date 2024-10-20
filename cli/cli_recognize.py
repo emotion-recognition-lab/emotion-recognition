@@ -33,7 +33,6 @@ from recognize.utils import (
     find_best_model,
     load_best_model,
     train_and_eval,
-    train_and_eval_distill,
 )
 
 if TYPE_CHECKING:
@@ -315,12 +314,12 @@ def distill(
         result = TrainingResult.auto_compute(model, test_data_loader)
         result.print()
 
-    result: TrainingResult = train_and_eval_distill(
-        teacher_model,
+    result: TrainingResult = train_and_eval(
         model,
         train_data_loader,
         dev_data_loader,
         test_data_loader,
+        teacher_model=teacher_model,
         checkpoint_dir=checkpoint_dir,
         num_epochs=200,
         model_label=model_label,
