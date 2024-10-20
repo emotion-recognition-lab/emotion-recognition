@@ -22,6 +22,7 @@ LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 DatasetSplit = Literal["train", "valid", "test", "dev"]
 DatasetLabelType = Literal["emotion", "sentiment"]
+SupportedFusionLayer = Literal["TensorFusionLayer", "LowRankFusionLayer", "MultimodalMoE", "MultiHeadFusionMoE"]
 
 
 @runtime_checkable

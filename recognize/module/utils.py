@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from recognize.module.fusion import LowRankFusionLayer, MultiHeadFusionMoE, TensorFusionLayer
 from recognize.module.moe import MultimodalMoE
-from recognize.typing import FusionLayerLike, ModalType
+from recognize.typing import FusionLayerLike, ModalType, SupportedFusionLayer
 
 
 def get_feature_sizes_dict(modals: list[ModalType], feature_sizes: list[int]) -> dict[str, int]:
     return dict(zip(modals, feature_sizes, strict=True))
 
 
-def gen_fusion_layer(fusion: str, feature_sizes_dict: dict[str, int]) -> FusionLayerLike:
+def gen_fusion_layer(fusion: SupportedFusionLayer, feature_sizes_dict: dict[str, int]) -> FusionLayerLike:
     fusion = eval(
         fusion,
         {

@@ -98,19 +98,6 @@ def symlink(src: Path | str, dst: Path | str, target_is_directory: bool = False)
     dst.symlink_to(src.absolute(), target_is_directory=target_is_directory)
 
 
-def generate_model_label(modal: list[ModalType], freeze: bool, label_type: str):
-    model_label = "+".join(modal)
-    if label_type == "sentiment":
-        model_label += "--S"
-    else:
-        model_label += "--E"
-    if freeze:
-        model_label += "F"
-    else:
-        model_label += "T"
-    return model_label
-
-
 def generate_preprocessor_and_backbone(
     encoders: list[str],
     modals: list[ModalType],

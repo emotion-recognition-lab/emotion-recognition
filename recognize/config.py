@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Literal, Self
@@ -7,7 +8,13 @@ from typing import Any, Literal, Self
 from loguru import logger
 from pydantic import BaseModel, Field, model_validator
 
-from .typing import LogLevel, ModalType
+from .typing import LogLevel, ModalType, SupportedFusionLayer
+
+
+def hash_string(string: str) -> str:
+    hasher = hashlib.sha256()
+    hasher.update(string.encode())
+    return hasher.hexdigest()[:8]
 
 
 def recursive_update(d: dict, u: dict) -> dict:
@@ -24,8 +31,20 @@ class ModelConfig(BaseModel):
     feature_sizes: list[int]
     encoders: list[str]
     training_mode: Literal["trainable", "lora", "frozen"] = "trainable"
-    fusion: str | None = None
+    fusion: SupportedFusionLayer | None = None
     num_experts: int = 1
+
+    @cached_property
+    def model_label(self) -> str:
+        modals = "+".join(self.modals)
+        # TODO: fusion need more explicit label
+        encoders_hash = hash_string("".join(self.modals) + str(self.fusion))
+        model_labels = [
+            self.training_mode,
+            f"{self.num_experts}xE",
+            f"{modals}@{encoders_hash}",
+        ]
+        return "--".join(model_labels)
 
     @model_validator(mode="after")
     def verify_model_config(self) -> Self:
@@ -51,17 +70,9 @@ class TrainingConfig(BaseModel):
 
     @cached_property
     def model_label(self) -> str:
-        training_mode_mapping = {"trainable": "T", "lora": "L", "frozen": "F"}
-
-        modals = "+".join(self.model.modals)
-        training_mode = training_mode_mapping[self.model.training_mode]
-        model_labels = [
-            modals,
-            training_mode,
-        ]
         if self.custom_label:
-            model_labels.insert(0, self.custom_label)
-        return "--".join(model_labels)
+            return f"{self.custom_label}--{self.model.model_label}"
+        return self.model.model_label
 
     @cached_property
     def dataset_label(self) -> str:
