@@ -1,4 +1,2 @@
-custom_label = "MoE-LMF"
-
 [model]
 fusion = "MultimodalMoE(feature_sizes_dict, 16, 128)"

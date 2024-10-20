@@ -39,10 +39,10 @@ if TYPE_CHECKING:
     from recognize.typing import LogLevel, ModalType
 
 
-def init_logger(log_level: LogLevel, model_label: str):
+def init_logger(log_level: LogLevel, label: str):
     handler = RichHandler(highlighter=NullHighlighter(), markup=True)
     logger.remove()
-    logger.add(f"./logs/{model_label}/{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.txt")
+    logger.add(f"./logs/{label}/{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.txt")
     logger.add(handler, format="{message}", level=log_level)
 
 
@@ -197,7 +197,7 @@ def distill(
     config_fusion = config.model.fusion
     config_dataset = config.dataset
 
-    init_logger(config.log_level, config.model_label)
+    init_logger(config.log_level, config.label)
 
     model_label = f"distill--{config.model_label}"
     dataset_label = config.dataset_label
@@ -325,7 +325,7 @@ def train(
     init_torch()
 
     config = load_training_config(*config_path)
-    init_logger(config.log_level, config.model_label)
+    init_logger(config.log_level, config.label)
     config_training_mode = config.model.training_mode
     config_encoders = config.model.encoders
     config_feature_sizes = config.model.feature_sizes
@@ -427,7 +427,7 @@ def train(
 @app.command()
 def evaluate(checkpoint: Path) -> None:
     config = load_training_config(checkpoint / "training.toml")
-    init_logger(config.log_level, config.model_label)
+    init_logger(config.log_level, config.label)
     config_encoders = config.model.encoders
     config_feature_sizes = config.model.feature_sizes
     config_modals = config.model.modals
@@ -491,7 +491,7 @@ def inference(
     config_modals = config.model.modals
     config_feature_sizes = config.model.feature_sizes
     config_fusion = config.model.fusion
-    init_logger(config.log_level, config.model_label)
+    init_logger(config.log_level, config.label)
 
     preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
     model_checkpoint = checkpoint / str(find_best_model(checkpoint))

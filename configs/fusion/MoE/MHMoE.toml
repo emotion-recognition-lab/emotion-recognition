@@ -1,4 +1,2 @@
-custom_label = "MoE-MHMoE"
-
 [model]
 fusion = "MultiHeadFusionMoE(feature_sizes_dict, experts=[((), MultimodalMoE(feature_sizes_dict, 16, 128), 128), ((), MultimodalMoE(feature_sizes_dict, 16, 128), 128)],output_size=128)"
