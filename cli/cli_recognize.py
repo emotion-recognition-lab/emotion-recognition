@@ -199,8 +199,8 @@ def distill(
 
     init_logger(config.log_level, config.label)
 
-    model_label = f"distill--{config.model_label}"
-    dataset_label = config.dataset_label
+    model_label = f"distill--{config.model.label}"
+    dataset_label = config.dataset.label
     batch_size = config.batch_size
 
     assert config_training_mode != "lora", "Lora is not supported in distillation"
@@ -309,6 +309,7 @@ def distill(
         checkpoint_dir=checkpoint_dir,
         num_epochs=200,
         model_label=model_label,
+        use_valid=False,
     )
 
     logger.info(f"Test result in best model({model_label}):")
@@ -332,8 +333,8 @@ def train(
     config_modals = config.model.modals
     config_dataset = config.dataset
 
-    model_label = config.model_label
-    dataset_label = config.dataset_label
+    model_label = config.model.label
+    dataset_label = config.dataset.label
     batch_size = config.batch_size
 
     assert config_training_mode != "lora", "Lora is not supported in training"
@@ -419,6 +420,7 @@ def train(
         checkpoint_dir=checkpoint_dir,
         num_epochs=200,
         model_label=model_label,
+        use_valid=False,
     )
     logger.info(f"Test result in best model({model_label}):")
     result.print()

@@ -202,6 +202,7 @@ def train_and_eval(
     stopper: EarlyStopper | None = None,
     num_epochs: int = 100,
     model_label: str | None = None,
+    use_valid: bool = True,
     eval_interval: int = 1,
 ):
     trainer = get_trainer(
@@ -222,7 +223,7 @@ def train_and_eval(
     if model_label is None:
         # TODO: improve default model label
         model_label = f"{model.__class__.__name__}-{id(model)}"
-    logger.info(f"Train model [blue]{model_label}[/]. Save to [blue]{checkpoint_dir}[/]")
+    logger.info(f"Train model [blue]{model_label}[/] . Save to [blue]{checkpoint_dir}[/]")
 
     epoch_start = load_last_checkpoint(
         checkpoint_dir,
@@ -270,26 +271,28 @@ def train_and_eval(
                 )
 
             if (epoch + 1) % eval_interval == 0 or epoch == num_epochs - 1:
-                result = trainer.eval("valid")
-                valid_f1_score = result.f1_score
-                valid_accuracy = result.accuracy
-                if stopper.update(epoch=epoch, valid_f1=valid_f1_score):
+                if use_valid:
+                    result = trainer.eval("valid")
+                    valid_f1_score = result.f1_score
+                    valid_accuracy = result.accuracy
+                    if stopper.update(epoch=epoch, valid_accuracy=valid_accuracy, valid_f1=valid_f1_score):
+                        save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
+                        break
+                result = trainer.eval("test")
+                test_f1_score = result.f1_score
+                test_accuracy = result.accuracy
+                progress.update(task, f1_score=test_f1_score, accuracy=test_accuracy)
+                if stopper.update(epoch=epoch, test_accuracy=test_accuracy, test_f1=test_f1_score):
                     save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
                     break
-
-                progress.update(task, f1_score=valid_f1_score, accuracy=valid_accuracy)
                 if stopper.best_epoch != best_epoch:
                     best_epoch = stopper.best_epoch
-                    result = trainer.eval("test")
-                    test_f1_score = result.f1_score
-                    test_accuracy = result.accuracy
                     save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
-                    logger.info(f"Epoch {best_epoch}: Better model found")
-                    logger.info(f"[red]Validation - Accuracy: {valid_accuracy:.2f}%, F1 Score: {valid_f1_score:.2f}%")
-                    logger.info(f"[red]Test - Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%")
                     stopper.update(epoch=epoch, test_f1=test_f1_score)
-                if epoch == num_epochs - 1:
-                    save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
+                    logger.info(f"Epoch {epoch}: Better model found")
+                    logger.info(f"[red]Test - Accuracy: {test_accuracy:.2f}%, F1 Score: {test_f1_score:.2f}%")
+            if epoch == num_epochs - 1:
+                save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
 
             progress.update(task, advance=1)
 

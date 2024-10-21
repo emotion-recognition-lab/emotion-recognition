@@ -42,7 +42,7 @@ class ModelConfig(BaseModel):
         model_labels = [
             self.training_mode,
             f"{self.num_experts}xE",
-            f"{modals}@{encoders_hash}",
+            f"{modals}#{encoders_hash}",
         ]
         return "--".join(model_labels)
 
@@ -76,24 +76,16 @@ class DatasetConfig(BaseModel):
 class TrainingConfig(BaseModel):
     log_level: LogLevel = "DEBUG"  # TODO: remove after typer supports Literal
     batch_size: int = 32
-    custom_label: str | None = Field(default=None, description="To mark the model, e.g. MoE")
+    custom_label: str | None = Field(default=None, description="To mark the model in the past, but now may be useless.")
 
     model: ModelConfig
     dataset: DatasetConfig
 
     @cached_property
     def label(self) -> str:
-        return f"{self.dataset_label}/{self.model_label}"
-
-    @cached_property
-    def model_label(self) -> str:
         if self.custom_label:
-            return f"{self.custom_label}--{self.model.label}"
-        return self.model.label
-
-    @cached_property
-    def dataset_label(self) -> str:
-        return self.dataset.label
+            return f"{self.custom_label}/{self.dataset.label}/{self.model.label}"
+        return f"{self.dataset.label}/{self.model.label}"
 
 
 class InferenceConfig(BaseModel):
