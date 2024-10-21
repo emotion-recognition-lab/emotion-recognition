@@ -172,17 +172,17 @@ def distill_epoch(
             teacher_logits = teacher_model.classifier(teacher_embs)
 
         student_embs_dict = student_model.backbone(batch)
-        if student_embs_dict.get("A") is None:
+        if len(student_embs_dict) < 2:
+            # NOTE: only T modality or no input
             continue
         student_output = student_model.classify(student_model.fusion_layer(student_embs_dict), batch.labels)
 
         assert student_output.loss is not None
-        loss = (
-            LogitLoss()(student_output.logits, teacher_logits)
-            + FeatureLoss()(student_embs_dict["A"], teacher_embs)
-            # + FeatureLoss()(student_pooled_embs_tuple[2], teacher_pooled_embs)
-            + 5 * student_output.loss
-        )
+        # TODO: 5 is a magic number, the value should be a hyper-parameter
+        loss = LogitLoss()(student_output.logits, teacher_logits) + 5 * student_output.loss
+        for value in student_embs_dict.values():
+            loss += FeatureLoss()(value, teacher_embs)
+            # loss += FeatureLoss()(student_pooled_embs_tuple[2], teacher_pooled_embs)
 
         trainer.training_step(loss)
         if update_hook is not None:

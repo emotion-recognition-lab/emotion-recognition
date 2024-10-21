@@ -6,6 +6,7 @@ from pathlib import Path
 import torch
 
 from recognize.config import load_inference_config
+from recognize.module.basic import Projector
 
 from .base import ClassifierModel, ClassifierOutput
 from .multimodal import MultimodalBackbone, MultimodalInput
@@ -28,6 +29,7 @@ class UnimodalModel(ClassifierModel[MultimodalBackbone]):
             num_experts=num_experts,
             class_weights=class_weights,
         )
+        self.projector = Projector(feature_size)
         self.feature_size = feature_size
 
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
@@ -38,7 +40,8 @@ class UnimodalModel(ClassifierModel[MultimodalBackbone]):
             return ClassifierOutput(
                 logits=torch.zeros((inputs.labels.shape[0], self.num_classes), device=inputs.device),
             )
-        return self.classify(next(iter(pooled_embs.values())), inputs.labels)
+        pooled_emb = self.projector(next(iter(pooled_embs.values())))
+        return self.classify(pooled_emb, inputs.labels)
 
     @classmethod
     def from_checkpoint(
