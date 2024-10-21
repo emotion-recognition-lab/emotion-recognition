@@ -30,7 +30,8 @@ args = [
 [tasks.MoE-trainable.matrix]
 method = [
     "configs/fusion/MoE/LMF.toml",
-    "configs/8xE.toml configs/fusion/LMF.toml",
+    "configs/classifier/4xE.toml configs/fusion/LMF.toml",
+    "configs/classifier/8xE.toml configs/fusion/LMF.toml",
 ]
 
 [tasks.frozen]
@@ -60,5 +61,6 @@ deps = ["trainable"]
 [tasks.MoE-frozen.matrix]
 method = [
     "configs/fusion/MoE/LMF.toml",
-    "configs/8xE.toml configs/fusion/LMF.toml",
+    "configs/classifier/4xE.toml configs/fusion/LMF.toml",
+    "configs/classifier/8xE.toml configs/fusion/LMF.toml",
 ]
