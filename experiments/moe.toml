@@ -5,18 +5,8 @@ resources = "gpus"
 dataset = ["MELD--E"]
 modals = [
     "T+A",
-    # "T+V",
-    # "A+V",
+    "T+V",
     "T+A+V",
-]
-
-[tasks.trainable]
-command = "uv run emotion-recognize train"
-args = [
-    "configs/dataset/{dataset}.toml",
-    "configs/encoders/{modals}.toml",
-    "configs/fusion/LMF.toml",
-    "--seed 114",
 ]
 
 [tasks.MoE-trainable]
@@ -24,40 +14,18 @@ command = "uv run emotion-recognize train"
 args = [
     "configs/dataset/{dataset}.toml",
     "configs/encoders/{modals}.toml",
-    "{method}",
+    "{fusion}",
+    "{classifier}",
     "--seed 114",
 ]
 [tasks.MoE-trainable.matrix]
-method = [
-    "configs/fusion/MoE/LMF.toml",
-    "configs/classifier/4xE.toml configs/fusion/LMF.toml",
-    "configs/classifier/8xE.toml configs/fusion/LMF.toml",
-]
-
-[tasks.frozen]
-command = "uv run emotion-recognize train"
-args = [
-    "configs/dataset/{dataset}.toml",
-    "configs/encoders/pretrained/{dataset}/{modals}.toml",
+fusion = [
     "configs/fusion/LMF.toml",
-    "configs/frozen.toml",
-    "--seed 114",
-]
-deps = ["trainable"]
-
-[tasks.MoE-frozen]
-command = "uv run emotion-recognize train"
-args = [
-    "configs/dataset/{dataset}.toml",
-    "configs/encoders/pretrained/{dataset}/{modals}.toml",
-    "configs/frozen.toml",
-    "{method}",
-    "--seed 114",
-]
-deps = ["trainable"]
-[tasks.MoE-frozen.matrix]
-method = [
     "configs/fusion/MoE/LMF.toml",
-    "configs/classifier/4xE.toml configs/fusion/LMF.toml",
-    "configs/classifier/8xE.toml configs/fusion/LMF.toml",
+    "configs/fusion/MoE/ConcatFusionMoE.toml",
+]
+classifier = [
+    "",
+    "configs/classifier/4xE.toml",
+    "configs/classifier/8xE.toml",
 ]
