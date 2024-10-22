@@ -133,13 +133,18 @@ def info(
 def clean(
     checkpoint_dir: Path = typer.Argument(Path("checkpoints/training"), help="The checkpoint directory to clean"),
 ):
-    init_logger("DEBUG")
+    init_logger("INFO")
+    cleaned_size = 0
+    cleaned_count = 0
     encoder_dir = checkpoint_dir / "encoders"
     for subpath in os.listdir(encoder_dir):
         symlink_count = count_symlinks(encoder_dir / subpath, checkpoint_dir)
         if subpath.endswith("safetensors") and symlink_count == 0:
             logger.info(f"Removing {subpath} for no symlinks")
+            cleaned_size += os.path.getsize(encoder_dir / subpath)
             os.remove(encoder_dir / subpath)
+            cleaned_count += 1
+    logger.info(f"Cleaned {cleaned_size} bytes of {cleaned_count} files")
 
 
 @app.command()
