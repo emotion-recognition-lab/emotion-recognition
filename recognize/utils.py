@@ -180,8 +180,8 @@ def distill_epoch(
         assert student_output.loss is not None
         # TODO: 5 is a magic number, the value should be a hyper-parameter
         loss = LogitLoss()(student_output.logits, teacher_logits) + 5 * student_output.loss
-        for value in student_embs_dict.values():
-            loss += FeatureLoss()(value, teacher_embs)
+        for student_embs in student_embs_dict.values():
+            loss += FeatureLoss()(student_embs, teacher_embs)
             # loss += FeatureLoss()(student_pooled_embs_tuple[2], teacher_pooled_embs)
 
         trainer.training_step(loss)

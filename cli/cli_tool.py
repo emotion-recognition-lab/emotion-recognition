@@ -10,6 +10,8 @@ from rich.highlighter import NullHighlighter
 from rich.logging import RichHandler
 from rich.table import Table
 
+from recognize.config import load_training_config
+
 if TYPE_CHECKING:
     from recognize.typing import LogLevel
 
@@ -53,6 +55,8 @@ def create_standalone(
 @app.command()
 def info(
     path: Path,
+    sort_by: str = "epoch",
+    max_show: int = 5,
 ):
     # TODO: add more information
     from rich import print
@@ -67,7 +71,10 @@ def info(
         if not (subpath / "stopper.yaml").exists():
             continue
         stopper = EarlyStopper.from_file(subpath / "stopper.yaml")
+        config = load_training_config(subpath / "training.toml")
         logger.info(f"info of [blue]{subpath}[/]")
+        logger.info(f"encoders: [blue]{config.model.encoders}[/]")
+        logger.info(f"fusion: [blue]{config.model.fusion}[/]")
         result: dict[int, dict] = {}
         score_names = set()
         best_epoch: dict[str, int] = {}
@@ -80,7 +87,19 @@ def info(
                     best_epoch[k] = epoch
         table = Table(show_header=False, show_lines=True)
         table.add_row("epoch", *[f"[bold]{k}[/]" for k in score_names])
-        for epoch, v in result.items():
+        if sort_by == "epoch":
+            columns = sorted(
+                result.items(),
+                key=lambda r: r[0],
+            )
+        else:
+            columns = sorted(
+                result.items(),
+                key=lambda r: r[1].get(sort_by, 0),
+                reverse=True,
+            )
+
+        for epoch, v in columns[:max_show]:
             str_row = [f"{v[k]:.4f}" if k in v else "" for k in score_names]
             table.add_row(str(epoch), *str_row)
         print(table)

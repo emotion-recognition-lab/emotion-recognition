@@ -2,6 +2,6 @@
 modals = ["T", "A"]
 feature_sizes = [768, 768]
 encoders = [
-    "roberta-large@checkpoints/training/MELD--E/T+A--T",
-    "facebook/wav2vec2-base-960h@checkpoints/training/MELD--E/T+A--T",
+    "roberta-large@checkpoints/training/MELD--E/trainable--1xE--T+A#3b078858",
+    "facebook/wav2vec2-base-960h@checkpoints/training/MELD--E/trainable--1xE--T+A#3b078858",
 ]
