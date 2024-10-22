@@ -56,6 +56,7 @@ def create_standalone(
 def info(
     path: Path,
     sort_by: str = "epoch",
+    filter: str = "",
     max_show: int = 5,
 ):
     # TODO: add more information
@@ -70,9 +71,11 @@ def info(
             continue
         if not (subpath / "stopper.yaml").exists():
             continue
+        if filter and filter not in str(subpath):
+            continue
         stopper = EarlyStopper.from_file(subpath / "stopper.yaml")
         config = load_training_config(subpath / "training.toml")
-        logger.info(f"info of [blue]{subpath}[/]")
+        logger.info(f"info of [blue]{subpath}[/](finished: {stopper.finished})")
         logger.info(f"encoders: [blue]{config.model.encoders}[/]")
         logger.info(f"fusion: [blue]{config.model.fusion}[/]")
         result: dict[int, dict] = {}
