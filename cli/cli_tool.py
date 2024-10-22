@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -23,6 +24,26 @@ def init_logger(log_level: LogLevel):
 
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
+
+
+def count_symlinks(target_path: str | Path, search_root: str | Path):
+    symlink_count = 0
+    target_inode = os.stat(target_path).st_ino
+
+    for root, dirs, files in os.walk(search_root):
+        for name in dirs + files:
+            path = os.path.join(root, name)
+            try:
+                if os.path.islink(path):
+                    real_path = os.path.realpath(path)
+                    if os.path.exists(real_path) and os.stat(real_path).st_ino == target_inode:
+                        symlink_count += 1
+                        logger.debug(f"Found symlink: {path} -> {real_path}")
+            except (PermissionError, OSError) as e:
+                logger.warning(f"Error accessing {path}: {e}")
+                continue
+
+    return symlink_count
 
 
 @app.command()
@@ -106,6 +127,18 @@ def info(
             str_row = [f"{v[k]:.4f}" if k in v else "" for k in score_names]
             table.add_row(str(epoch), *str_row)
         print(table)
+
+
+@app.command()
+def clean(
+    checkpoint_dir: Path = typer.Argument(Path("checkpoints"), help="The checkpoint directory to clean"),
+):
+    init_logger("DEBUG")
+    for subpath in os.listdir(checkpoint_dir / "encoders"):
+        symlink_count = count_symlinks(checkpoint_dir / subpath, checkpoint_dir)
+        if subpath.endswith("safetensors") and symlink_count == 0:
+            logger.info(f"Removing {subpath} for no symlinks")
+            shutil.rmtree(checkpoint_dir / subpath)
 
 
 @app.command()
