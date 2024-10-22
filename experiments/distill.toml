@@ -26,6 +26,5 @@ deps = ["T"]
 encoder = [
     "configs/encoders/T+A.toml",
     "configs/encoders/T+V.toml",
-    "configs/encoders/A+V.toml",
     "configs/encoders/T+A+V.toml",
 ]

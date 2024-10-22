@@ -1,3 +1,5 @@
+batch_size = 1
+
 [model]
 modals = ["T", "A", "V"]
 feature_sizes = [768, 768, 768]

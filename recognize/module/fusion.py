@@ -47,7 +47,7 @@ class TensorFusionLayer(FusionLayer):
 
 
 class LowRankFusionLayer(FusionLayer):
-    def __init__(self, dims: dict[str, int], rank: int, output_size: int, *, trainable_placeholder: bool = False):
+    def __init__(self, dims: dict[str, int], rank: int, output_size: int, *, trainable_placeholder: bool = True):
         super().__init__(output_size)
         self.dims = dims
         self.rank = rank
@@ -56,6 +56,7 @@ class LowRankFusionLayer(FusionLayer):
         )
         self.placeholders = nn.ParameterDict({name: nn.Parameter(torch.randn(1, dim)) for name, dim in dims.items()})
         if not trainable_placeholder:
+            # TODO: if trainable_placeholder=False, then forward logic should be changed
             self.placeholders.requires_grad_(False)
         self.output_layer = nn.Linear(rank, 1)
 
@@ -115,3 +116,40 @@ class MeanEmbeddingsFusionLayer(FusionLayer):
 
     def forward(self, inputs: Mapping[str, torch.Tensor]):
         return self.mean_embs(inputs.values())
+
+
+class ConcatFusionMoE(FusionLayer):
+    def __init__(self, dims: dict[str, int], output_size: int):
+        super().__init__(output_size)
+        self.dim_names = sorted(dims.keys())
+        self.placeholders = nn.ParameterDict({name: nn.Parameter(torch.randn(1, dim)) for name, dim in dims.items()})
+        self.router = nn.Sequential(
+            nn.Linear(sum(dims.values()), len(dims) + 1),
+            nn.Softmax(dim=1),
+        )
+        self.experts = nn.ModuleList(
+            [
+                *[nn.Linear(dim, output_size) for dim in dims.values()],
+                nn.Linear(sum(dims.values()), output_size),
+            ]
+        )
+
+    def forward(self, inputs: Mapping[str, torch.Tensor]):
+        batch_size = next(iter(inputs.values())).size(0)
+
+        concatenated_inputs = torch.cat(
+            [
+                inputs[name] if name in inputs else torch.broadcast_to(self.placeholders[name], (batch_size, -1))
+                for name in self.dim_names
+            ],
+            dim=1,
+        )
+        gate_outputs = self.router(concatenated_inputs)
+        outputs = []
+        for i, name in enumerate(self.dim_names):
+            input = inputs.get(name, self.placeholders[name])
+            if input is not None:
+                input = input.view(input.size(0), -1)
+                outputs.append(gate_outputs[:, i : i + 1] * self.experts[i](input))
+
+        return torch.sum(torch.stack(outputs), dim=0)
