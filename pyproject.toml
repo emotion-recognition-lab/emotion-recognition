@@ -25,12 +25,7 @@ readme = "README.md"
 license = { text = "MIT" }
 
 [project.optional-dependencies]
-train = [
-    "opencv-python>=4.0.0",
-    "pandas>=2.0.0",
-    "torch-pruning>=1.4.2",
-]
-triton = ["triton>=2.2.0"]
+train = ["opencv-python>=4.0.0", "pandas>=2.0.0", "torch-pruning>=1.4.2"]
 
 [project.urls]
 Homepage = "https://github.com/zrr1999/emotion-recognition.git"
@@ -91,7 +86,7 @@ typeCheckingMode = "standard"
 reportPrivateImportUsage = false
 
 [tool.uv]
-dev-dependencies = ["viztracer", "ruff"]
+dev-dependencies = ["viztracer>=0.16.3", "pyright>=1.1.384", "ruff>=0.6.8"]
 index-strategy = "unsafe-best-match"
 extra-index-url = [
     "https://pypi.tuna.tsinghua.edu.cn/simple",

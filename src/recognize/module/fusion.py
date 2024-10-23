@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import abstractmethod
 from collections.abc import Callable, Iterable, Mapping, Sequence
 
 import torch
@@ -12,7 +13,10 @@ class FusionLayer(nn.Module):
         super().__init__()
         self.output_size = output_size
 
-    __call__: Callable[[dict[str, torch.Tensor | None]], torch.Tensor]
+    @abstractmethod
+    def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor: ...
+
+    __call__: Callable[[Mapping[str, torch.Tensor]], torch.Tensor]
 
 
 class TensorFusionLayer(FusionLayer):
@@ -23,9 +27,12 @@ class TensorFusionLayer(FusionLayer):
         self.video_size = video_size
         self.augmentation = Parameter(torch.ones(1))
 
-    def forward(self, zl: torch.Tensor, za: torch.Tensor | None, zv: torch.Tensor | None):
-        augmentation = self.augmentation.broadcast_to(zl.size(0), 1)
+    def forward(self, inputs: Mapping[str, torch.Tensor]):
+        zl = inputs["T"]
+        za = inputs.get("A", None)
+        zv = inputs.get("V", None)
 
+        augmentation = self.augmentation.broadcast_to(zl.size(0), 1)
         augmentation_zl = torch.cat((zl, augmentation), dim=1)
         if za is not None:
             augmentation_za = torch.cat((za, augmentation), dim=1)
@@ -76,6 +83,15 @@ class LowRankFusionLayer(FusionLayer):
         return output
 
 
+class MeanEmbeddingsFusionLayer(FusionLayer):
+    def mean_embs(self, embs_list: Iterable[torch.Tensor | None]) -> torch.Tensor:
+        filtered_embs_list = torch.stack([emb for emb in embs_list if emb is not None])
+        return torch.sum(filtered_embs_list, dim=0) / len(filtered_embs_list)
+
+    def forward(self, inputs: Mapping[str, torch.Tensor]):
+        return self.mean_embs(inputs.values())
+
+
 class MultiHeadFusionMoE(FusionLayer):
     def __init__(
         self,
@@ -107,15 +123,6 @@ class MultiHeadFusionMoE(FusionLayer):
             expert_outputs = expert(inputs)
             outputs.append(gate_outputs[:, i : i + 1] * expert_outputs)
         return torch.sum(torch.stack(outputs), dim=0)
-
-
-class MeanEmbeddingsFusionLayer(FusionLayer):
-    def mean_embs(self, embs_list: Iterable[torch.Tensor | None]):
-        filtered_embs_list = [emb for emb in embs_list if emb is not None]
-        return sum(filtered_embs_list) / len(filtered_embs_list)
-
-    def forward(self, inputs: Mapping[str, torch.Tensor]):
-        return self.mean_embs(inputs.values())
 
 
 class ConcatFusionMoE(FusionLayer):
