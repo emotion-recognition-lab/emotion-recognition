@@ -37,8 +37,8 @@ Homepage = "https://github.com/zrr1999/emotion-recognition.git"
 Repository = "https://github.com/zrr1999/emotion-recognition.git"
 
 [project.scripts]
-emotion-recognize = "cli.cli_recognize:app"
-emotion-tool = "cli.cli_tool:app"
+emotion-recognize = "recognize_cli.cli_recognize:app"
+emotion-tool = "recognize_cli.cli_tool:app"
 
 [tool.ruff]
 line-length = 120
@@ -70,7 +70,6 @@ ignore = ["F841", "PGH003", "UP038", "B008", "RUF001"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "I002"]
-"cli/*.py" = ["UP007"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["recognize"]
@@ -87,7 +86,7 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.pyright]
-includes = ["recognize", "cli", "tests"]
+includes = ["src", "tests"]
 typeCheckingMode = "standard"
 reportPrivateImportUsage = false
 
@@ -99,9 +98,15 @@ extra-index-url = [
     "https://download.pytorch.org/whl/cu121",
 ]
 
+[tool.uv.sources]
+test-package = { workspace = true }
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
 [tool.pdm.build]
-includes = ["recognize"]
-source-includes = ["cli", "tests", "README.md"]
+package-dir = "src"
+source-includes = ["tests", "README.md"]
 
 [build-system]
 requires = ["pdm-backend"]

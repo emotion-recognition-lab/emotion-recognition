@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -46,3 +48,19 @@ class FeatureLoss(nn.Module):
         )
         p = torch.softmax(torch.matmul(teacher_embeddings, teacher_embeddings.transpose(0, 1)) / self.temp, dim=1)
         return F.kl_div(log_q, p, reduction="batchmean")
+
+
+class InfoNCELoss(nn.Module):
+    # TODO: to implement completed InfoNCELoss
+    def __init__(self, temp: float = 1.0):
+        super().__init__()
+        self.temp = temp
+
+    def forward(self, inputs: Sequence[torch.Tensor]) -> torch.Tensor:
+        normalized_inputs = [F.normalize(features, p=2, dim=1) for features in inputs]
+        similarity_matrix = [
+            torch.matmul(normalized_inputs[i], normalized_inputs[j].transpose(0, 1)) / self.temp
+            for i in range(len(normalized_inputs))
+            for j in range(i + 1, len(normalized_inputs))
+        ]
+        return -torch.sum(torch.stack(similarity_matrix))

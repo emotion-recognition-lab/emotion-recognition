@@ -46,6 +46,16 @@ def count_symlinks(target_path: str | Path, search_root: str | Path):
     return symlink_count
 
 
+def format_bytes(size):
+    power = 2**10
+    n = 0
+    power_labels = {0: "", 1: "K", 2: "M", 3: "G", 4: "T"}
+    while size > power:
+        size /= power
+        n += 1
+    return f"{size:.2f} {power_labels[n]}B"
+
+
 @app.command()
 def create_standalone(
     checkpoint: Path,
@@ -144,7 +154,8 @@ def clean(
             cleaned_size += os.path.getsize(encoder_dir / subpath)
             os.remove(encoder_dir / subpath)
             cleaned_count += 1
-    logger.info(f"Cleaned {cleaned_size} bytes of {cleaned_count} files")
+    readable_size = format_bytes(cleaned_size)
+    logger.info(f"Cleaned {readable_size} of {cleaned_count} files")
 
 
 @app.command()
