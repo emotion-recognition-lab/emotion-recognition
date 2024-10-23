@@ -18,7 +18,7 @@ from torch.nn import CrossEntropyLoss
 
 from recognize.cache import CacheManager, hash_bytes, load_cached_tensors, save_cached_tensors
 from recognize.config import load_dict_from_path, save_dict_to_file
-from recognize.module.moe import MoE
+from recognize.module import SparseMoE
 from recognize.typing import BackboneT, ModelInputT, StateDicts
 
 
@@ -330,7 +330,10 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
         if num_experts == 1:
             self.classifier = nn.Linear(feature_size, num_classes)
         else:
-            self.classifier = MoE(feature_size, [nn.Linear(feature_size, num_classes) for _ in range(num_experts)])
+            self.classifier = nn.Sequential(
+                SparseMoE(feature_size, [nn.Linear(feature_size, num_classes) for _ in range(num_experts)]),
+                nn.Linear(feature_size, num_classes),
+            )
 
     def freeze_backbone(self):
         self.backbone.freeze()

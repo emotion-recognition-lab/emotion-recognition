@@ -28,8 +28,8 @@ class EarlyStopper(BaseModel):
     def from_file(cls, path: Path, create: bool = False):
         if not Path(path).exists():
             if not create:
-                raise FileNotFoundError(f"Early stopper file [blue]{path}[/] not found, set create=True to create it")
-            logger.info(f"Early stopper file [blue]{path}[/] not found, use default config")
+                raise FileNotFoundError(f"Stopper file [blue]{path}[/] not found, set create=True to create it")
+            logger.info(f"Stopper file [blue]{path}[/] not found, use default config")
             return cls()
         state_dict = load_dict_from_path(path)
         return cls.model_validate(state_dict)

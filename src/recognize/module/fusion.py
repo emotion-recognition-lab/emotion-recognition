@@ -117,11 +117,11 @@ class MultiHeadFusionMoE(FusionLayer):
 
     def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
         importances = torch.stack([self.router[name](inputs[name]) for name in self.dim_names if name in inputs])
-        gate_outputs = torch.softmax(torch.sum(importances, dim=0), dim=1)
+        routing_weights = torch.softmax(torch.sum(importances, dim=0), dim=1)
         outputs = []
         for i, expert in enumerate(self.experts):
             expert_outputs = expert(inputs)
-            outputs.append(gate_outputs[:, i : i + 1] * expert_outputs)
+            outputs.append(routing_weights[:, i : i + 1] * expert_outputs)
         return torch.sum(torch.stack(outputs), dim=0)
 
 
@@ -151,12 +151,12 @@ class ConcatFusionMoE(FusionLayer):
             ],
             dim=1,
         )
-        gate_outputs = self.router(concatenated_inputs)
+        routing_weights = self.router(concatenated_inputs)
         outputs = []
         for i, name in enumerate(self.dim_names):
             input = inputs.get(name, self.placeholders[name])
             if input is not None:
                 input = input.view(input.size(0), -1)
-                outputs.append(gate_outputs[:, i : i + 1] * self.experts[i](input))
+                outputs.append(routing_weights[:, i : i + 1] * self.experts[i](input))
 
         return torch.sum(torch.stack(outputs), dim=0)
