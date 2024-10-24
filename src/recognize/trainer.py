@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 import torch
 from loguru import logger
@@ -19,9 +19,10 @@ if TYPE_CHECKING:
 
 class EarlyStopper(BaseModel):
     patience: int = 20
-    history: list[tuple[int, dict[str, Any]]] = Field(default_factory=list)
-    best_scores: dict[str, Any] = Field(default_factory=dict)
+    history: list[tuple[int, dict[str, float]]] = Field(default_factory=list)
+    best_scores: dict[str, float] = Field(default_factory=dict)
     best_epoch: int = -1
+    stagnant_count: int = 0
     finished: bool = False
 
     @classmethod
@@ -43,22 +44,24 @@ class EarlyStopper(BaseModel):
     def save(self, path: Path):
         save_dict_to_file(self.model_dump(mode="json"), path)
 
-    def update(self, epoch: int, **kwargs: float) -> bool:
+    def update(self, epoch: int, **kwargs: float) -> list[str]:
         self.history.append((epoch, kwargs))
+        better_metrics = []
         for key, value in kwargs.items():
             if key not in self.best_scores:
-                self.best_scores[key] = (float("-inf"), 0)
-            if value > self.best_scores[key][0]:
-                self.best_scores[key] = (value, 0)
+                self.best_scores[key] = float("-inf")
+            if value > self.best_scores[key]:
+                self.best_scores[key] = value
                 self.best_epoch = epoch
+                self.stagnant_count = 0
+                better_metrics.append(key)
             else:
-                repeat_times = self.best_scores[key][1]
-                self.best_scores[key] = (self.best_scores[key][0], repeat_times + 1)
-                if self.best_scores[key][1] >= self.patience:
-                    logger.info(f"Early stopping by {key}!")
+                self.stagnant_count += 1
+                if self.stagnant_count >= self.patience:
+                    logger.info("Early stopping!")
                     self.finished = True
-                    return True
-        return False
+                    return []
+        return better_metrics
 
 
 class Trainer:

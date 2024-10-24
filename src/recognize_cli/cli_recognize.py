@@ -199,7 +199,7 @@ def distill(
 
     init_logger(config.log_level, config.label)
 
-    model_label = f"distill--{config.model.label}"
+    model_label = config.model.label
     dataset_label = config.dataset.label
     batch_size = config.batch_size
 
@@ -211,7 +211,7 @@ def distill(
     if checkpoint is not None:
         checkpoint_dir = checkpoint
     else:
-        checkpoint_dir = Path(f"./checkpoints/training/{dataset_label}/{model_label}")
+        checkpoint_dir = Path(f"./checkpoints/distillation/{dataset_label}/{model_label}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     train_dataset, dev_dataset, test_dataset = provide_datasets(

@@ -141,7 +141,7 @@ def info(
 
 @app.command()
 def clean(
-    checkpoint_dir: Path = typer.Argument(Path("checkpoints/training"), help="The checkpoint directory to clean"),
+    checkpoint_dir: Path = typer.Argument(Path("checkpoints"), help="The checkpoint directory to clean"),
 ):
     init_logger("INFO")
     cleaned_size = 0
