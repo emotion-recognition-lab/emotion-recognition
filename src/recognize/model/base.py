@@ -331,8 +331,12 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
             self.classifier = nn.Linear(feature_size, num_classes)
         else:
             self.classifier = nn.Sequential(
-                SparseMoE(feature_size, [nn.Linear(feature_size, num_classes) for _ in range(num_experts)]),
-                nn.Linear(feature_size, num_classes),
+                SparseMoE(
+                    feature_size,
+                    num_classes,
+                    [nn.Linear(feature_size, num_classes) for _ in range(num_experts)],
+                    act_expert_num=num_experts // 2,  # TODO: add act_expert_num to config
+                ),
             )
 
     def freeze_backbone(self):

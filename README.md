@@ -143,3 +143,6 @@ uv sync --all-extras --dev
 - [distil-large-v3](https://huggingface.co/distil-whisper/distil-large-v3)
 - [Distil-Whisper](https://arxiv.org/abs/2311.00430)
 - [BELLE](https://github.com/LianjiaTech/BELLE)
+
+## 其他参考资料
+https://zhuanlan.zhihu.com/p/694747931
