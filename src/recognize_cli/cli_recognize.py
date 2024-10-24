@@ -295,8 +295,8 @@ def distill(
     if config_training_mode == "trainable":
         model.unfreeze_backbone()
 
-    if checkpoint is not None and not (checkpoint_dir / "stopper.yaml").exists():
-        load_best_model(checkpoint, model)
+    if (checkpoint_dir / "stopper.yaml").exists():
+        load_best_model(checkpoint_dir, model)
         result = TrainingResult.auto_compute(model, test_data_loader)
         result.print()
 
@@ -407,8 +407,9 @@ def train(
         ).cuda()
     if config_training_mode == "trainable":
         model.unfreeze_backbone()
-    if checkpoint is not None and not (checkpoint_dir / "stopper.yaml").exists():
-        load_best_model(checkpoint, model)
+
+    if (checkpoint_dir / "stopper.yaml").exists():
+        load_best_model(checkpoint_dir, model)
         result = TrainingResult.auto_compute(model, test_data_loader)
         result.print()
 
@@ -461,6 +462,7 @@ def evaluate(checkpoint: Path) -> None:
         pin_memory=True,
     )
     if config.model.fusion is None:
+        assert len(config_modals) == 1, "Multiple modals must give a fusion layer"
         model = UnimodalModel(
             backbone,
             feature_size=config.model.feature_sizes[0],
