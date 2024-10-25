@@ -39,27 +39,15 @@ def save_checkpoint(
 
     epoch_encoder_dir = epoch_checkpoint_dir / "backbone"
     original_encoder_dir = checkpoint_dir / "backbone"
-    if model.backbone.is_frozen:
-        # save and link original backbone state_dict
-        epoch_encoder_dir.symlink_to(
-            "../backbone",
-            target_is_directory=True,
-        )
-        if not original_encoder_dir.exists():
-            original_encoder_dir.mkdir(parents=True)
-            for name, path in model.backbone.save(original_encoder_dir).items():
-                (original_encoder_dir / f"{name}.safetensors").symlink_to(path)
-    else:
-        # save and link backbone state_dict
-        epoch_encoder_dir.mkdir(parents=True, exist_ok=True)
-        for name, path in model.backbone.save(epoch_encoder_dir).items():
-            (epoch_encoder_dir / f"{name}.safetensors").symlink_to(path)
+    epoch_encoder_dir.mkdir(parents=True, exist_ok=True)
+    for name, path in model.backbone.save(epoch_encoder_dir).items():
+        (epoch_encoder_dir / f"{name}.safetensors").symlink_to(path)
 
-        original_encoder_dir.unlink(missing_ok=True)
-        original_encoder_dir.symlink_to(
-            epoch_encoder_dir.relative_to(original_encoder_dir.parent),
-            target_is_directory=True,
-        )
+    original_encoder_dir.unlink(missing_ok=True)
+    original_encoder_dir.symlink_to(
+        epoch_encoder_dir.relative_to(original_encoder_dir.parent),
+        target_is_directory=True,
+    )
 
     (epoch_checkpoint_dir / "preprocessor").symlink_to(
         "../preprocessor",
@@ -73,7 +61,7 @@ def save_checkpoint(
     stopper.save(checkpoint_dir / "stopper.yaml")
 
 
-def load_model(checkpoint_dir: Path | str, model: ClassifierModel):
+def load_model(checkpoint_dir: Path | str, model: ClassifierModel[Backbone]):
     checkpoint_dir = Path(checkpoint_dir)
     model_state_dict = load_file(checkpoint_dir / "model.safetensors")
     model.load_state_dict(model_state_dict, strict=False)
@@ -94,7 +82,7 @@ def find_best_model(checkpoint_dir: Path) -> int:
 def load_best_model(checkpoint_dir: Path, model: ClassifierModel) -> int:
     best_epoch = find_best_model(checkpoint_dir)
     logger.info(f"Load best model from [blue]{checkpoint_dir}/{best_epoch}")
-    load_model(f"{checkpoint_dir}/{best_epoch}", model)
+    load_model(checkpoint_dir / str(best_epoch), model)
     return best_epoch
 
 
@@ -111,7 +99,7 @@ def load_last_checkpoint(
     if optimizer is not None and os.path.exists(checkpoint_dir / "optimizer.pt"):
         optimizer.load_state_dict(torch.load(checkpoint_dir / "optimizer.pt", weights_only=True))
     if epoch_start != -1:
-        load_model(f"{checkpoint_dir}/{epoch_start}", model)
+        load_model(checkpoint_dir / str(epoch_start), model)
 
     return epoch_start
 

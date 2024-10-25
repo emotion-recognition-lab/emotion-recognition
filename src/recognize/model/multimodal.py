@@ -7,13 +7,11 @@ from typing import Self
 
 import torch
 from loguru import logger
-from torch import nn
 from torch.nn.utils.rnn import pad_sequence
 
 from recognize.cache import hash_bytes
 from recognize.config import load_inference_config
 from recognize.module import get_feature_sizes_dict
-from recognize.module.basic import Projector
 from recognize.preprocessor import Preprocessor
 from recognize.typing import FusionLayerLike
 
@@ -187,33 +185,27 @@ class LazyMultimodalInput(MultimodalInput):
 
 
 class MultimodalBackbone(Backbone[MultimodalInput]):
-    def compute_embs(self, inputs: MultimodalInput) -> dict[str, torch.Tensor | None]:
+    def compute_embs(self, inputs: MultimodalInput) -> dict[str, torch.Tensor]:
+        embs_dict: dict[str, torch.Tensor] = {}
         if "T" in self.named_encoders and inputs.text_input_ids is not None:
             text_outputs = self.named_encoders["T"](inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
             # -1 corresponds to mask_token_id
             text_embs = text_outputs.last_hidden_state[:, -1]
-        else:
-            text_embs = None
+            embs_dict["T"] = text_embs
 
         if "A" in self.named_encoders and inputs.audio_input_values is not None:
             audio_outputs = self.named_encoders["A"](
                 inputs.audio_input_values, attention_mask=inputs.audio_attention_mask
             )
             audio_embs = audio_outputs.last_hidden_state[:, 0]
-        else:
-            audio_embs = None
+            embs_dict["A"] = audio_embs
 
         if "V" in self.named_encoders and inputs.video_pixel_values is not None:
             video_outputs = self.named_encoders["V"](inputs.video_pixel_values)
             video_embs = video_outputs.last_hidden_state[:, 0]
-        else:
-            video_embs = None
+            embs_dict["V"] = video_embs
 
-        return {
-            "T": text_embs,
-            "A": audio_embs,
-            "V": video_embs,
-        }
+        return embs_dict
 
 
 class MultimodalModel(ClassifierModel[MultimodalBackbone]):
@@ -234,15 +226,10 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
             num_experts=num_experts,
             class_weights=class_weights,
         )
-        self.projectors = nn.ModuleDict(
-            {modal: Projector(feature_size) for modal, feature_size in feature_sizes_dict.items()}
-        )
         self.fusion_layer = fusion_layer
 
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
         embs_dict = self.backbone(inputs)
-        for modal, embs in embs_dict.items():
-            embs_dict[modal] = self.projectors[modal](embs)
         fusion_features = self.fusion_layer(embs_dict)
         return self.classify(fusion_features, inputs.labels)
 

@@ -18,7 +18,7 @@ from torch.nn import CrossEntropyLoss
 
 from recognize.cache import CacheManager, hash_bytes, load_cached_tensors, save_cached_tensors
 from recognize.config import load_dict_from_path, save_dict_to_file
-from recognize.module import SparseMoE
+from recognize.module import Projector, SparseMoE
 from recognize.typing import BackboneT, ModelInputT, StateDicts
 
 
@@ -77,13 +77,15 @@ class ModelInput(BaseModel):
 
 
 class Backbone(nn.Module, Generic[ModelInputT]):
+    __call__: Callable[[ModelInputT], dict[str, torch.Tensor]]
+
     def __init__(
         self,
         encoders: Mapping[str, tuple[nn.Module, int]],
-        use_cache: bool = True,
-        is_frozen: bool = True,
-        use_peft: bool = False,
         *,
+        use_cache: bool = True,
+        frozen_encoders: bool = True,
+        use_peft: bool = False,
         encoder_dir: Path = Path("./checkpoints/encoders"),
         init_hook: Callable[[Self], None] | None = None,
     ):
@@ -92,19 +94,19 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         self.feature_sizes = {name: feature_size for name, (_, feature_size) in encoders.items()}
         self.use_cache = use_cache
         self.use_peft = use_peft
-        self.is_frozen = is_frozen
+        self.frozen_encoders = frozen_encoders
         self.named_encoders = nn.ModuleDict(
-            {name: self.pretrained_module(module) for name, (module, _) in encoders.items()}
+            {name: self.pretrained_encoder(module) for name, (module, _) in encoders.items()}
         )
-        self.named_poolers = nn.ModuleDict(
+        self.named_projectors = nn.ModuleDict(
             {
-                name: nn.Linear(module.config.hidden_size, feature_size)
+                name: Projector(module.config.hidden_size, feature_size)
                 for name, (module, feature_size) in encoders.items()
             }
         )
         if init_hook is not None:
             init_hook(self)
-        self.cache_manager = CacheManager((8 * 2**30, 4 * 2**30), cache_dir=Path(f"./cache/{self.hash}"))
+        self.cache_manager = CacheManager((8 * 2**30, 4 * 2**30), cache_dir=Path(f"./cache/{self.encoder_hash}"))
 
     def get_meta_info(self):
         return {
@@ -112,52 +114,46 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         }
 
     def freeze(self):
-        self.is_frozen = True
+        self.frozen_encoders = True
 
     def unfreeze(self):
-        self.is_frozen = False
+        self.frozen_encoders = False
 
-    def compute_embs(self, inputs: ModelInputT) -> dict[str, torch.Tensor | None]:
+    def compute_embs(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
         raise NotImplementedError("compute_embs method must be implemented in subclass")
+
+    def cached_compute_embs(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
+        unique_keys = inputs.get_unique_keys()
+        cached_list = load_cached_tensors(unique_keys, cache_manager=self.cache_manager)
+        if cached_list is None:
+            logger.debug("cache missed")
+            with torch.no_grad():
+                embs_dict = self.compute_embs(inputs)
+            embs_dict = {k: v for k, v in embs_dict.items() if v is not None}
+            save_cached_tensors(unique_keys, embs_dict, cache_manager=self.cache_manager)
+            return embs_dict
+        return {modal: torch.cat(cache) for modal, cache in cached_list.items()}
 
     def pool_embs(
         self,
-        embs_dict: dict[str, torch.Tensor | None],
+        embs_dict: Mapping[str, torch.Tensor],
     ) -> dict[str, torch.Tensor]:
         return {
-            name: self.named_poolers[name](embs)
-            for name in self.named_poolers
-            if (embs := embs_dict.get(name)) is not None
+            name: self.named_projectors[name](embs_dict[name]) for name in self.named_projectors if name in embs_dict
         }
 
-    def load_cache(self, inputs: ModelInputT) -> dict[str, list[torch.Tensor]] | None:
-        unique_keys = inputs.get_unique_keys()
-        cache = load_cached_tensors(unique_keys, cache_manager=self.cache_manager)
-        return cache
-
-    def save_cache(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
-        with torch.no_grad():
-            pooler_output = self.direct_forward(inputs)
-        unique_keys = inputs.get_unique_keys()
-        save_cached_tensors(unique_keys, pooler_output, cache_manager=self.cache_manager)
-        return pooler_output
-
     def direct_forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
-        embs_tuple = self.compute_embs(inputs)
-        pooler_output = self.pool_embs(embs_tuple)
+        embs_dict = self.compute_embs(inputs)
+        pooler_output = self.pool_embs(embs_dict)
         return pooler_output
 
     def cached_forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
-        cached_list = self.load_cache(inputs)
-        if cached_list is None:
-            logger.debug("cache missed")
-            return self.save_cache(inputs)
-        return {modal: torch.cat(cache) for modal, cache in cached_list.items()}
-
-    __call__: Callable[[ModelInputT], dict[str, torch.Tensor]]
+        embs_dict = self.cached_compute_embs(inputs)
+        pooler_output = self.pool_embs(embs_dict)
+        return pooler_output
 
     def forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
-        if self.is_frozen and self.use_cache:
+        if self.frozen_encoders and self.use_cache:
             try:
                 return self.cached_forward(inputs)
             except Exception as e:
@@ -165,12 +161,12 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         return self.direct_forward(inputs)
 
     @overload
-    def pretrained_module(self, module: nn.Module) -> nn.Module: ...
+    def pretrained_encoder(self, module: nn.Module) -> nn.Module: ...
 
     @overload
-    def pretrained_module(self, module: None) -> None: ...
+    def pretrained_encoder(self, module: None) -> None: ...
 
-    def pretrained_module(self, module: nn.Module | None) -> nn.Module | None:
+    def pretrained_encoder(self, module: nn.Module | None) -> nn.Module | None:
         if module is None:
             return None
         if self.use_peft:
@@ -178,7 +174,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         module_forward = module.forward
 
         def forward(*args, **kwargs):
-            if self.is_frozen:
+            if self.frozen_encoders:
                 with torch.no_grad():
                     return module_forward(*args, **kwargs)
             else:
@@ -233,10 +229,10 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         return state_dicts, peft_state_dicts
 
     @cached_property
-    def hash(self):
-        if not self.is_frozen:
-            self.is_frozen = True
-            logger.warning("Model is not frozen, freezing model for hashing")
+    def encoder_hash(self):
+        if not self.frozen_encoders:
+            self.frozen_encoders = True
+            logger.warning("Encoders are not frozen, freezing encoders for hashing")
         bytes_dict: dict[str, bytes] = {}
         state_dicts, peft_state_dicts = self.get_state_dicts()
         for name, state_dict in itertools.chain(state_dicts.items(), peft_state_dicts.items()):
@@ -269,7 +265,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
                 f.write(state_bytes)
 
         save_dict_to_file(self.get_meta_info(), original_encoder_dir / "meta.toml")
-        save_file(self.named_poolers.state_dict(), original_encoder_dir / "poolers.safetensors")
+        save_file(self.named_projectors.state_dict(), original_encoder_dir / "poolers.safetensors")
         return state_path_dict
 
     @classmethod
@@ -278,15 +274,13 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         checkpoint_path: Path,
         *,
         use_cache: bool = True,
-        is_frozen: bool = True,
+        frozen_encoders: bool = True,
         use_peft: bool = False,
         encoder_dir: Path = Path("./checkpoints/encoders"),
     ) -> Self:
         from transformers import AutoConfig, AutoModel
 
-        checkpoint_path = Path(checkpoint_path)
         encoders: dict[str, tuple[nn.Module, int]] = {}
-
         backbone_config = load_dict_from_path(checkpoint_path / "meta.toml")
 
         for name, feature_size in backbone_config["feature_sizes"].items():
@@ -300,12 +294,12 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         self = cls(
             encoders,
             use_cache=use_cache,
-            is_frozen=is_frozen,
+            frozen_encoders=frozen_encoders,
             use_peft=use_peft,
             encoder_dir=encoder_dir,
         )
-        self.named_poolers.load_state_dict(load_file(checkpoint_path / "poolers.safetensors"))
-        self.cache_manager.cache_dir = Path(f"./cache/{self.hash}")
+        self.named_projectors.load_state_dict(load_file(checkpoint_path / "poolers.safetensors"))
+        self.cache_manager.cache_dir = Path(f"./cache/{self.encoder_hash}")
         return self
 
 
@@ -338,12 +332,6 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
                     act_expert_num=num_experts // 2,  # TODO: add act_expert_num to config
                 ),
             )
-
-    def freeze_backbone(self):
-        self.backbone.freeze()
-
-    def unfreeze_backbone(self):
-        self.backbone.unfreeze()
 
     def compute_loss(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         if self.num_classes == 1:

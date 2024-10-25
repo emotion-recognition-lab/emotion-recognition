@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 StateDict: TypeAlias = dict[str, torch.Tensor]
 StateDicts: TypeAlias = dict[str, StateDict]
 ModelInputT = TypeVar("ModelInputT", bound="ModelInput")
-BackboneT = TypeVar("BackboneT", bound="Backbone")
+BackboneT = TypeVar("BackboneT", bound="Backbone", covariant=True)
 ClassifierModelT = TypeVar("ClassifierModelT", bound="ClassifierModel")
 ModuleT = TypeVar("ModuleT", bound=nn.Module)
 

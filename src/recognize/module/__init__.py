@@ -1,4 +1,4 @@
-from .basic import Pooler, Projector
+from .basic import Projector
 from .fusion import ConcatFusionMoE, FusionLayer, LowRankFusionLayer, TensorFusionLayer
 from .loss import FeatureLoss, LogitLoss
 from .moe import MoE, MultiHeadMoE, MultimodalMoE, SparseMoE

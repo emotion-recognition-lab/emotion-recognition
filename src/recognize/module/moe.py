@@ -7,7 +7,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from .basic import Pooler
+from .basic import Projector
 from .fusion import LowRankFusionLayer
 
 
@@ -132,5 +132,5 @@ class MultimodalMoE(MultiHeadMoE, LowRankFusionLayer):
         LowRankFusionLayer.__init__(self, dims, rank, len(dims), trainable_placeholder=trainable_placeholder)
         self.router = partial(LowRankFusionLayer.forward, self)
         self.expert_names = sorted(dims.keys())
-        self.experts = nn.ModuleDict({name: Pooler(dim, output_size) for name, dim in dims.items()})
+        self.experts = nn.ModuleDict({name: Projector(dim, output_size) for name, dim in dims.items()})
         self.output_size = output_size

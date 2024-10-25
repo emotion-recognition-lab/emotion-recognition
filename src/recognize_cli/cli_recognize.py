@@ -31,6 +31,7 @@ from recognize.typing import DatasetLabelType
 from recognize.utils import (
     find_best_model,
     load_best_model,
+    load_model,
     train_and_eval,
 )
 
@@ -205,8 +206,8 @@ def distill(
 
     assert config_training_mode != "lora", "Lora is not supported in distillation"
     assert config_fusion is not None
-    assert (teacher_checkpoint / "stopper.yaml").exists()
     assert (teacher_checkpoint / "preprocessor").exists()
+    assert (teacher_checkpoint / "backbone").exists()
 
     if checkpoint is not None:
         checkpoint_dir = checkpoint
@@ -231,7 +232,7 @@ def distill(
     teacher_preprocessor = Preprocessor.from_pretrained(teacher_checkpoint / "preprocessor")
     # TODO: maybe those will be covered by load_best_model
     backbone.named_encoders.load_state_dict(teacher_backbone.named_encoders.state_dict(), strict=False)
-    backbone.named_poolers.load_state_dict(teacher_backbone.named_poolers.state_dict(), strict=False)
+    backbone.named_projectors.load_state_dict(teacher_backbone.named_projectors.state_dict(), strict=False)
     if preprocessor.tokenizer is not None:
         teacher_preprocessor.tokenizer = preprocessor.tokenizer
     if preprocessor.feature_extractor is not None:
@@ -277,7 +278,10 @@ def distill(
         class_weights=class_weights,
     ).cuda()
 
-    load_best_model(teacher_checkpoint, teacher_model)
+    if (teacher_checkpoint / "stopper.yaml").exists():
+        load_best_model(teacher_checkpoint, teacher_model)
+    else:
+        load_model(teacher_checkpoint, teacher_model)
     result = TrainingResult.auto_compute(teacher_model, test_data_loader)
     logger.info("Test result in [green]best teacher model[/]:")
     result.print()
@@ -293,7 +297,7 @@ def distill(
     ).cuda()
 
     if config_training_mode == "trainable":
-        model.unfreeze_backbone()
+        model.backbone.unfreeze()
 
     if (checkpoint_dir / "stopper.yaml").exists():
         load_best_model(checkpoint_dir, model)
@@ -406,9 +410,10 @@ def train(
             class_weights=class_weights,
         ).cuda()
     if config_training_mode == "trainable":
-        model.unfreeze_backbone()
+        model.backbone.unfreeze()
 
     if (checkpoint_dir / "stopper.yaml").exists():
+        # TODO: stopper should be loaded in the training process
         load_best_model(checkpoint_dir, model)
         result = TrainingResult.auto_compute(model, test_data_loader)
         result.print()
@@ -429,6 +434,8 @@ def train(
 
 @app.command()
 def evaluate(checkpoint: Path) -> None:
+    init_torch()
+
     config = load_training_config(checkpoint / "training.toml")
     init_logger(config.log_level, config.label)
     config_encoders = config.model.encoders
@@ -478,7 +485,7 @@ def evaluate(checkpoint: Path) -> None:
             num_classes=test_dataset.num_classes,
         ).cuda()
 
-    model.freeze_backbone()
+    model.backbone.freeze()
     load_best_model(checkpoint, model)
     result = TrainingResult.auto_compute(model, test_data_loader)
     result.print()

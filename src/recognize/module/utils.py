@@ -10,6 +10,7 @@ def get_feature_sizes_dict(modals: list[ModalType], feature_sizes: list[int]) ->
 
 
 def gen_fusion_layer(fusion: str, feature_sizes_dict: dict[str, int]) -> FusionLayerLike:
+    # TODO: split fusion to fusion_cls and fusion_args
     fusion = eval(
         fusion,
         {
@@ -21,6 +22,5 @@ def gen_fusion_layer(fusion: str, feature_sizes_dict: dict[str, int]) -> FusionL
             "feature_sizes_dict": feature_sizes_dict,
         },
     )
-
     assert isinstance(fusion, FusionLayerLike), f"{fusion} is not a FusionLayerLike, but {type(fusion)}"
     return fusion
