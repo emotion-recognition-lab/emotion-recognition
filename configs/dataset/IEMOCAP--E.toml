@@ -1,0 +1,4 @@
+[dataset]
+dataset_class = "IEMOCAPDataset"
+path = "datasets/IEMOCAP"
+label_type = "emotion"

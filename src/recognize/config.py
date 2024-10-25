@@ -8,7 +8,7 @@ from typing import Any, Literal, Self
 from loguru import logger
 from pydantic import BaseModel, Field, model_validator
 
-from .typing import LogLevel, ModalType
+from .typing import DatasetClass, DatasetLabelType, LogLevel, ModalType
 
 
 def hash_string(string: str) -> str:
@@ -56,12 +56,17 @@ class ModelConfig(BaseModel):
 
 class DatasetConfig(BaseModel):
     path: Path
-    dataset_class: Literal["MELDDataset", "PilotDataset", "SIMSDataset"]
-    label_type: Literal["sentiment", "emotion"] = "sentiment"
+    dataset_class: DatasetClass
+    label_type: DatasetLabelType = "sentiment"
 
     @cached_property
     def label(self) -> str:
-        dataset_class_mapping = {"MELDDataset": "MELD", "PilotDataset": "Pilot", "SIMSDataset": "SIMS"}
+        dataset_class_mapping = {
+            "MELDDataset": "MELD",
+            "PilotDataset": "Pilot",
+            "SIMSDataset": "SIMS",
+            "IEMOCAPDataset": "IEMOCAP",
+        }
         label_type_mapping = {"sentiment": "S", "emotion": "E"}
 
         dataset_class = dataset_class_mapping[self.dataset_class]

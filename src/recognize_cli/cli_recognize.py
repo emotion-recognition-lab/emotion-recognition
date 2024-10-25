@@ -5,7 +5,7 @@ import random
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -18,6 +18,7 @@ from torch.utils.data import DataLoader
 
 from recognize.config import InferenceConfig, load_training_config, save_config
 from recognize.dataset import MELDDataset, PilotDataset, SIMSDataset
+from recognize.dataset.iemocap import IEMOCAPDataset
 from recognize.evaluate import TrainingResult
 from recognize.model import (
     LazyMultimodalInput,
@@ -27,7 +28,7 @@ from recognize.model import (
 )
 from recognize.module import gen_fusion_layer, get_feature_sizes_dict
 from recognize.preprocessor import Preprocessor
-from recognize.typing import DatasetLabelType
+from recognize.typing import DatasetClass, DatasetLabelType
 from recognize.utils import (
     find_best_model,
     load_best_model,
@@ -66,12 +67,13 @@ def seed_everything(seed: int | None = None):
 def provide_datasets(
     dataset_path: Path,
     label_type: DatasetLabelType = "emotion",
-    dataset_class_str: Literal["MELDDataset", "PilotDataset", "SIMSDataset"] = "MELDDataset",
+    dataset_class_str: DatasetClass = "MELDDataset",
 ) -> tuple[MultimodalDataset, MultimodalDataset, MultimodalDataset]:
-    dataset_class: type[MELDDataset | PilotDataset | SIMSDataset] = {
+    dataset_class: type[MELDDataset | PilotDataset | SIMSDataset | IEMOCAPDataset] = {
         "MELDDataset": MELDDataset,
         "PilotDataset": PilotDataset,
         "SIMSDataset": SIMSDataset,
+        "IEMOCAPDataset": IEMOCAPDataset,
     }[dataset_class_str]
     train_dataset = dataset_class(
         dataset_path.as_posix(),
