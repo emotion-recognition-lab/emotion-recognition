@@ -329,6 +329,7 @@ def distill(
 def train(
     config_path: list[Path],
     checkpoint: Path | None = None,
+    from_checkpoint: Path | None = None,
     seed: int | None = None,
 ) -> None:
     seed = seed_everything(seed)
@@ -381,12 +382,17 @@ def train(
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
     )
+    candidate_checkpoints = []
+    if from_checkpoint is not None:
+        from_checkpoint_best = find_best_model(from_checkpoint)
+        candidate_checkpoints.append(from_checkpoint / f"{from_checkpoint_best}")
+    candidate_checkpoints.append(checkpoint_dir)
     preprocessor, backbone = generate_preprocessor_and_backbone(
         config_encoders,
         config_modals,
         config_feature_sizes,
         datasets=[train_dataset, dev_dataset, test_dataset],
-        checkpoints=[checkpoint_dir],
+        checkpoints=candidate_checkpoints,
     )
     if not (checkpoint_dir / "preprocessor").exists():
         preprocessor.save_pretrained(checkpoint_dir / "preprocessor")
