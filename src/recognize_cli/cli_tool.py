@@ -143,6 +143,7 @@ def info(
 def clean(
     checkpoint_dir: Path = typer.Argument(Path("checkpoints"), help="The checkpoint directory to clean"),
 ):
+    # clean encoder files with no symlinks
     init_logger("INFO")
     cleaned_size = 0
     cleaned_count = 0
