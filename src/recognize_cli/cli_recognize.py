@@ -54,7 +54,9 @@ def init_torch():
 
 def seed_everything(seed: int | None = None):
     if seed is None:
-        return
+        seed = random.randint(0, 2**32 - 1)
+
+    logger.info(f"Set seed to {seed}")
     random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
     np.random.seed(seed)
@@ -62,6 +64,7 @@ def seed_everything(seed: int | None = None):
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+    return seed
 
 
 def provide_datasets(
@@ -189,7 +192,7 @@ def distill(
     as the student model typically has more modalities.
     """
 
-    seed_everything(seed)
+    seed = seed_everything(seed)
     init_torch()
 
     config = load_training_config(*config_path)
@@ -203,6 +206,7 @@ def distill(
     init_logger(config.log_level, config.label)
 
     model_label = config.model.label
+    model_hash = config.model.hash
     dataset_label = config.dataset.label
     batch_size = config.batch_size
 
@@ -214,7 +218,7 @@ def distill(
     if checkpoint is not None:
         checkpoint_dir = checkpoint
     else:
-        checkpoint_dir = Path(f"./checkpoints/distillation/{dataset_label}/{model_label}")
+        checkpoint_dir = Path(f"./checkpoints/distillation/{dataset_label}/{model_label}/{model_hash}--{seed}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     train_dataset, dev_dataset, test_dataset = provide_datasets(
@@ -327,7 +331,7 @@ def train(
     checkpoint: Path | None = None,
     seed: int | None = None,
 ) -> None:
-    seed_everything(seed)
+    seed = seed_everything(seed)
     init_torch()
 
     config = load_training_config(*config_path)
@@ -339,6 +343,7 @@ def train(
     config_dataset = config.dataset
 
     model_label = config.model.label
+    model_hash = config.model.hash
     dataset_label = config.dataset.label
     batch_size = config.batch_size
 
@@ -347,7 +352,7 @@ def train(
     if checkpoint is not None:
         checkpoint_dir = checkpoint
     else:
-        checkpoint_dir = Path(f"./checkpoints/training/{dataset_label}/{model_label}")
+        checkpoint_dir = Path(f"./checkpoints/training/{dataset_label}/{model_label}/{model_hash}--{seed}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     train_dataset, dev_dataset, test_dataset = provide_datasets(

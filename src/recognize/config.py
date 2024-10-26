@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Literal, Self
 
 from loguru import logger
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, model_validator
 
 from .typing import DatasetClass, DatasetLabelType, LogLevel, ModalType
 
@@ -30,21 +30,26 @@ class ModelConfig(BaseModel):
     modals: list[ModalType]
     feature_sizes: list[int]
     encoders: list[str]
-    training_mode: Literal["trainable", "lora", "frozen"] = "trainable"
     fusion: str | None = None
     num_experts: int = 1
+    # TODO: training_mode should not be a model config
+    training_mode: Literal["trainable", "lora", "frozen"] = "trainable"
 
     @cached_property
     def label(self) -> str:
         modals = "+".join(self.modals)
         # TODO: fusion need more explicit label
-        encoders_hash = hash_string("".join(self.modals) + str(self.fusion))
         model_labels = [
             self.training_mode,
             f"{self.num_experts}xE",
-            f"{modals}#{encoders_hash}",
+            f"{modals}",
         ]
         return "--".join(model_labels)
+
+    @cached_property
+    def hash(self) -> str:
+        # TODO: feature_sizes?
+        return hash_string("".join(self.modals) + str(self.fusion))
 
     @model_validator(mode="after")
     def verify_model_config(self) -> Self:
@@ -81,15 +86,12 @@ class DatasetConfig(BaseModel):
 class TrainingConfig(BaseModel):
     log_level: LogLevel = "INFO"  # TODO: remove after typer supports Literal
     batch_size: int = 32
-    custom_label: str | None = Field(default=None, description="To mark the model in the past, but now may be useless.")
 
     model: ModelConfig
     dataset: DatasetConfig
 
     @cached_property
     def label(self) -> str:
-        if self.custom_label:
-            return f"{self.custom_label}/{self.dataset.label}/{self.model.label}"
         return f"{self.dataset.label}/{self.model.label}"
 
 

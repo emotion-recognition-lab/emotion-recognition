@@ -146,3 +146,4 @@ uv sync --all-extras --dev
 
 ## 其他参考资料
 https://zhuanlan.zhihu.com/p/694747931
+[自动混合精度AMP](https://zhuanlan.zhihu.com/p/408610877/)
