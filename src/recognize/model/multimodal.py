@@ -27,8 +27,6 @@ class MultimodalInput(ModelInput):
     video_pixel_values: torch.Tensor | None = None
     video_head_mask: torch.Tensor | None = None
 
-    labels: torch.Tensor | None = None
-
     def __getitem__(self, index: int | list[int] | slice) -> MultimodalInput:
         text_input_ids = self.text_input_ids[index] if self.text_input_ids is not None else None
         text_attention_mask = self.text_attention_mask[index] if self.text_attention_mask is not None else None

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Literal
 import torch
 from loguru import logger
 from pydantic import BaseModel, Field
-from torch import nn
+from torch import amp, nn
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
@@ -69,6 +69,7 @@ class Trainer:
         data_loaders: dict[Literal["train", "valid", "test"], DataLoader],
         optimizer: Optimizer,
         scheduler: LambdaLR | None = None,
+        scaler: amp.GradScaler | None = None,
         *,
         max_grad_norm: float | None = None,
     ):
@@ -76,6 +77,7 @@ class Trainer:
         self.data_loaders = data_loaders
         self.optimizer = optimizer
         self.scheduler = scheduler
+        self.scaler = scaler
         self.max_grad_norm = max_grad_norm
         self.losses = []
         self.loss_mean_cache: float = -1
@@ -94,10 +96,17 @@ class Trainer:
             return
 
         self.optimizer.zero_grad()
-        loss.backward()
+        if self.scaler is not None:
+            self.scaler.scale(loss).backward()
+        else:
+            loss.backward()
         if self.max_grad_norm is not None:
             nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
-        self.optimizer.step()
+        if self.scaler is not None:
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+        else:
+            self.optimizer.step()
         if self.scheduler is not None:
             self.scheduler.step()
 

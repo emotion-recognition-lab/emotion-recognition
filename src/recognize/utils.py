@@ -15,13 +15,14 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 from safetensors.torch import load_file
+from torch import amp
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
 from recognize.trainer import Trainer
 
 from .evaluate import TrainingResult
-from .model.base import Backbone, ClassifierModel
+from .model.base import Backbone, ClassifierModel, ModelInput
 from .module.loss import FeatureLoss, LogitLoss
 from .trainer import EarlyStopper
 
@@ -109,6 +110,8 @@ def get_trainer(
     data_loaders: dict[Literal["train", "valid", "test"], DataLoader],
     num_warmup_steps: int,
     num_training_steps: int,
+    *,
+    use_amp: bool = True,
 ):
     from transformers import get_linear_schedule_with_warmup
 
@@ -119,42 +122,20 @@ def get_trainer(
         num_warmup_steps=num_warmup_steps,
         num_training_steps=num_training_steps,
     )
-
-    return Trainer(model, data_loaders, optimizer, scheduler, max_grad_norm=10)
-
-
-def train_epoch(
-    model: ClassifierModel,
-    trainer: Trainer,
-    train_data_loader: DataLoader,
-    update_hook: Callable[[int, float], None] | None = None,
-):
-    model.train()
-    trainer.clear_losses()
-    for batch_index, batch in enumerate(train_data_loader):
-        output = model(batch)
-        loss = output.loss
-        trainer.training_step(loss)
-        if update_hook is not None:
-            if batch_index % (len(train_data_loader) // 10):
-                loss_value = trainer.loss_mean()
-                trainer.clear_losses()
-            else:
-                loss_value = trainer.loss_mean_cache
-            update_hook(batch_index, loss_value)
+    if use_amp:
+        scaler = amp.GradScaler("cuda")
+    else:
+        scaler = None
+    return Trainer(model, data_loaders, optimizer, scheduler, max_grad_norm=10, scaler=scaler)
 
 
-def distill_epoch(
-    teacher_model: ClassifierModel,
+def distill_batch(
     student_model: ClassifierModel,
+    teacher_model: ClassifierModel,
+    batch: ModelInput,
     trainer: Trainer,
-    train_data_loader: DataLoader,
-    update_hook: Callable[[int, float], None] | None = None,
 ):
-    teacher_model.eval()
-    student_model.train()
-    trainer.clear_losses()
-    for batch_index, batch in enumerate(train_data_loader):
+    with amp.autocast("cuda"):
         with torch.no_grad():
             teacher_embs = teacher_model.backbone(batch)["T"]
             teacher_logits = teacher_model.classifier(teacher_embs)
@@ -162,20 +143,55 @@ def distill_epoch(
         student_embs_dict = student_model.backbone(batch)
         if len(student_embs_dict) < 2:
             # NOTE: only T modality or no input
-            continue
+            return
         student_output = student_model.classify(student_model.fusion_layer(student_embs_dict), batch.labels)
 
         assert student_output.loss is not None
         # TODO: 5 is a magic number, the value should be a hyper-parameter
         loss = LogitLoss()(student_output.logits, teacher_logits) + 5 * student_output.loss
-        for student_embs in student_embs_dict.values():
+        for name, student_embs in student_embs_dict.items():
+            if name == "T":
+                continue
             loss += FeatureLoss()(student_embs, teacher_embs)
             # loss += FeatureLoss()(student_pooled_embs_tuple[2], teacher_pooled_embs)
 
-        trainer.training_step(loss)
+    trainer.training_step(loss)
+
+
+def train_batch(
+    model: ClassifierModel,
+    batch: dict[str, torch.Tensor],
+    trainer: Trainer,
+):
+    with amp.autocast("cuda"):
+        output = model(batch)
+        loss = output.loss
+    trainer.training_step(loss)
+
+
+def train_epoch(
+    model: ClassifierModel,
+    trainer: Trainer,
+    train_data_loader: DataLoader,
+    *,
+    teacher_model: ClassifierModel | None = None,
+    update_hook: Callable[[int, float], None] | None = None,
+):
+    model.train()
+    if teacher_model is not None:
+        teacher_model.eval()
+    trainer.clear_losses()
+    for batch_index, batch in enumerate(train_data_loader):
+        if teacher_model is not None:
+            distill_batch(model, teacher_model, batch, trainer)
+        else:
+            train_batch(model, batch, trainer)
         if update_hook is not None:
-            loss_value = trainer.loss_mean()
-            trainer.clear_losses()
+            if batch_index % (len(train_data_loader) // 10):
+                loss_value = trainer.loss_mean()
+                trainer.clear_losses()
+            else:
+                loss_value = trainer.loss_mean_cache
             update_hook(batch_index, loss_value)
 
 
@@ -241,21 +257,15 @@ def train_and_eval(
             batch_index=0,
         )
         for epoch in range(epoch_start + 1, num_epochs):
-            if teacher_model is not None:
-                distill_epoch(
-                    teacher_model,
-                    model,
-                    trainer,
-                    train_data_loader,
-                    lambda batch_index, loss_value: progress.update(task, loss=loss_value, batch_index=batch_index + 1),
-                )
-            else:
-                train_epoch(
-                    model,
-                    trainer,
-                    train_data_loader,
-                    lambda batch_index, loss_value: progress.update(task, loss=loss_value, batch_index=batch_index + 1),
-                )
+            train_epoch(
+                model,
+                trainer,
+                train_data_loader,
+                teacher_model=teacher_model,
+                update_hook=lambda batch_index, loss_value: progress.update(
+                    task, loss=loss_value, batch_index=batch_index + 1
+                ),
+            )
 
             if (epoch + 1) % eval_interval == 0 or epoch == num_epochs - 1:
                 if use_valid:

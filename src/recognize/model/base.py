@@ -34,6 +34,7 @@ class ClassifierOutput(ModelOutput):
 
 class ModelInput(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
+    labels: torch.Tensor | None = None
 
     def cuda(self) -> Self:
         for field in self.model_fields.keys():
