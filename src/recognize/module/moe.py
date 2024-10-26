@@ -41,6 +41,27 @@ class NoiseRouter(nn.Module):
         return F.softmax(routing_logit, dim=1)
 
 
+class CopyExpert(nn.Module):
+    def forward(self, inputs):
+        return inputs
+
+
+class ZeroExpert(nn.Module):
+    def forward(self, inputs):
+        return torch.zeros_like(inputs).to(inputs.dtype).to(inputs.device)
+
+
+class ConstantExpert(nn.Module):
+    def __init__(self, hidden_size: int):
+        super().__init__()
+        self.constant = nn.Parameter(torch.randn(hidden_size))
+        self.wg = nn.Sequential(nn.Linear(hidden_size, 2, bias=False), nn.Softmax(dim=-1))
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        alphas = self.wg(inputs)
+        return torch.einsum("b,bd->bd", [alphas[:, 0], inputs]) + torch.einsum("b,d->bd", [alphas[:, 1], self.constant])
+
+
 class MoE(nn.Module):
     def __init__(self, feature_size: int, experts: Sequence[nn.Module]):
         super().__init__()
