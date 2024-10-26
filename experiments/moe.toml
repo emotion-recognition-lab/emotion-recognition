@@ -3,7 +3,7 @@ resources = "gpus"
 
 [matrix]
 dataset = ["MELD--E"]
-seed = [0, 1, 42, 114, 2024]
+seed = ["0", "114"]
 
 [tasks.MoE-unimodal]
 command = "uv run emotion-recognize train"
@@ -14,16 +14,8 @@ args = [
     "--seed {seed}",
 ]
 [tasks.MoE-unimodal.matrix]
-modals = [
-    "T",
-    "A",
-    "V",
-]
-classifier = [
-    "",
-    "configs/classifier/4xE.toml",
-    "configs/classifier/8xE.toml",
-]
+modals = ["T", "A", "V"]
+classifier = ["", "configs/classifier/4xE.toml", "configs/classifier/8xE.toml"]
 
 [tasks.MoE-multimodal]
 command = "uv run emotion-recognize train"
@@ -35,18 +27,10 @@ args = [
     "--seed {seed}",
 ]
 [tasks.MoE-multimodal.matrix]
-modals = [
-    "T+A",
-    "T+V",
-    "T+A+V",
-]
+modals = ["T+A", "T+V", "T+A+V"]
 fusion = [
     "configs/fusion/LMF.toml",
     "configs/fusion/MoE/LMF.toml",
     "configs/fusion/MoE/ConcatFusionMoE.toml",
 ]
-classifier = [
-    "",
-    "configs/classifier/4xE.toml",
-    "configs/classifier/8xE.toml",
-]
+classifier = ["", "configs/classifier/4xE.toml", "configs/classifier/8xE.toml"]
