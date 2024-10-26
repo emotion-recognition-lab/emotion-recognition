@@ -98,7 +98,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         self.named_encoders = nn.ModuleDict(
             {name: self.pretrained_encoder(module) for name, (module, _) in encoders.items()}
         )
-        self.named_projectors = nn.ModuleDict(
+        self.named_poolers = nn.ModuleDict(
             {
                 name: Projector(module.config.hidden_size, feature_size)
                 for name, (module, feature_size) in encoders.items()
@@ -138,9 +138,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         self,
         embs_dict: Mapping[str, torch.Tensor],
     ) -> dict[str, torch.Tensor]:
-        return {
-            name: self.named_projectors[name](embs_dict[name]) for name in self.named_projectors if name in embs_dict
-        }
+        return {name: self.named_poolers[name](embs_dict[name]) for name in self.named_poolers if name in embs_dict}
 
     def direct_forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
         embs_dict = self.compute_embs(inputs)
@@ -265,7 +263,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
                 f.write(state_bytes)
 
         save_dict_to_file(self.get_meta_info(), original_encoder_dir / "meta.toml")
-        save_file(self.named_projectors.state_dict(), original_encoder_dir / "poolers.safetensors")
+        save_file(self.named_poolers.state_dict(), original_encoder_dir / "poolers.safetensors")
         return state_path_dict
 
     @classmethod
@@ -298,7 +296,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             use_peft=use_peft,
             encoder_dir=encoder_dir,
         )
-        self.named_projectors.load_state_dict(load_file(checkpoint_path / "poolers.safetensors"))
+        self.named_poolers.load_state_dict(load_file(checkpoint_path / "poolers.safetensors"))
         self.cache_manager.cache_dir = Path(f"./cache/{self.encoder_hash}")
         return self
 
@@ -342,14 +340,13 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
             return loss_fn(logits, labels)
 
     @torch.compile(dynamic=True)
-    def classify(self, features: torch.Tensor, labels: torch.Tensor | None) -> ClassifierOutput:
+    def classify(self, features: torch.Tensor, labels: torch.Tensor | None = None) -> ClassifierOutput:
         logits = self.classifier(features)
         loss = None
         if labels is not None:
             loss = self.compute_loss(logits, labels)
         return ClassifierOutput(logits=logits, loss=loss)
 
-    def save_checkpoint(self, checkpoint_path: str | Path):
-        checkpoint_path = Path(checkpoint_path)
+    def save_checkpoint(self, checkpoint_path: Path):
         model_state_dict = {key: value for key, value in self.state_dict().items() if not key.startswith("backbone.")}
         save_file(model_state_dict, checkpoint_path / "model.safetensors")

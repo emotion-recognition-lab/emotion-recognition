@@ -9,7 +9,7 @@ class Projector(nn.Module):
         self,
         in_features: int,
         out_features: int | None = None,
-        bias: bool = False,
+        bias: bool = True,
         *,
         depth: int = 1,
     ):
@@ -18,7 +18,7 @@ class Projector(nn.Module):
             out_features = in_features
         self.proj = nn.Sequential(
             nn.Linear(in_features, out_features, bias=bias),
-            *[nn.Tanh(), nn.Linear(out_features, out_features, bias=bias)] * (depth - 1),
+            *[nn.GELU(), nn.Linear(out_features, out_features, bias=bias)] * (depth - 1),
         )
 
     @torch.compile(dynamic=True, fullgraph=True)

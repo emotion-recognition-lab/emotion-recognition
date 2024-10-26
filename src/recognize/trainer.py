@@ -6,12 +6,13 @@ from typing import TYPE_CHECKING, Literal
 import torch
 from loguru import logger
 from pydantic import BaseModel, Field
+from torch import nn
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 
 from recognize.config import load_dict_from_path, save_dict_to_file
-from recognize.evaluate import TrainingResult, calculate_accuracy_and_f1_score
+from recognize.evaluate import TrainingResult
 
 if TYPE_CHECKING:
     from .model import ClassifierModel
@@ -22,7 +23,6 @@ class EarlyStopper(BaseModel):
     history: list[tuple[int, dict[str, float]]] = Field(default_factory=list)
     best_scores: dict[str, float] = Field(default_factory=dict)
     best_epoch: int = -1
-    stagnant_count: int = 0
     finished: bool = False
 
     @classmethod
@@ -53,12 +53,10 @@ class EarlyStopper(BaseModel):
             if value > self.best_scores[key]:
                 self.best_scores[key] = value
                 self.best_epoch = epoch
-                self.stagnant_count = 0
                 better_metrics.append(key)
             else:
-                self.stagnant_count += 1
-                if self.stagnant_count >= self.patience:
-                    logger.info("Early stopping!")
+                if epoch - self.best_epoch >= self.patience:
+                    logger.info(f"Early stopping! Best epoch: {self.best_epoch}")
                     self.finished = True
                     return []
         return better_metrics
@@ -98,7 +96,7 @@ class Trainer:
         self.optimizer.zero_grad()
         loss.backward()
         if self.max_grad_norm is not None:
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
+            nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
         self.optimizer.step()
         if self.scheduler is not None:
             self.scheduler.step()
@@ -110,10 +108,4 @@ class Trainer:
         return self.eval("train")
 
     def eval(self, key: Literal["train", "valid", "test"]) -> TrainingResult:
-        data_loader = self.data_loaders[key]
-        accuracy, f1_score = calculate_accuracy_and_f1_score(self.model, data_loader)
-        return TrainingResult(
-            accuracy=accuracy,
-            f1_score=f1_score,
-            # confusion_matrix=confusion_matrix(model, data_loader),
-        )
+        return TrainingResult.auto_compute(self.model, self.data_loaders[key])

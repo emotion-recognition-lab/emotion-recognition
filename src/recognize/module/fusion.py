@@ -132,7 +132,7 @@ class ConcatFusionMoE(FusionLayer):
         self.placeholders = nn.ParameterDict({name: nn.Parameter(torch.randn(1, dim)) for name, dim in dims.items()})
         self.router = nn.Sequential(
             nn.Linear(sum(dims.values()), len(dims) + 1),
-            nn.Softmax(dim=1),
+            nn.Softmax(dim=-1),
         )
         self.experts = nn.ModuleList(
             [

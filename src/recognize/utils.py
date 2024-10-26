@@ -278,7 +278,8 @@ def train_and_eval(
                     best_epoch = stopper.best_epoch
                     save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
                     stopper.update(epoch=epoch, test_f1=test_f1_score)
-                    logger.info(f"Epoch {epoch}: Better model found(improved {better_metrics})")
+                    better_metrics_str = ", ".join(better_metrics)
+                    logger.info(f"Epoch {epoch}: Better model found(improved {better_metrics_str})")
                     logger.info(
                         f"Test - [red]Accuracy: {test_accuracy:.2f}%[/], [red]F1 Score: {test_f1_score:.2f}%[/]"
                     )

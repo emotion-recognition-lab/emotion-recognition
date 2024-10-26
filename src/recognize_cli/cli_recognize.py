@@ -234,7 +234,7 @@ def distill(
     teacher_preprocessor = Preprocessor.from_pretrained(teacher_checkpoint / "preprocessor")
     # TODO: maybe those will be covered by load_best_model
     backbone.named_encoders.load_state_dict(teacher_backbone.named_encoders.state_dict(), strict=False)
-    backbone.named_projectors.load_state_dict(teacher_backbone.named_projectors.state_dict(), strict=False)
+    backbone.named_poolers.load_state_dict(teacher_backbone.named_poolers.state_dict(), strict=False)
     if preprocessor.tokenizer is not None:
         teacher_preprocessor.tokenizer = preprocessor.tokenizer
     if preprocessor.feature_extractor is not None:
@@ -293,7 +293,6 @@ def distill(
     model = MultimodalModel(
         backbone,
         fusion_layer,
-        feature_sizes_dict=feature_sizes_dict,
         num_classes=train_dataset.num_classes,
         class_weights=class_weights,
     ).cuda()
@@ -407,7 +406,6 @@ def train(
         model = MultimodalModel(
             backbone,
             fusion_layer,
-            feature_sizes_dict=feature_sizes_dict,
             num_classes=train_dataset.num_classes,
             class_weights=class_weights,
         ).cuda()
@@ -483,7 +481,6 @@ def evaluate(checkpoint: Path) -> None:
         model = MultimodalModel(
             backbone,
             fusion_layer,
-            feature_sizes_dict=feature_sizes_dict,
             num_classes=test_dataset.num_classes,
         ).cuda()
 

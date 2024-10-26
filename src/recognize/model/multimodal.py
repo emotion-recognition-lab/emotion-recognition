@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pickle
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Self
 
@@ -11,7 +11,6 @@ from torch.nn.utils.rnn import pad_sequence
 
 from recognize.cache import hash_bytes
 from recognize.config import load_inference_config
-from recognize.module import get_feature_sizes_dict
 from recognize.preprocessor import Preprocessor
 from recognize.typing import FusionLayerLike
 
@@ -213,7 +212,6 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
         self,
         backbone: MultimodalBackbone,
         fusion_layer: FusionLayerLike,
-        feature_sizes_dict: Mapping[str, int],
         *,
         num_classes: int = 2,
         num_experts: int = 1,
@@ -246,11 +244,9 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
 
         checkpoint_path = Path(checkpoint_path)
         config = load_inference_config(checkpoint_path / "inference.toml")
-        feature_sizes_dict = get_feature_sizes_dict(config.model.modals, config.model.feature_sizes)
         model = cls(
             backbone,
             fusion_layer,
-            feature_sizes_dict=feature_sizes_dict,
             num_classes=config.num_classes,
             num_experts=config.model.num_experts,
             class_weights=class_weights,
