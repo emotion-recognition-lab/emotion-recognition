@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 
 import torch
@@ -19,6 +18,10 @@ def hash_bytes(bytes_data: bytes) -> str:
     return hasher.hexdigest()[:16]
 
 
+def get_tensor_bytes(tensors: Iterable[torch.Tensor]) -> int:
+    return sum(tensor.numel() * tensor.element_size() for tensor in tensors)
+
+
 class Cache(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -30,7 +33,7 @@ class Cache(BaseModel):
         return self.cache.get(key)
 
     def set(self, key: str, value: StateDict):
-        value_size = sys.getsizeof(value)
+        value_size = get_tensor_bytes(value.values())
         if self.current_size + value_size < self.maxsize:
             self.cache[key] = value
             self.current_size += value_size
