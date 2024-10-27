@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-import pickle
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -23,9 +21,9 @@ def sample_frame_indices(length: int, target_length: int):
 
 
 def read_videos(video_path: str):
-    if os.path.exists(f"{video_path}.cache.pkl"):
-        with open(f"{video_path}.cache.pkl", "rb") as f:
-            return pickle.load(f)
+    # if os.path.exists(f"{video_path}.cache.pkl"):
+    #     with open(f"{video_path}.cache.pkl", "rb") as f:
+    #         return pickle.load(f)
     from collections import Counter
 
     import cv2
@@ -50,6 +48,7 @@ def read_videos(video_path: str):
         count += 1
 
     video.release()
-    with open(f"{video_path}.cache.pkl", "wb") as f:
-        pickle.dump(frames, f)
+    # too large to cache
+    # with open(f"{video_path}.cache.pkl", "wb") as f:
+    #     pickle.dump(frames, f)
     return frames
