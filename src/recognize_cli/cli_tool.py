@@ -11,8 +11,6 @@ from rich.highlighter import NullHighlighter
 from rich.logging import RichHandler
 from rich.table import Table
 
-from recognize.config import load_training_config
-
 if TYPE_CHECKING:
     from recognize.typing import LogLevel
 
@@ -84,6 +82,41 @@ def create_standalone(
 
 
 @app.command()
+def extract_encoders(
+    checkpoint: Path,
+    target_checkpoint: Path,
+):
+    import rtoml
+
+    from recognize.config import load_training_config
+    from recognize.utils import find_best_model
+
+    training_config = load_training_config(checkpoint / "training.toml")
+    init_logger(training_config.log_level)
+
+    if target_checkpoint.exists():
+        logger.warning(f"{target_checkpoint} already exists, will be overwritten")
+        shutil.rmtree(target_checkpoint)
+    target_checkpoint.mkdir(parents=True, exist_ok=True)
+
+    best_epoch = find_best_model(checkpoint)
+    logger.info(f"Best epoch found: [blue]{best_epoch}")
+    backbone_dir = checkpoint / f"{best_epoch}/backbone"
+    logger.info(f"Loading backbone meta from [blue]{backbone_dir}/meta.toml")
+    with open(backbone_dir / "meta.toml") as f:
+        feature_sizes = rtoml.load(f)["feature_sizes"]
+    for name in feature_sizes.keys():
+        logger.info(f"Extracting encoder [blue]{name}[/]")
+        shutil.copytree(backbone_dir / name, target_checkpoint / name)
+        shutil.copy2(
+            backbone_dir / f"{name}.safetensors",
+            target_checkpoint / f"{name}.safetensors",
+            follow_symlinks=False,
+        )
+    logger.info(f"Inference checkpoints generated: [blue]{target_checkpoint}")
+
+
+@app.command()
 def info(
     path: Path,
     sort_by: str = "epoch",
@@ -93,6 +126,7 @@ def info(
     # TODO: add more information
     from rich import print
 
+    from recognize.config import load_training_config
     from recognize.trainer import EarlyStopper
 
     init_logger("INFO")

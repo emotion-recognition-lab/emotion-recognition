@@ -49,7 +49,7 @@ class ModelConfig(BaseModel):
     @cached_property
     def hash(self) -> str:
         # TODO: feature_sizes?
-        return hash_string("".join(self.modals) + str(self.fusion))
+        return hash_string("".join(map(str, self.feature_sizes)) + "".join(self.encoders) + str(self.fusion))
 
     @model_validator(mode="after")
     def verify_model_config(self) -> Self:

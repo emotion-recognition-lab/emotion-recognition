@@ -162,9 +162,9 @@ def generate_preprocessor_and_backbone(
             if len(encoder_extra) > 0:
                 logger.info(f"Load {modal} encoder from [blue]{encoder_extra[0]}[/]")
                 checkpoint_path = Path(encoder_extra[0])
-                config = AutoConfig.from_pretrained(checkpoint_path / f"backbone/{modal}/config.json")
+                config = AutoConfig.from_pretrained(checkpoint_path / f"{modal}/config.json")
                 backbone_encoder = AutoModel.from_config(config)
-                backbone_encoder.load_state_dict(load_file(checkpoint_path / f"backbone/{modal}.safetensors"))
+                backbone_encoder.load_state_dict(load_file(checkpoint_path / f"{modal}.safetensors"))
             else:
                 backbone_encoder = AutoModel.from_pretrained(encoder_name)
             backbone_encoders[modal] = (backbone_encoder, feature_size)
@@ -248,7 +248,7 @@ def distill(
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
-        num_workers=4,
+        num_workers=0,
     )
     dev_data_loader = DataLoader(
         dev_dataset,
@@ -256,7 +256,7 @@ def distill(
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
-        num_workers=4,
+        num_workers=0,
     )
     test_data_loader = DataLoader(
         test_dataset,
@@ -264,7 +264,7 @@ def distill(
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
-        num_workers=4,
+        num_workers=0,
     )
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
 
@@ -364,7 +364,7 @@ def train(
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
-        num_workers=4,
+        num_workers=0,
     )
     dev_data_loader = DataLoader(
         dev_dataset,
@@ -372,7 +372,7 @@ def train(
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
-        num_workers=4,
+        num_workers=0,
     )
     test_data_loader = DataLoader(
         test_dataset,
@@ -380,7 +380,7 @@ def train(
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
-        num_workers=4,
+        num_workers=0,
     )
     candidate_checkpoints = []
     if from_checkpoint is not None:
