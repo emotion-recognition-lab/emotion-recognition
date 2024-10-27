@@ -96,16 +96,17 @@ def info(
     from recognize.trainer import EarlyStopper
 
     init_logger("INFO")
-
-    for subpath in path.glob("*"):
-        if subpath.is_file():
+    for stopper_path in path.glob("**/stopper.yaml"):
+        if not stopper_path.is_file():
             continue
-        if not (subpath / "stopper.yaml").exists():
+        subpath = stopper_path.parent
+        if not stopper_path.exists():
             continue
         if filter and filter not in str(subpath):
             continue
-        stopper = EarlyStopper.from_file(subpath / "stopper.yaml")
+        stopper = EarlyStopper.from_file(stopper_path)
         config = load_training_config(subpath / "training.toml")
+        logger.info(f"find checkpoint: [blue]{subpath}[/]")
         logger.info(f"info of [blue]{subpath}[/](finished: {stopper.finished})")
         logger.info(f"encoders: [blue]{config.model.encoders}[/]")
         logger.info(f"fusion: [blue]{config.model.fusion}[/]")
