@@ -112,11 +112,16 @@ def get_trainer(
     num_training_steps: int,
     *,
     use_amp: bool = True,
+    use_8bit_optimizer: bool = True,
 ):
+    import bitsandbytes as bnb
     from transformers import get_linear_schedule_with_warmup
 
     parameters = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = torch.optim.AdamW(parameters, lr=1e-6, weight_decay=0.01)
+    if use_8bit_optimizer:
+        optimizer = bnb.optim.AdamW8bit(parameters, lr=1e-6, weight_decay=0.01)
+    else:
+        optimizer = torch.optim.AdamW(parameters, lr=1e-6, weight_decay=0.01)
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
         num_warmup_steps=num_warmup_steps,
