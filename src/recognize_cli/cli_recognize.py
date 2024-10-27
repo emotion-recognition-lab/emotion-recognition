@@ -248,6 +248,7 @@ def distill(
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
+        num_workers=4,
     )
     dev_data_loader = DataLoader(
         dev_dataset,
@@ -255,6 +256,7 @@ def distill(
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
+        num_workers=4,
     )
     test_data_loader = DataLoader(
         test_dataset,
@@ -262,6 +264,7 @@ def distill(
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
+        num_workers=4,
     )
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
 
@@ -361,6 +364,7 @@ def train(
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
+        num_workers=4,
     )
     dev_data_loader = DataLoader(
         dev_dataset,
@@ -368,6 +372,7 @@ def train(
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
+        num_workers=4,
     )
     test_data_loader = DataLoader(
         test_dataset,
@@ -375,6 +380,7 @@ def train(
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
+        num_workers=4,
     )
     candidate_checkpoints = []
     if from_checkpoint is not None:
