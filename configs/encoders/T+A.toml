@@ -1,9 +1,9 @@
 batch_size = 4
 
-[model]
-modals = ["T", "A"]
-feature_sizes = [768, 768]
-encoders = [
-    "roberta-large",
-    "facebook/wav2vec2-base-960h",
-]
+[model.encoder.T]
+feature_size = 768
+model = "roberta-large"
+
+[model.encoder.A]
+feature_size = 768
+model = "facebook/wav2vec2-base-960h"

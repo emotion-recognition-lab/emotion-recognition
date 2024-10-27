@@ -16,7 +16,7 @@ from rich.logging import RichHandler
 from safetensors.torch import load_file
 from torch.utils.data import DataLoader
 
-from recognize.config import InferenceConfig, load_training_config, save_config
+from recognize.config import InferenceConfig, ModelEncoderConfig, load_training_config, save_config
 from recognize.dataset import MELDDataset, PilotDataset, SIMSDataset
 from recognize.dataset.iemocap import IEMOCAPDataset
 from recognize.evaluate import TrainingResult
@@ -105,9 +105,7 @@ def symlink(src: Path | str, dst: Path | str, target_is_directory: bool = False)
 
 
 def generate_preprocessor_and_backbone(
-    encoders: list[str],
-    modals: list[ModalType],
-    feature_sizes: list[int],
+    config_model_encoder: dict[ModalType, ModelEncoderConfig],
     datasets: list[MultimodalDataset],
     checkpoints: Sequence[Path] = (),
 ):
@@ -129,9 +127,8 @@ def generate_preprocessor_and_backbone(
     else:
         preprocessor = Preprocessor(device="cuda")
 
-    for modal, encoder_config in zip(modals, encoders, strict=True):
-        # TODO: use more elegant way to handle extra information
-        encoder_name = encoder_config.split("@")[0]
+    for modal, config in config_model_encoder.items():
+        encoder_name = config.model
         if modal == "T":
             preprocessor.tokenizer = preprocessor.tokenizer or AutoTokenizer.from_pretrained(encoder_name)
         elif modal == "A":
@@ -156,18 +153,19 @@ def generate_preprocessor_and_backbone(
             break
     else:
         backbone_encoders = {}
-        for modal, encoder_config, feature_size in zip(modals, encoders, feature_sizes, strict=True):
-            # TODO: use more elegant way to handle extra information
-            encoder_name, *encoder_extra = encoder_config.split("@")
-            if len(encoder_extra) > 0:
-                logger.info(f"Load {modal} encoder from [blue]{encoder_extra[0]}[/]")
-                checkpoint_path = Path(encoder_extra[0])
+        for modal, config in config_model_encoder.items():
+            encoder_name = config.model
+            encoder_checkpoint = config.checkpoint
+            encoder_feature_size = config.feature_size
+            if encoder_checkpoint is not None:
+                logger.info(f"Load {modal} encoder from [blue]{encoder_checkpoint}[/]")
+                checkpoint_path = Path(encoder_checkpoint)
                 config = AutoConfig.from_pretrained(checkpoint_path / f"{modal}/config.json")
                 backbone_encoder = AutoModel.from_config(config)
                 backbone_encoder.load_state_dict(load_file(checkpoint_path / f"{modal}.safetensors"))
             else:
                 backbone_encoder = AutoModel.from_pretrained(encoder_name)
-            backbone_encoders[modal] = (backbone_encoder, feature_size)
+            backbone_encoders[modal] = (backbone_encoder, encoder_feature_size)
         backbone = MultimodalBackbone(
             backbone_encoders,
             init_hook=datasets[0].special_process if len(datasets) > 0 else None,
@@ -192,10 +190,8 @@ def distill(
     as the student model typically has more modalities.
     """
     config = load_training_config(*config_path)
-    config_training_mode = config.model.training_mode
-    config_encoders = config.model.encoders
-    config_modals = config.model.modals
-    config_feature_sizes = config.model.feature_sizes
+    config_training_mode = config.training_mode
+    config_model_encoder = config.model.encoder
     config_fusion = config.model.fusion
     config_dataset = config.dataset
 
@@ -205,7 +201,6 @@ def distill(
 
     model_label = config.model.label
     model_hash = config.model.hash
-    dataset_label = config.dataset.label
     batch_size = config.batch_size
 
     assert config_training_mode != "lora", "Lora is not supported in distillation"
@@ -216,7 +211,7 @@ def distill(
     if checkpoint is not None:
         checkpoint_dir = checkpoint
     else:
-        checkpoint_dir = Path(f"./checkpoints/distillation/{dataset_label}/{model_label}/{model_hash}--{seed}")
+        checkpoint_dir = Path(f"./checkpoints/distillation/{config.label}/{model_hash}--{seed}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     train_dataset, dev_dataset, test_dataset = provide_datasets(
@@ -225,9 +220,7 @@ def distill(
         dataset_class_str=config_dataset.dataset_class,
     )
     preprocessor, backbone = generate_preprocessor_and_backbone(
-        config_encoders,
-        config_modals,
-        config_feature_sizes,
+        config_model_encoder,
         datasets=[train_dataset, dev_dataset, test_dataset],
         checkpoints=[checkpoint_dir],
     )
@@ -272,9 +265,10 @@ def distill(
     save_config(config, checkpoint_dir / "training.toml")
     save_config(inference_config, checkpoint_dir / "inference.toml")
 
+    feature_size = next(iter(config_model_encoder.values())).feature_size
     teacher_model = UnimodalModel(
         teacher_backbone,
-        feature_size=config.model.feature_sizes[0],
+        feature_size=feature_size,
         num_classes=train_dataset.num_classes,
         class_weights=class_weights,
     ).cuda()
@@ -289,7 +283,7 @@ def distill(
     result.print()
     test_dataset.set_preprocessor(preprocessor)
 
-    feature_sizes_dict = get_feature_sizes_dict(config_modals, config_feature_sizes)
+    feature_sizes_dict = get_feature_sizes_dict(config_model_encoder)
     fusion_layer = gen_fusion_layer(config_fusion, feature_sizes_dict)
     model = MultimodalModel(
         backbone,
@@ -330,10 +324,8 @@ def train(
     seed: int | None = None,
 ) -> None:
     config = load_training_config(*config_path)
-    config_training_mode = config.model.training_mode
-    config_encoders = config.model.encoders
-    config_feature_sizes = config.model.feature_sizes
-    config_modals = config.model.modals
+    config_training_mode = config.training_mode
+    config_model_encoder = config.model.encoder
     config_dataset = config.dataset
 
     init_logger(config.log_level, config.label)
@@ -342,7 +334,6 @@ def train(
 
     model_label = config.model.label
     model_hash = config.model.hash
-    dataset_label = config.dataset.label
     batch_size = config.batch_size
 
     assert config_training_mode != "lora", "Lora is not supported in training"
@@ -350,7 +341,7 @@ def train(
     if checkpoint is not None:
         checkpoint_dir = checkpoint
     else:
-        checkpoint_dir = Path(f"./checkpoints/training/{dataset_label}/{model_label}/{model_hash}--{seed}")
+        checkpoint_dir = Path(f"./checkpoints/training/{config.label}/{model_hash}--{seed}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
     train_dataset, dev_dataset, test_dataset = provide_datasets(
@@ -388,9 +379,7 @@ def train(
         candidate_checkpoints.append(from_checkpoint / f"{from_checkpoint_best}")
     candidate_checkpoints.append(checkpoint_dir)
     preprocessor, backbone = generate_preprocessor_and_backbone(
-        config_encoders,
-        config_modals,
-        config_feature_sizes,
+        config_model_encoder,
         datasets=[train_dataset, dev_dataset, test_dataset],
         checkpoints=candidate_checkpoints,
     )
@@ -404,15 +393,16 @@ def train(
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
 
     if config.model.fusion is None:
-        assert len(config_modals) == 1, "Multiple modals must give a fusion layer"
+        assert len(config_model_encoder) == 1, "Multiple modals must give a fusion layer"
+        feature_size = next(iter(config_model_encoder.values())).feature_size
         model = UnimodalModel(
             backbone,
-            feature_size=config.model.feature_sizes[0],
+            feature_size=feature_size,
             num_classes=train_dataset.num_classes,
             class_weights=class_weights,
         ).cuda()
     else:
-        feature_sizes_dict = get_feature_sizes_dict(config_modals, config_feature_sizes)
+        feature_sizes_dict = get_feature_sizes_dict(config_model_encoder)
         fusion_layer = gen_fusion_layer(config.model.fusion, feature_sizes_dict)
         model = MultimodalModel(
             backbone,
@@ -449,9 +439,7 @@ def evaluate(checkpoint: Path) -> None:
 
     config = load_training_config(checkpoint / "training.toml")
     init_logger(config.log_level, config.label)
-    config_encoders = config.model.encoders
-    config_feature_sizes = config.model.feature_sizes
-    config_modals = config.model.modals
+    config_model_encoder = config.model.encoder
     config_dataset = config.dataset
 
     batch_size = config.batch_size
@@ -465,9 +453,7 @@ def evaluate(checkpoint: Path) -> None:
     )
 
     _, backbone = generate_preprocessor_and_backbone(
-        config_encoders,
-        config_modals,
-        config_feature_sizes,
+        config_model_encoder,
         datasets=[test_dataset],
         checkpoints=[checkpoint],
     )
@@ -480,14 +466,15 @@ def evaluate(checkpoint: Path) -> None:
         pin_memory=True,
     )
     if config.model.fusion is None:
-        assert len(config_modals) == 1, "Multiple modals must give a fusion layer"
+        assert len(config_model_encoder) == 1, "Multiple modals must give a fusion layer"
+        feature_size = next(iter(config_model_encoder.values())).feature_size
         model = UnimodalModel(
             backbone,
-            feature_size=config.model.feature_sizes[0],
+            feature_size=feature_size,
             num_classes=test_dataset.num_classes,
         ).cuda()
     else:
-        feature_sizes_dict = get_feature_sizes_dict(config_modals, config_feature_sizes)
+        feature_sizes_dict = get_feature_sizes_dict(config_model_encoder)
         fusion_layer = gen_fusion_layer(config.model.fusion, feature_sizes_dict)
         model = MultimodalModel(
             backbone,
@@ -509,8 +496,7 @@ def inference(
     video_path: Path | None = None,
 ):
     config = load_training_config(checkpoint / "training.toml")
-    config_modals = config.model.modals
-    config_feature_sizes = config.model.feature_sizes
+    config_model_encoder = config.model.encoder
     config_fusion = config.model.fusion
     init_logger(config.log_level, config.label)
 
@@ -521,7 +507,7 @@ def inference(
     if config_fusion is None:
         model = UnimodalModel.from_checkpoint(model_checkpoint, backbone=backbone).cuda()
     else:
-        feature_sizes_dict = get_feature_sizes_dict(config_modals, config_feature_sizes)
+        feature_sizes_dict = get_feature_sizes_dict(config_model_encoder)
         fusion_layer = gen_fusion_layer(config_fusion, feature_sizes_dict)
         model = MultimodalModel.from_checkpoint(model_checkpoint, backbone=backbone, fusion_layer=fusion_layer).cuda()
     model.eval()

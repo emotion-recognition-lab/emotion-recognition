@@ -54,10 +54,10 @@ class UnimodalModel(ClassifierModel[MultimodalBackbone]):
 
         checkpoint_path = Path(checkpoint_path)
         config = load_inference_config(checkpoint_path / "inference.toml")
-
+        feature_size = next(iter(config.model.encoder.values())).feature_size
         model = cls(
             backbone,
-            feature_size=config.model.feature_sizes[0],
+            feature_size=feature_size,
             num_classes=config.num_classes,
             num_experts=config.model.num_experts,
             class_weights=class_weights,

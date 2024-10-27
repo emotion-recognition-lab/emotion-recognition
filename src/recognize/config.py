@@ -3,10 +3,10 @@ from __future__ import annotations
 import hashlib
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Literal, Self
+from typing import Any, Literal
 
 from loguru import logger
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel
 
 from .typing import DatasetClass, DatasetLabelType, LogLevel, ModalType
 
@@ -26,21 +26,26 @@ def recursive_update(d: dict, u: dict) -> dict:
     return d
 
 
+class ModelEncoderConfig(BaseModel):
+    model: str
+    feature_size: int
+    checkpoint: Path | None = None
+
+    @cached_property
+    def hash(self) -> str:
+        return hash_string(f"{self.model}-{self.feature_size}-{self.checkpoint}")
+
+
 class ModelConfig(BaseModel):
-    modals: list[ModalType]
-    feature_sizes: list[int]
-    encoders: list[str]
+    encoder: dict[ModalType, ModelEncoderConfig]
     fusion: str | None = None
     num_experts: int = 1
-    # TODO: training_mode should not be a model config
-    training_mode: Literal["trainable", "lora", "frozen"] = "trainable"
 
     @cached_property
     def label(self) -> str:
-        modals = "+".join(self.modals)
+        modals = "+".join(self.encoder.keys())
         # TODO: fusion need more explicit label
         model_labels = [
-            self.training_mode,
             f"{self.num_experts}xE",
             f"{modals}",
         ]
@@ -48,15 +53,8 @@ class ModelConfig(BaseModel):
 
     @cached_property
     def hash(self) -> str:
-        # TODO: feature_sizes?
-        return hash_string("".join(map(str, self.feature_sizes)) + "".join(self.encoders) + str(self.fusion))
-
-    @model_validator(mode="after")
-    def verify_model_config(self) -> Self:
-        assert (
-            len(self.modals) == len(self.feature_sizes) == len(self.encoders)
-        ), "Number of modals, feature_sizes and encoders should be the same"
-        return self
+        encoder_hash = "".join(encoder.hash for encoder in self.encoder.values())
+        return hash_string(f"{encoder_hash}-{self.fusion}")
 
 
 class DatasetConfig(BaseModel):
@@ -86,13 +84,14 @@ class DatasetConfig(BaseModel):
 class TrainingConfig(BaseModel):
     log_level: LogLevel = "INFO"  # TODO: remove after typer supports Literal
     batch_size: int = 32
+    training_mode: Literal["trainable", "lora", "frozen"] = "trainable"
 
     model: ModelConfig
     dataset: DatasetConfig
 
     @cached_property
     def label(self) -> str:
-        return f"{self.dataset.label}/{self.model.label}"
+        return f"{self.dataset.label}/{self.training_mode}/{self.model.label}"
 
 
 class InferenceConfig(BaseModel):

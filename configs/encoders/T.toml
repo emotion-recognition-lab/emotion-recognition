@@ -1,8 +1,5 @@
 batch_size = 8
 
-[model]
-modals = ["T"]
-feature_sizes = [768]
-encoders = [
-    "roberta-large",
-]
+[model.encoder.T]
+feature_size = 768
+model = "roberta-large"

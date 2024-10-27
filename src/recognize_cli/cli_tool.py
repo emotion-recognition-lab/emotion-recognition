@@ -88,7 +88,7 @@ def extract_encoders(
 ):
     import rtoml
 
-    from recognize.config import load_training_config
+    from recognize.config import ModelEncoderConfig, load_training_config
     from recognize.utils import find_best_model
 
     training_config = load_training_config(checkpoint / "training.toml")
@@ -105,6 +105,8 @@ def extract_encoders(
     logger.info(f"Loading backbone meta from [blue]{backbone_dir}/meta.toml")
     with open(backbone_dir / "meta.toml") as f:
         feature_sizes = rtoml.load(f)["feature_sizes"]
+
+    encoder_configs: dict[str, dict] = {}
     for name in feature_sizes.keys():
         logger.info(f"Extracting encoder [blue]{name}[/]")
         shutil.copytree(backbone_dir / name, target_checkpoint / name)
@@ -113,6 +115,18 @@ def extract_encoders(
             target_checkpoint / f"{name}.safetensors",
             follow_symlinks=False,
         )
+        encoder_config = ModelEncoderConfig(
+            model=name,
+            feature_size=feature_sizes[name],
+            checkpoint=target_checkpoint,
+        )
+        encoder_configs[name] = encoder_config.model_dump(mode="json")
+
+    # TODO: to support combinations
+    (target_checkpoint / "configs").mkdir(parents=True, exist_ok=True)
+    for name, encoder_config in encoder_configs.items():
+        with open(target_checkpoint / f"configs/{name}.toml", "w") as f:
+            rtoml.dump({"model": {"encoder": encoder_config}}, f, none_value=None)
     logger.info(f"Inference checkpoints generated: [blue]{target_checkpoint}")
 
 
@@ -142,7 +156,7 @@ def info(
         config = load_training_config(subpath / "training.toml")
         logger.info(f"find checkpoint: [blue]{subpath}[/]")
         logger.info(f"info of [blue]{subpath}[/](finished: {stopper.finished})")
-        logger.info(f"encoders: [blue]{config.model.encoders}[/]")
+        logger.info(f"encoder: [blue]{config.model.encoder}[/]")
         logger.info(f"fusion: [blue]{config.model.fusion}[/]")
         result: dict[int, dict] = {}
         score_names = set()

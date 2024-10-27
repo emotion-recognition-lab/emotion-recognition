@@ -1,9 +1,9 @@
 batch_size = 1
 
-[model]
-modals = ["T", "V"]
-feature_sizes = [768, 768]
-encoders = [
-    "roberta-large",
-    "google/vivit-b-16x2-kinetics400",
-]
+[model.encoder.T]
+feature_size = 768
+model = "roberta-large"
+
+[model.encoder.V]
+feature_size = 768
+model = "google/vivit-b-16x2-kinetics400"

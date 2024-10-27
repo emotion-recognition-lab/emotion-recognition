@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from recognize.config import ModelEncoderConfig
 from recognize.module.fusion import ConcatFusionMoE, LowRankFusionLayer, MultiHeadFusionMoE, TensorFusionLayer
 from recognize.module.moe import MultimodalMoE
 from recognize.typing import FusionLayerLike, ModalType
 
 
-def get_feature_sizes_dict(modals: list[ModalType], feature_sizes: list[int]) -> dict[str, int]:
-    return dict(zip(modals, feature_sizes, strict=True))
+def get_feature_sizes_dict(config_model_encoder: dict[ModalType, ModelEncoderConfig]) -> dict[str, int]:
+    return {modal: config.feature_size for modal, config in config_model_encoder.items()}
 
 
 def gen_fusion_layer(fusion: str, feature_sizes_dict: dict[str, int]) -> FusionLayerLike:
