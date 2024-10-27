@@ -3,7 +3,7 @@ resources = "gpus"
 
 [matrix]
 dataset = ["MELD--E"]
-seed = ["114"]
+seed = ["0", "114"]
 
 [tasks.T]
 command = "uv run emotion-recognize train"

@@ -106,7 +106,7 @@ class CacheManager:
         return None
 
     def set(self, key: str, value: StateDict):
-        self.cache.set(key, value)
+        self.cache.set(key, {k: v.to("cpu") for k, v in value.items()})
         if self.deivce_cache is not None:
             value = {k: v.to(self.device) for k, v in value.items()}
             self.deivce_cache.set(key, value)
@@ -149,5 +149,5 @@ def save_cached_tensors(
         if (values := values_mapping.get(modal_name)) is None:
             continue
         for k, v in zip(keys, values, strict=True):
-            tensor_dict = {modal_name: v.unsqueeze(0)}
+            tensor_dict = {modal_name: v.detach().unsqueeze(0)}
             cache_manager.set(k, tensor_dict)

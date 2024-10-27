@@ -118,6 +118,7 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         self.frozen_encoders = True
 
     def unfreeze(self):
+        self.use_cache = False
         self.frozen_encoders = False
 
     def compute_embs(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
@@ -130,7 +131,6 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             logger.debug("cache missed")
             with torch.no_grad():
                 embs_dict = self.compute_embs(inputs)
-            embs_dict = {k: v for k, v in embs_dict.items() if v is not None}
             save_cached_tensors(unique_keys, embs_dict, cache_manager=self.cache_manager)
             return embs_dict
         return {modal: torch.cat(cache) for modal, cache in cached_list.items()}

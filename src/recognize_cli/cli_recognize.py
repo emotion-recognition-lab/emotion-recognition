@@ -191,10 +191,6 @@ def distill(
     Generally, you can use the one corresponding to the student model,
     as the student model typically has more modalities.
     """
-
-    seed = seed_everything(seed)
-    init_torch()
-
     config = load_training_config(*config_path)
     config_training_mode = config.model.training_mode
     config_encoders = config.model.encoders
@@ -204,6 +200,8 @@ def distill(
     config_dataset = config.dataset
 
     init_logger(config.log_level, config.label)
+    seed = seed_everything(seed)
+    init_torch()
 
     model_label = config.model.label
     model_hash = config.model.hash
@@ -239,12 +237,6 @@ def distill(
     # TODO: maybe those will be covered by load_best_model
     backbone.named_encoders.load_state_dict(teacher_backbone.named_encoders.state_dict(), strict=False)
     backbone.named_poolers.load_state_dict(teacher_backbone.named_poolers.state_dict(), strict=False)
-    if preprocessor.tokenizer is not None:
-        teacher_preprocessor.tokenizer = preprocessor.tokenizer
-    if preprocessor.feature_extractor is not None:
-        teacher_preprocessor.feature_extractor = preprocessor.feature_extractor
-    if preprocessor.image_processor is not None:
-        teacher_preprocessor.image_processor = preprocessor.image_processor
 
     preprocessor_dir = checkpoint_dir / "preprocessor"
     if not preprocessor_dir.exists():
@@ -288,9 +280,11 @@ def distill(
         load_best_model(teacher_checkpoint, teacher_model)
     else:
         load_model(teacher_checkpoint, teacher_model)
+    test_dataset.set_preprocessor(teacher_preprocessor)
     result = TrainingResult.auto_compute(teacher_model, test_data_loader)
     logger.info("Test result in [green]best teacher model[/]:")
     result.print()
+    test_dataset.set_preprocessor(preprocessor)
 
     feature_sizes_dict = get_feature_sizes_dict(config_modals, config_feature_sizes)
     fusion_layer = gen_fusion_layer(config_fusion, feature_sizes_dict)
@@ -332,16 +326,16 @@ def train(
     from_checkpoint: Path | None = None,
     seed: int | None = None,
 ) -> None:
-    seed = seed_everything(seed)
-    init_torch()
-
     config = load_training_config(*config_path)
-    init_logger(config.log_level, config.label)
     config_training_mode = config.model.training_mode
     config_encoders = config.model.encoders
     config_feature_sizes = config.model.feature_sizes
     config_modals = config.model.modals
     config_dataset = config.dataset
+
+    init_logger(config.log_level, config.label)
+    seed = seed_everything(seed)
+    init_torch()
 
     model_label = config.model.label
     model_hash = config.model.hash
