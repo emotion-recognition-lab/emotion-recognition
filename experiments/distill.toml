@@ -2,24 +2,25 @@ name = "distill"
 resources = "gpus"
 
 [matrix]
-dataset = ["configs/dataset/MELD--E.toml"]
+dataset = ["MELD--E"]
+seed = ["114"]
 
 [tasks.T]
 command = "uv run emotion-recognize train"
 args = [
-    "{dataset}",
+    "configs/dataset/{dataset}.toml",
     "configs/encoders/T.toml",
-    "--seed 114",
+    "--seed {seed}",
 ]
 
 [tasks.distill]
 command = "uv run emotion-recognize distill"
 args = [
-    "{dataset}",
+    "configs/dataset/{dataset}.toml",
     "{encoder}",
     "configs/fusion/LMF.toml",
-    "--teacher-checkpoint checkpoints/training/MELD--E/trainable--1xE--T#fb1943c2",
-    "--seed 114",
+    "--teacher-checkpoint checkpoints/training/MELD--E/trainable--1xE--T/fb1943c2--{seed}",
+    "--seed {seed}",
 ]
 deps = ["T"]
 [tasks.distill.matrix]
