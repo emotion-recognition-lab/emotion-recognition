@@ -292,7 +292,6 @@ def train_and_eval(
                 if stopper.best_epoch != best_epoch:
                     best_epoch = stopper.best_epoch
                     save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
-                    stopper.update(epoch=epoch, test_f1=test_f1_score)
                     better_metrics_str = ", ".join(better_metrics)
                     logger.info(f"Epoch {epoch}: Better model found(improved {better_metrics_str})")
                     logger.info(

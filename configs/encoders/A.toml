@@ -2,4 +2,4 @@ batch_size = 4
 
 [model.encoder.A]
 feature_size = 768
-model = "facebook/wav2vec2-base-960h"
+model = "facebook/data2vec-audio-base-960h"

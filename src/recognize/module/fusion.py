@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from typing import Literal
 
 import torch
 from torch import nn
@@ -9,6 +10,8 @@ from torch.nn.parameter import Parameter
 
 
 class FusionLayer(nn.Module):
+    __call__: Callable[[Mapping[str, torch.Tensor]], torch.Tensor]
+
     def __init__(self, output_size: int):
         super().__init__()
         self.output_size = output_size
@@ -16,7 +19,29 @@ class FusionLayer(nn.Module):
     @abstractmethod
     def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor: ...
 
-    __call__: Callable[[Mapping[str, torch.Tensor]], torch.Tensor]
+
+class VallinaFusionLayer(FusionLayer):
+    def __init__(self, dims: dict[str, int], output_size: int, *, method: Literal["mean", "cat"] = "mean"):
+        super().__init__(output_size)
+        self.method = method
+        if method == "mean":
+            # TODO: support different input sizes
+            self.fc = nn.Linear(next(iter(dims.values())), output_size)
+        else:
+            self.fc = nn.Linear(sum(dims.values()), output_size)
+
+    def mean(self, inputs: Iterable[torch.Tensor]) -> torch.Tensor:
+        filtered_embs_list = torch.stack([emb for emb in inputs if emb is not None])
+        return torch.mean(filtered_embs_list, dim=0)
+
+    def cat(self, inputs: Iterable[torch.Tensor]) -> torch.Tensor:
+        return torch.cat([emb for emb in inputs if emb is not None], dim=1)
+
+    def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
+        if self.method == "mean":
+            return self.fc(self.mean(inputs.values()))
+        else:
+            return self.fc(self.cat(inputs.values()))
 
 
 class TensorFusionLayer(FusionLayer):
@@ -61,10 +86,13 @@ class LowRankFusionLayer(FusionLayer):
         self.low_rank_weights = nn.ParameterDict(
             {name: nn.Parameter(torch.randn(rank, dim, output_size)) for name, dim in dims.items()}
         )
-        self.placeholders = nn.ParameterDict({name: nn.Parameter(torch.randn(1, dim)) for name, dim in dims.items()})
-        if not trainable_placeholder:
-            # TODO: if trainable_placeholder=False, then forward logic should be changed
-            self.placeholders.requires_grad_(False)
+        if trainable_placeholder:
+            self.placeholders = nn.ParameterDict(
+                {name: nn.Parameter(torch.randn(1, dim)) for name, dim in dims.items()}
+            )
+        else:
+            self.placeholders = {name: torch.ones(1, dim) for name, dim in dims.items()}
+
         self.output_layer = nn.Linear(rank, 1)
 
     def forward(self, inputs: Mapping[str, torch.Tensor]):
@@ -81,15 +109,6 @@ class LowRankFusionLayer(FusionLayer):
         product_tensor = torch.prod(torch.stack(fusion_tensors), dim=0)
         output = self.output_layer(product_tensor.permute(1, 2, 0)).squeeze(dim=-1)
         return output
-
-
-class MeanEmbeddingsFusionLayer(FusionLayer):
-    def mean_embs(self, embs_list: Iterable[torch.Tensor | None]) -> torch.Tensor:
-        filtered_embs_list = torch.stack([emb for emb in embs_list if emb is not None])
-        return torch.sum(filtered_embs_list, dim=0) / len(filtered_embs_list)
-
-    def forward(self, inputs: Mapping[str, torch.Tensor]):
-        return self.mean_embs(inputs.values())
 
 
 class MultiHeadFusionMoE(FusionLayer):

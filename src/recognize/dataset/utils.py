@@ -20,7 +20,7 @@ def sample_frame_indices(length: int, target_length: int):
     return indices
 
 
-def read_videos(video_path: str):
+def read_videos(video_path: str, *, target_length: int = 32):
     # if os.path.exists(f"{video_path}.cache.pkl"):
     #     with open(f"{video_path}.cache.pkl", "rb") as f:
     #         return pickle.load(f)
@@ -33,7 +33,7 @@ def read_videos(video_path: str):
     length = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     frames: list[MatLike] = []
     count = 0
-    indices = sample_frame_indices(target_length=32, length=length)
+    indices = sample_frame_indices(target_length=target_length, length=length)
     indices = list(indices)
     indices_counter = Counter(indices)
 
@@ -43,12 +43,13 @@ def read_videos(video_path: str):
             break
         if count in indices_counter:
             frame = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            for _j in range(indices_counter[count]):
+            for _ in range(indices_counter[count]):
                 frames.append(frame)
         count += 1
 
     video.release()
     # too large to cache
     # with open(f"{video_path}.cache.pkl", "wb") as f:
+    #     import pickle
     #     pickle.dump(frames, f)
     return frames
