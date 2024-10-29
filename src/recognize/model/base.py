@@ -5,7 +5,7 @@ import pickle
 from collections.abc import Callable, Mapping, Sequence
 from functools import cached_property
 from pathlib import Path
-from typing import Generic, Literal, Self, overload
+from typing import Generic, Literal, Self
 
 import torch
 from loguru import logger
@@ -96,18 +96,21 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         self.use_cache = use_cache
         self.use_peft = use_peft
         self.frozen_encoders = frozen_encoders
-        self.named_encoders = nn.ModuleDict(
-            {name: self.pretrained_encoder(module) for name, (module, _) in encoders.items()}
-        )
+        self.named_encoders = nn.ModuleDict({name: module for name, (module, _) in encoders.items()})
         self.named_poolers = nn.ModuleDict(
             {
                 name: Projector(module.config.hidden_size, feature_size)
                 for name, (module, feature_size) in encoders.items()
             }
         )
+        self.cache_manager = CacheManager((8 * 2**30, 4 * 2**30), cache_dir=Path(f"./cache/{self.encoder_hash}"))
+
         if init_hook is not None:
             init_hook(self)
-        self.cache_manager = CacheManager((8 * 2**30, 4 * 2**30), cache_dir=Path(f"./cache/{self.encoder_hash}"))
+        if self.use_peft:
+            self.named_encoders = nn.ModuleDict(
+                {name: self.apply_peft(module) for name, (module, _) in encoders.items()}
+            )
 
     def get_meta_info(self):
         return {
@@ -116,10 +119,13 @@ class Backbone(nn.Module, Generic[ModelInputT]):
 
     def freeze(self):
         self.frozen_encoders = True
+        for module in self.named_encoders.values():
+            module.requires_grad_(False)
 
     def unfreeze(self):
-        self.use_cache = False
         self.frozen_encoders = False
+        for module in self.named_encoders.values():
+            module.requires_grad_(True)
 
     def compute_embs(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
         raise NotImplementedError("compute_embs method must be implemented in subclass")
@@ -158,29 +164,6 @@ class Backbone(nn.Module, Generic[ModelInputT]):
             except Exception as e:
                 logger.warning(f"use direct_forward because of error in cached_forward: {e}")
         return self.direct_forward(inputs)
-
-    @overload
-    def pretrained_encoder(self, module: nn.Module) -> nn.Module: ...
-
-    @overload
-    def pretrained_encoder(self, module: None) -> None: ...
-
-    def pretrained_encoder(self, module: nn.Module | None) -> nn.Module | None:
-        if module is None:
-            return None
-        if self.use_peft:
-            module = self.apply_peft(module)
-        module_forward = module.forward
-
-        def forward(*args, **kwargs):
-            if self.frozen_encoders:
-                with torch.no_grad():
-                    return module_forward(*args, **kwargs)
-            else:
-                return module_forward(*args, **kwargs)
-
-        module.forward = forward
-        return module
 
     @staticmethod
     def apply_peft(
@@ -288,7 +271,9 @@ class Backbone(nn.Module, Generic[ModelInputT]):
                 continue
             config = AutoConfig.from_pretrained(checkpoint_path / name / "config.json")
             model = AutoModel.from_config(config)
-            model.load_state_dict(load_file(checkpoint_path / f"{name}.safetensors"))
+            model.load_state_dict(load_file(checkpoint_path / f"{name}.safetensors"), strict=False)
+            if (checkpoint_path / f"peft_{name}.safetensors").exists():
+                model.load_state_dict(load_file(checkpoint_path / f"peft_{name}.safetensors"), strict=False)
             encoders[name] = (model, feature_size)
         self = cls(
             encoders,

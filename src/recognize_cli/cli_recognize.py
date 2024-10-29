@@ -293,6 +293,7 @@ def distill(
     ).cuda()
 
     if config_training_mode == "trainable":
+        model.backbone.use_cache = False
         model.backbone.unfreeze()
 
     if (checkpoint_dir / "stopper.yaml").exists():
@@ -411,6 +412,7 @@ def train(
             class_weights=class_weights,
         ).cuda()
     if config_training_mode == "trainable":
+        model.backbone.use_cache = False
         model.backbone.unfreeze()
 
     if (checkpoint_dir / "stopper.yaml").exists():
