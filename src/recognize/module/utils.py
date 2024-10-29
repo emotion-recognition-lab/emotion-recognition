@@ -1,7 +1,13 @@
 from __future__ import annotations
 
 from recognize.config import ModelEncoderConfig
-from recognize.module.fusion import ConcatFusionMoE, LowRankFusionLayer, MultiHeadFusionMoE, TensorFusionLayer
+from recognize.module.fusion import (
+    ConcatFusionMoE,
+    LowRankFusionLayer,
+    MultiHeadFusionMoE,
+    TensorFusionLayer,
+    VallinaFusionLayer,
+)
 from recognize.module.moe import MultimodalMoE
 from recognize.typing import FusionLayerLike, ModalType
 
@@ -15,6 +21,7 @@ def gen_fusion_layer(fusion: str, feature_sizes_dict: dict[str, int]) -> FusionL
     fusion = eval(
         fusion,
         {
+            "VallinaFusionLayer": VallinaFusionLayer,
             "TensorFusionLayer": TensorFusionLayer,
             "LowRankFusionLayer": LowRankFusionLayer,
             "MultimodalMoE": MultimodalMoE,

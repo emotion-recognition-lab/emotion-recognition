@@ -1,2 +1,2 @@
 [model]
-fusion = "MultimodalMoE(feature_sizes_dict, 16, 128)"
+fusion = "MultimodalMoE(feature_sizes_dict, 32, 512)"

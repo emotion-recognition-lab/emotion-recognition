@@ -21,7 +21,7 @@ class FusionLayer(nn.Module):
 
 
 class VallinaFusionLayer(FusionLayer):
-    def __init__(self, dims: dict[str, int], output_size: int, *, method: Literal["mean", "cat"] = "mean"):
+    def __init__(self, dims: Mapping[str, int], output_size: int, *, method: Literal["mean", "concat"] = "concat"):
         super().__init__(output_size)
         self.method = method
         if method == "mean":

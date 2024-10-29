@@ -206,6 +206,8 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
 
 
 class MultimodalModel(ClassifierModel[MultimodalBackbone]):
+    __call__: Callable[[MultimodalInput], ClassifierOutput]
+
     def __init__(
         self,
         backbone: MultimodalBackbone,
@@ -252,5 +254,3 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
         load_model(checkpoint_path, model)
 
         return model
-
-    __call__: Callable[[MultimodalInput], ClassifierOutput]
