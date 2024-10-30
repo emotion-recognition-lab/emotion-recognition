@@ -19,7 +19,7 @@ args = [
     "configs/dataset/{dataset}.toml",
     "{encoder}",
     "configs/fusion/LMF.toml",
-    "--teacher-checkpoint checkpoints/training/MELD--E/trainable/1xE--T/d2385e09--{seed}",
+    "--teacher-checkpoint checkpoints/training/trainable--2/{dataset}/1xE--T/d2385e09--{seed}",
     "--seed {seed}",
 ]
 deps = ["T"]

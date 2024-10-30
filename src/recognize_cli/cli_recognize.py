@@ -189,9 +189,9 @@ def distill(
     import torch
     from torch.utils.data import DataLoader
 
-    config = load_training_config(*config_path)
+    config = load_training_config(*config_path, batch_size=batch_size, seed=seed)
     config_training_mode = config.training_mode
-    batch_size = batch_size or config.batch_size
+    config_batch_size = config.batch_size
     config_model_encoder = config.model.encoder
     config_fusion = config.model.fusion
     config_dataset = config.dataset
@@ -237,7 +237,7 @@ def distill(
 
     train_data_loader = DataLoader(
         train_dataset,
-        batch_size=batch_size,
+        batch_size=config_batch_size,
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
@@ -245,7 +245,7 @@ def distill(
     )
     dev_data_loader = DataLoader(
         dev_dataset,
-        batch_size=batch_size,
+        batch_size=config_batch_size,
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
@@ -253,7 +253,7 @@ def distill(
     )
     test_data_loader = DataLoader(
         test_dataset,
-        batch_size=batch_size,
+        batch_size=config_batch_size,
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
@@ -328,9 +328,9 @@ def train(
     import torch
     from torch.utils.data import DataLoader
 
-    config = load_training_config(*config_path)
+    config = load_training_config(*config_path, batch_size=batch_size, seed=seed)
     config_training_mode = config.training_mode
-    batch_size = batch_size or config.batch_size
+    config_batch_size = config.batch_size
     config_model_encoder = config.model.encoder
     config_dataset = config.dataset
 
@@ -356,7 +356,7 @@ def train(
     )
     train_data_loader = DataLoader(
         train_dataset,
-        batch_size=batch_size,
+        batch_size=config_batch_size,
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
@@ -364,7 +364,7 @@ def train(
     )
     dev_data_loader = DataLoader(
         dev_dataset,
-        batch_size=batch_size,
+        batch_size=config_batch_size,
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
@@ -372,7 +372,7 @@ def train(
     )
     test_data_loader = DataLoader(
         test_dataset,
-        batch_size=batch_size,
+        batch_size=config_batch_size,
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
@@ -449,7 +449,7 @@ def evaluate(checkpoint: Path) -> None:
     config_model_encoder = config.model.encoder
     config_dataset = config.dataset
 
-    batch_size = config.batch_size
+    config_batch_size = config.batch_size
 
     assert (checkpoint / "preprocessor").exists(), "Preprocessor not found, the checkpoint is not valid"
 
@@ -467,7 +467,7 @@ def evaluate(checkpoint: Path) -> None:
 
     test_data_loader = DataLoader(
         test_dataset,
-        batch_size=batch_size,
+        batch_size=config_batch_size,
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,

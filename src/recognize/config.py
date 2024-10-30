@@ -92,7 +92,7 @@ class TrainingConfig(BaseModel):
 
     @cached_property
     def label(self) -> str:
-        return f"{self.dataset.label}/{self.training_mode}-{self.batch_size}/{self.model.label}"
+        return f"{self.training_mode}--{self.batch_size}/{self.dataset.label}/{self.model.label}"
 
 
 class InferenceConfig(BaseModel):
@@ -147,11 +147,16 @@ def save_dict_to_file(config: dict[str, Any], path: Path) -> None:
             raise NotImplementedError(f"Unsupportted suffix {path.suffix}")
 
 
-def load_training_config(*paths: Path) -> TrainingConfig:
+def load_training_config(*paths: Path, batch_size: int | None = None, seed: int | None = None) -> TrainingConfig:
     config_dict = {}
     for path in paths:
         recursive_update(config_dict, load_dict_from_path(path))
-    return TrainingConfig(**config_dict)
+    config = TrainingConfig(**config_dict)
+    if batch_size is not None:
+        config.batch_size = batch_size
+    if seed is not None:
+        config.seed = seed
+    return config
 
 
 def load_inference_config(*paths: Path) -> InferenceConfig:
