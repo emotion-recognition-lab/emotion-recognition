@@ -83,15 +83,16 @@ class DatasetConfig(BaseModel):
 
 class TrainingConfig(BaseModel):
     log_level: LogLevel = "INFO"  # TODO: remove after typer supports Literal
-    batch_size: int = 32
+    batch_size: int = 2
     training_mode: Literal["trainable", "lora", "frozen"] = "trainable"
+    seed: int | None = None
 
     model: ModelConfig
     dataset: DatasetConfig
 
     @cached_property
     def label(self) -> str:
-        return f"{self.dataset.label}/{self.training_mode}/{self.model.label}"
+        return f"{self.dataset.label}/{self.training_mode}-{self.batch_size}/{self.model.label}"
 
 
 class InferenceConfig(BaseModel):

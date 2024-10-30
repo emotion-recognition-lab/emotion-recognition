@@ -15,22 +15,17 @@ args = [
 ]
 [tasks.MoE-unimodal.matrix]
 modals = ["T", "A", "V"]
-classifier = ["", "configs/classifier/4xE.toml", "configs/classifier/8xE.toml"]
+classifier = ["", "configs/classifier/4xE.toml", "configs/classifier/8xE.toml", "configs/classifier/64xE.toml"]
 
 [tasks.MoE-multimodal]
 command = "uv run emotion-recognize train"
 args = [
     "configs/dataset/{dataset}.toml",
     "configs/encoders/{modals}.toml",
-    "{fusion}",
+    "configs/fusion/LMF.toml",
     "{classifier}",
     "--seed {seed}",
 ]
 [tasks.MoE-multimodal.matrix]
 modals = ["T+A", "T+V", "T+A+V"]
-fusion = [
-    "configs/fusion/LMF.toml",
-    "configs/fusion/MoE/LMF.toml",
-    "configs/fusion/MoE/ConcatFusionMoE.toml",
-]
-classifier = ["", "configs/classifier/4xE.toml", "configs/classifier/8xE.toml"]
+classifier = ["", "configs/classifier/4xE.toml", "configs/classifier/8xE.toml", "configs/classifier/64xE.toml"]

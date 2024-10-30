@@ -181,6 +181,7 @@ def distill(
     config_path: list[Path],
     teacher_checkpoint: Path = typer.Option(..., help="The checkpoint of the teacher model"),
     checkpoint: Path | None = None,
+    batch_size: int | None = None,
     seed: int | None = None,
 ) -> None:
     """
@@ -191,6 +192,7 @@ def distill(
     """
     config = load_training_config(*config_path)
     config_training_mode = config.training_mode
+    batch_size = batch_size or config.batch_size
     config_model_encoder = config.model.encoder
     config_fusion = config.model.fusion
     config_dataset = config.dataset
@@ -201,7 +203,6 @@ def distill(
 
     model_label = config.model.label
     model_hash = config.model.hash
-    batch_size = config.batch_size
 
     assert config_training_mode != "lora", "Lora is not supported in distillation"
     assert config_fusion is not None
@@ -322,10 +323,12 @@ def train(
     config_path: list[Path],
     checkpoint: Path | None = None,
     from_checkpoint: Path | None = None,
+    batch_size: int | None = None,
     seed: int | None = None,
 ) -> None:
     config = load_training_config(*config_path)
     config_training_mode = config.training_mode
+    batch_size = batch_size or config.batch_size
     config_model_encoder = config.model.encoder
     config_dataset = config.dataset
 
@@ -335,7 +338,6 @@ def train(
 
     model_label = config.model.label
     model_hash = config.model.hash
-    batch_size = config.batch_size
 
     assert config_training_mode != "lora", "Lora is not supported in training"
 

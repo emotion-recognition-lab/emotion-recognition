@@ -3,10 +3,11 @@ resources = "gpus"
 
 [matrix]
 dataset = ["configs/dataset/MELD--E.toml"]
+seed = ["0", "114"]
 
 [tasks.unimodal]
 command = "uv run emotion-recognize train"
-args = ["{dataset}", "{encoder}", "--seed 114"]
+args = ["{dataset}", "{encoder}", "--seed {seed}"]
 [tasks.unimodal.matrix]
 encoder = [
     "configs/encoders/T.toml",
@@ -16,7 +17,7 @@ encoder = [
 
 [tasks.multimodal]
 command = "uv run emotion-recognize train"
-args = ["{dataset}", "{encoder}", "{fusion}", "--seed 114"]
+args = ["{dataset}", "{encoder}", "{fusion}", "--seed {seed}"]
 [tasks.multimodal.matrix]
 encoder = [
     "configs/encoders/T+A.toml",
