@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader
 from recognize.trainer import Trainer
 
 from .evaluate import TrainingResult
-from .model.base import Backbone, ClassifierModel, ModelInput
+from .model import Backbone, ClassifierModel, ModelInput
 from .module.loss import FeatureLoss, LogitLoss
 from .trainer import EarlyStopper
 

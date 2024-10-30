@@ -5,20 +5,16 @@ import random
 from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
-import torch
 import typer
 from loguru import logger
 from rich.highlighter import NullHighlighter
 from rich.logging import RichHandler
 from safetensors.torch import load_file
-from torch.utils.data import DataLoader
 
 from recognize.config import InferenceConfig, ModelEncoderConfig, load_training_config, save_config
-from recognize.dataset import MELDDataset, PilotDataset, SIMSDataset
-from recognize.dataset.iemocap import IEMOCAPDataset
+from recognize.dataset import IEMOCAPDataset, MELDDataset, MultimodalDataset, PilotDataset, SIMSDataset
 from recognize.evaluate import TrainingResult
 from recognize.model import (
     LazyMultimodalInput,
@@ -28,17 +24,13 @@ from recognize.model import (
 )
 from recognize.module import gen_fusion_layer, get_feature_sizes_dict
 from recognize.preprocessor import Preprocessor
-from recognize.typing import DatasetClass, DatasetLabelType
+from recognize.typing import DatasetClass, DatasetLabelType, LogLevel, ModalType
 from recognize.utils import (
     find_best_model,
     load_best_model,
     load_model,
     train_and_eval,
 )
-
-if TYPE_CHECKING:
-    from recognize.dataset import MultimodalDataset
-    from recognize.typing import LogLevel, ModalType
 
 
 def init_logger(log_level: LogLevel, label: str):
@@ -49,10 +41,14 @@ def init_logger(log_level: LogLevel, label: str):
 
 
 def init_torch():
+    import torch
+
     torch.set_float32_matmul_precision("high")
 
 
 def seed_everything(seed: int | None = None):
+    import torch
+
     if seed is None:
         seed = random.randint(0, 2**32 - 1)
 
@@ -190,6 +186,9 @@ def distill(
     Generally, you can use the one corresponding to the student model,
     as the student model typically has more modalities.
     """
+    import torch
+    from torch.utils.data import DataLoader
+
     config = load_training_config(*config_path)
     config_training_mode = config.training_mode
     batch_size = batch_size or config.batch_size
@@ -326,6 +325,9 @@ def train(
     batch_size: int | None = None,
     seed: int | None = None,
 ) -> None:
+    import torch
+    from torch.utils.data import DataLoader
+
     config = load_training_config(*config_path)
     config_training_mode = config.training_mode
     batch_size = batch_size or config.batch_size
@@ -440,6 +442,7 @@ def train(
 @app.command()
 def evaluate(checkpoint: Path) -> None:
     init_torch()
+    from torch.utils.data import DataLoader
 
     config = load_training_config(checkpoint / "training.toml")
     init_logger(config.log_level, config.label)
@@ -499,6 +502,8 @@ def inference(
     audio_path: Path | None = None,
     video_path: Path | None = None,
 ):
+    import torch
+
     config = load_training_config(checkpoint / "training.toml")
     config_model_encoder = config.model.encoder
     config_fusion = config.model.fusion

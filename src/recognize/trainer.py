@@ -12,9 +12,9 @@ from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader
 
 from recognize.config import load_dict_from_path, save_dict_to_file
-from recognize.evaluate import TrainingResult
 
 if TYPE_CHECKING:
+    from .evaluate import TrainingResult
     from .model import ClassifierModel
 
 
@@ -117,4 +117,6 @@ class Trainer:
         return self.eval("train")
 
     def eval(self, key: Literal["train", "valid", "test"]) -> TrainingResult:
+        from .evaluate import TrainingResult
+
         return TrainingResult.auto_compute(self.model, self.data_loaders[key])

@@ -1,8 +1,8 @@
 from .base import (
+    Backbone,
     ClassifierModel,
     ClassifierOutput,
     ModelInput,
-    ModelInputT,
     ModelOutput,
 )
 from .multimodal import LazyMultimodalInput, MultimodalBackbone, MultimodalInput, MultimodalModel
