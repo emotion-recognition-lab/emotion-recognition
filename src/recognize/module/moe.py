@@ -63,12 +63,17 @@ class ConstantExpert(nn.Module):
 
 
 class MoE(nn.Module):
-    def __init__(self, feature_size: int, experts: Sequence[nn.Module]):
+    def __init__(
+        self,
+        feature_size: int,
+        experts: Sequence[nn.Module],
+        *,
+        noisy_router: bool = True,
+    ):
         super().__init__()
         self.experts = nn.ModuleList(experts)
-        self.router = nn.Sequential(
-            nn.Linear(feature_size, len(experts)),
-            nn.Softmax(1),
+        self.router = (
+            Router(feature_size, len(experts)) if not noisy_router else NoiseRouter(feature_size, len(experts))
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -91,9 +96,9 @@ class SparseMoE(nn.Module):
         super().__init__()
         self.in_size = in_size
         self.out_size = out_size
+        self.act_expert_num = act_expert_num
         self.experts = nn.ModuleList(experts)
         self.router = Router(in_size, len(experts)) if not noisy_router else NoiseRouter(in_size, len(experts))
-        self.act_expert_num = act_expert_num
 
     def cv_squared(self, x: torch.Tensor) -> torch.Tensor:
         """The squared coefficient of variation of a sample."""

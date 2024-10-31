@@ -18,7 +18,8 @@ from torch.nn import CrossEntropyLoss
 
 from recognize.cache import CacheManager, hash_bytes, load_cached_tensors, save_cached_tensors
 from recognize.config import load_dict_from_path, save_dict_to_file
-from recognize.module import Projector, SparseMoE
+from recognize.module import MoE, Projector
+from recognize.module.moe import SparseMoE
 from recognize.typing import BackboneT, ModelInputT, StateDicts
 
 
@@ -297,6 +298,7 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
         num_classes: int,
         *,
         num_experts: int = 1,
+        act_expert_num: int | None = None,
         class_weights: torch.Tensor | None = None,
     ):
         super().__init__()
@@ -307,14 +309,17 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
         self.feature_size = feature_size
         if num_experts == 1:
             self.classifier = nn.Linear(feature_size, num_classes)
+        elif act_expert_num is None or act_expert_num == num_experts:
+            self.classifier = MoE(
+                feature_size,
+                [nn.Linear(feature_size, num_classes) for _ in range(num_experts)],
+            )
         else:
-            self.classifier = nn.Sequential(
-                SparseMoE(
-                    feature_size,
-                    num_classes,
-                    [nn.Linear(feature_size, num_classes) for _ in range(num_experts)],
-                    act_expert_num=num_experts // 2,  # TODO: add act_expert_num to config
-                ),
+            self.classifier = SparseMoE(
+                feature_size,
+                num_classes,
+                [nn.Linear(feature_size, num_classes) for _ in range(num_experts)],
+                act_expert_num=act_expert_num,
             )
 
     def compute_loss(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
