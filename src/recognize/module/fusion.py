@@ -9,20 +9,50 @@ from torch import nn
 from torch.nn.parameter import Parameter
 
 
+def support_modal_missing(cls: type[FusionLayer]):
+    class WrappedFusionLayer(cls):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.placeholders = nn.ParameterDict(
+                {name: nn.Parameter(torch.randn(1, dim)) for name, dim in self.dims.items()}
+            )
+
+        @torch.compile(dynamic=True)
+        def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
+            batch_size = next(iter(inputs.values())).size(0)
+            wrapped_inputs = {
+                name: torch.broadcast_to(self.placeholders[name], (batch_size, dim))
+                if name not in inputs
+                else inputs[name]
+                for name, dim in self.dims.items()
+            }
+            return cls.forward(self, wrapped_inputs)
+
+    return WrappedFusionLayer
+
+
 class FusionLayer(nn.Module):
     __call__: Callable[[Mapping[str, torch.Tensor]], torch.Tensor]
 
-    def __init__(self, output_size: int):
+    def __init__(self, dims: Mapping[str, int], output_size: int):
         super().__init__()
+        self.dims = dict(dims)
         self.output_size = output_size
 
     @abstractmethod
     def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor: ...
 
 
+@support_modal_missing
 class VallinaFusionLayer(FusionLayer):
-    def __init__(self, dims: Mapping[str, int], output_size: int, *, method: Literal["mean", "concat"] = "concat"):
-        super().__init__(output_size)
+    def __init__(
+        self,
+        dims: Mapping[str, int],
+        output_size: int,
+        *,
+        method: Literal["mean", "concat"] = "concat",
+    ):
+        super().__init__(dims, output_size)
         self.method = method
         if method == "mean":
             # TODO: support different input sizes
@@ -46,7 +76,9 @@ class VallinaFusionLayer(FusionLayer):
 
 class TensorFusionLayer(FusionLayer):
     def __init__(self, text_size: int, audio_size: int, video_size: int):
-        super().__init__((text_size + 1) * (audio_size + 1) * (video_size + 1))
+        super().__init__(
+            {"T": text_size, "A": audio_size, "V": video_size}, (text_size + 1) * (audio_size + 1) * (video_size + 1)
+        )
         self.text_size = text_size
         self.audio_size = audio_size
         self.video_size = video_size
@@ -79,9 +111,8 @@ class TensorFusionLayer(FusionLayer):
 
 
 class LowRankFusionLayer(FusionLayer):
-    def __init__(self, dims: dict[str, int], rank: int, output_size: int, *, trainable_placeholder: bool = True):
-        super().__init__(output_size)
-        self.dims = dims
+    def __init__(self, dims: Mapping[str, int], rank: int, output_size: int, *, trainable_placeholder: bool = True):
+        super().__init__(dims, output_size)
         self.rank = rank
         self.low_rank_weights = nn.ParameterDict(
             {name: nn.Parameter(torch.randn(rank, dim, output_size)) for name, dim in dims.items()}
@@ -96,9 +127,6 @@ class LowRankFusionLayer(FusionLayer):
         self.output_layer = nn.Linear(rank, 1)
 
     def forward(self, inputs: Mapping[str, torch.Tensor]):
-        assert (
-            0 < len(inputs) <= len(self.low_rank_weights)
-        ), f"Number of inputs ({len(inputs)}) should be less equal to number of weights ({len(self.low_rank_weights)})"
         # N*d x R*d*h => R*N*h ~reshape~> N*h*R -> N*h*1 ~squeeze~> N*h
         fusion_tensors = [
             torch.matmul(input, self.low_rank_weights[name])
@@ -114,14 +142,14 @@ class LowRankFusionLayer(FusionLayer):
 class MultiHeadFusionMoE(FusionLayer):
     def __init__(
         self,
-        dims: dict[str, int],
+        dims: Mapping[str, int],
         experts: Sequence[tuple[tuple[str, ...], nn.Module, int]],
         output_size: int,
     ):
         """
         Experts are expected to be a sequence of tuples of the form (needed_inputs, expert_module, output_dim).
         """
-        super().__init__(output_size)
+        super().__init__(dims, output_size)
         self.dim_names = sorted(dims.keys())
         # TODO: router maybe can be scaled up
         self.router = nn.ModuleDict({name: nn.Linear(dims[name], len(experts)) for name in self.dim_names})
@@ -144,11 +172,11 @@ class MultiHeadFusionMoE(FusionLayer):
         return torch.sum(torch.stack(outputs), dim=0)
 
 
+@support_modal_missing
 class ConcatFusionMoE(FusionLayer):
-    def __init__(self, dims: dict[str, int], output_size: int):
-        super().__init__(output_size)
+    def __init__(self, dims: Mapping[str, int], output_size: int):
+        super().__init__(dims, output_size)
         self.dim_names = sorted(dims.keys())
-        self.placeholders = nn.ParameterDict({name: nn.Parameter(torch.randn(1, dim)) for name, dim in dims.items()})
         self.router = nn.Sequential(
             nn.Linear(sum(dims.values()), len(dims) + 1),
             nn.Softmax(dim=-1),
@@ -161,13 +189,8 @@ class ConcatFusionMoE(FusionLayer):
         )
 
     def forward(self, inputs: Mapping[str, torch.Tensor]):
-        batch_size = next(iter(inputs.values())).size(0)
-
         concatenated_inputs = torch.cat(
-            [
-                inputs[name] if name in inputs else torch.broadcast_to(self.placeholders[name], (batch_size, -1))
-                for name in self.dim_names
-            ],
+            [inputs[name] for name in self.dim_names],
             dim=1,
         )
         routing_weights = self.router(concatenated_inputs)

@@ -21,7 +21,7 @@ dependencies = [
     "pyyaml>=6.0.2",
     "bitsandbytes>=0.44.1",
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 readme = "README.md"
 license = { text = "MIT" }
 
