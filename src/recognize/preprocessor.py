@@ -108,6 +108,7 @@ class Preprocessor:
         audio_input_values_list, audio_attention_mask_list = [], []
         for audio_path in audio_paths:
             if not os.path.exists(audio_path):
+                logger.warning(f"Audio file {audio_path} does not exist")
                 return None, None
 
             raw_speech, sampling_rate = sf.read(audio_path)
@@ -143,6 +144,7 @@ class Preprocessor:
         video_pixel_values_list = []
         for video_path in video_paths:
             if not os.path.exists(video_path):
+                logger.warning(f"Video file {video_path} does not exist")
                 return None
             video = read_videos(video_path)
             video_inputs = self.image_processor(video, return_tensors="pt")

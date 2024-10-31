@@ -25,4 +25,4 @@ encoder = [
     "configs/encoders/A+V.toml",
     "configs/encoders/T+A+V.toml",
 ]
-fusion = ["configs/fusion/LMF.toml"]
+fusion = ["configs/fusion/vallina.toml"]

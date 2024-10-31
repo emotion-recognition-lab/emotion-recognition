@@ -10,4 +10,4 @@ model = "facebook/data2vec-audio-base-960h"
 
 [model.encoder.V]
 feature_size = 768
-model = "google/vivit-b-16x2-kinetics400"
+model = "facebook/timesformer-base-finetuned-k400"

@@ -18,7 +18,7 @@ command = "uv run emotion-recognize distill"
 args = [
     "configs/dataset/{dataset}.toml",
     "{encoder}",
-    "configs/fusion/LMF.toml",
+    "configs/fusion/vallina.toml",
     "--teacher-checkpoint checkpoints/training/trainable--2/{dataset}/1xE--T/d2385e09--{seed}",
     "--seed {seed}",
 ]
