@@ -121,7 +121,7 @@ def generate_preprocessor_and_backbone(
             logger.info(f"Load preprocessor from [blue]{checkpoint}[/]")
             break
     else:
-        preprocessor = Preprocessor(device="cuda")
+        preprocessor = Preprocessor()
 
     for modal, config in config_model_encoder.items():
         encoder_name = config.model

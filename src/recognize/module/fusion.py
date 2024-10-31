@@ -2,33 +2,47 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from typing import Literal
+from typing import Literal, overload
 
 import torch
 from torch import nn
 from torch.nn.parameter import Parameter
 
 
-def support_modal_missing(cls: type[FusionLayer]):
-    class WrappedFusionLayer(cls):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.placeholders = nn.ParameterDict(
-                {name: nn.Parameter(torch.randn(1, dim)) for name, dim in self.dims.items()}
-            )
+@overload
+def support_modal_missing(cls: type[FusionLayer]) -> type[FusionLayer]: ...
+@overload
+def support_modal_missing(cls: None = None) -> Callable[[type[FusionLayer]], type[FusionLayer]]: ...
 
-        @torch.compile(dynamic=True)
-        def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
-            batch_size = next(iter(inputs.values())).size(0)
-            wrapped_inputs = {
-                name: torch.broadcast_to(self.placeholders[name], (batch_size, dim))
-                if name not in inputs
-                else inputs[name]
-                for name, dim in self.dims.items()
-            }
-            return cls.forward(self, wrapped_inputs)
 
-    return WrappedFusionLayer
+def support_modal_missing(
+    cls: type[FusionLayer] | None = None,
+) -> type[FusionLayer] | Callable[[type[FusionLayer]], type[FusionLayer]]:
+    def decorator(cls: type[FusionLayer]) -> type[FusionLayer]:
+        class WrappedFusionLayer(cls):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.placeholders = nn.ParameterDict(
+                    {name: nn.Parameter(torch.randn(1, dim)) for name, dim in self.dims.items()}
+                )
+
+            @torch.compile(dynamic=True)
+            def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
+                batch_size = next(iter(inputs.values())).size(0)
+                wrapped_inputs = {
+                    name: torch.broadcast_to(self.placeholders[name], (batch_size, dim))
+                    if name not in inputs
+                    else inputs[name]
+                    for name, dim in self.dims.items()
+                }
+                return cls.forward(self, wrapped_inputs)
+
+        return WrappedFusionLayer
+
+    if cls is None:
+        return decorator
+    else:
+        return decorator(cls)
 
 
 class FusionLayer(nn.Module):
@@ -43,7 +57,7 @@ class FusionLayer(nn.Module):
     def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor: ...
 
 
-@support_modal_missing
+@support_modal_missing()
 class VallinaFusionLayer(FusionLayer):
     def __init__(
         self,
@@ -72,6 +86,45 @@ class VallinaFusionLayer(FusionLayer):
             return self.fc(self.mean(inputs.values()))
         else:
             return self.fc(self.cat(inputs.values()))
+
+
+@support_modal_missing()
+class SelfAttentionFusionLayer(FusionLayer):
+    def __init__(self, dims: Mapping[str, int], output_size: int, *, head_num: int = 8):
+        super().__init__(dims, output_size)
+        self.head_num = head_num
+        self.pooler = nn.Linear(sum(dims.values()), output_size)
+        self.multihead_attn = nn.MultiheadAttention(sum(dims.values()), head_num)
+
+    def forward(self, inputs: Mapping[str, torch.Tensor]):
+        embeddings = torch.cat([emb for emb in inputs.values() if emb is not None], dim=1)
+        new_embeddings, _ = self.multihead_attn(embeddings, embeddings, embeddings)
+        return self.pooler(new_embeddings)
+
+
+@support_modal_missing()
+class CrossAttentionFusionLayer(FusionLayer):
+    def __init__(self, dims: Mapping[str, int], output_size: int, *, head_num: int = 8):
+        super().__init__(dims, output_size)
+        sum_dim = sum(dims.values())
+
+        self.head_num = head_num
+        self.named_attns = nn.ModuleDict(
+            {
+                name: nn.MultiheadAttention(dim, head_num, kdim=sum_dim - dim, vdim=sum_dim - dim)
+                for name, dim in dims.items()
+            }
+        )
+        self.pooler = nn.Linear(sum_dim, output_size)
+
+    def forward(self, inputs: Mapping[str, torch.Tensor]):
+        new_embeddings = []
+        for name in self.dims.keys():
+            attn = self.named_attns[name]
+            embeddings = torch.cat([emb for emb_name, emb in inputs.items() if emb_name != name], dim=1)
+            embeddings, _ = attn(inputs[name], embeddings, embeddings)
+            new_embeddings.append(embeddings)
+        return self.pooler(torch.cat(new_embeddings, dim=1))
 
 
 class TensorFusionLayer(FusionLayer):
@@ -172,7 +225,7 @@ class MultiHeadFusionMoE(FusionLayer):
         return torch.sum(torch.stack(outputs), dim=0)
 
 
-@support_modal_missing
+@support_modal_missing()
 class ConcatFusionMoE(FusionLayer):
     def __init__(self, dims: Mapping[str, int], output_size: int):
         super().__init__(dims, output_size)

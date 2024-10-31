@@ -1,0 +1,2 @@
+[model]
+fusion = "CrossAttentionFusionLayer(feature_sizes_dict, 128)"

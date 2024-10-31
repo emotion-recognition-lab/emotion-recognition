@@ -3,8 +3,10 @@ from __future__ import annotations
 from recognize.config import ModelEncoderConfig
 from recognize.module.fusion import (
     ConcatFusionMoE,
+    CrossAttentionFusionLayer,
     LowRankFusionLayer,
     MultiHeadFusionMoE,
+    SelfAttentionFusionLayer,
     TensorFusionLayer,
     VallinaFusionLayer,
 )
@@ -22,6 +24,8 @@ def gen_fusion_layer(fusion: str, feature_sizes_dict: dict[str, int]) -> FusionL
         fusion,
         {
             "VallinaFusionLayer": VallinaFusionLayer,
+            "SelfAttentionFusionLayer": SelfAttentionFusionLayer,
+            "CrossAttentionFusionLayer": CrossAttentionFusionLayer,
             "TensorFusionLayer": TensorFusionLayer,
             "LowRankFusionLayer": LowRankFusionLayer,
             "MultimodalMoE": MultimodalMoE,

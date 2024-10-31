@@ -155,7 +155,7 @@ def info(
         stopper = EarlyStopper.from_file(stopper_path)
         config = load_training_config(subpath / "training.toml")
         logger.info(f"find checkpoint: [blue]{subpath}[/]")
-        logger.info(f"info of [blue]{subpath}[/](finished: {stopper.finished})")
+        logger.info(f"finished: [blue]{stopper.finished}[/]")
         logger.info(f"encoder: [blue]{config.model.encoder}[/]")
         logger.info(f"fusion: [blue]{config.model.fusion}[/]")
         result: dict[int, dict] = {}
