@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import random
 from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
@@ -19,6 +20,7 @@ from torch import amp
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
+from recognize.model.multimodal import LazyMultimodalInput
 from recognize.trainer import Trainer
 
 from .evaluate import TrainingResult
@@ -153,7 +155,7 @@ def distill_batch(
 
         assert student_output.loss is not None
         # TODO: 5 is a magic number, the value should be a hyper-parameter
-        loss = LogitLoss()(student_output.logits, teacher_logits) + 5 * student_output.loss
+        loss = LogitLoss()(student_output.logits, teacher_logits) + student_output.loss
         for name, student_embs in student_embs_dict.items():
             if name == "T":
                 continue
@@ -165,9 +167,16 @@ def distill_batch(
 
 def train_batch(
     model: ClassifierModel,
-    batch: dict[str, torch.Tensor],
+    batch: ModelInput,
     trainer: Trainer,
 ):
+    # NOTE: randomly remove one modality
+    if isinstance(batch, LazyMultimodalInput):
+        if random.random() < 0.2:
+            batch.audio_paths = None
+        if random.random() < 0.2:
+            batch.video_paths = None
+
     with amp.autocast("cuda"):
         output = model(batch)
         loss = output.loss
