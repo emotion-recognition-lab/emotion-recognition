@@ -17,15 +17,20 @@ args = [
 command = "uv run emotion-recognize distill"
 args = [
     "configs/dataset/{dataset}.toml",
-    "{encoder}",
-    "configs/fusion/vallina.toml",
+    "configs/encoders/{encoder}.toml",
+    "configs/fusion/{fusion}.toml",
     "--teacher-checkpoint checkpoints/training/trainable--2/{dataset}/1xE--T/ce200638--{seed}",
     "--seed {seed}",
 ]
 deps = ["T"]
 [tasks.distill.matrix]
 encoder = [
-    "configs/encoders/T+A.toml",
-    "configs/encoders/T+V.toml",
-    "configs/encoders/T+A+V.toml",
+    "T+A",
+    "T+V",
+    "T+A+V",
+]
+fusion = [
+    "vallina",
+    "self-attention",
+    "cross-attention",
 ]
