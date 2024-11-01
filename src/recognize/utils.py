@@ -20,7 +20,7 @@ from torch import amp
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
-from recognize.model.multimodal import LazyMultimodalInput
+from recognize.model import LazyMultimodalInput
 from recognize.trainer import Trainer
 
 from .evaluate import TrainingResult

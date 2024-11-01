@@ -1,9 +1,4 @@
-from .base import (
-    Backbone,
-    ClassifierModel,
-    ClassifierOutput,
-    ModelInput,
-    ModelOutput,
-)
-from .multimodal import LazyMultimodalInput, MultimodalBackbone, MultimodalInput, MultimodalModel
-from .unimodal import UnimodalModel
+from .backbone import Backbone, MultimodalBackbone
+from .base import ClassifierModel, MultimodalModel, UnimodalModel
+from .inputs import LazyMultimodalInput, ModelInput, MultimodalInput
+from .outputs import ClassifierOutput, ModelOutput

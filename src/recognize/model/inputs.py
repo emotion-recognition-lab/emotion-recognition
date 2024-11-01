@@ -1,20 +1,62 @@
 from __future__ import annotations
 
 import pickle
-from collections.abc import Callable, Sequence
-from pathlib import Path
+from collections.abc import Sequence
 from typing import Self
 
 import torch
 from loguru import logger
+from pydantic import BaseModel, ConfigDict
 from torch.nn.utils.rnn import pad_sequence
 
 from recognize.cache import hash_bytes
-from recognize.config import load_inference_config
 from recognize.preprocessor import Preprocessor
-from recognize.typing import FusionLayerLike
+from recognize.typing import ModelInputT
 
-from .base import Backbone, ClassifierModel, ClassifierOutput, ModelInput
+
+class ModelInput(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    labels: torch.Tensor | None = None
+
+    def cuda(self) -> Self:
+        for field in self.model_fields.keys():
+            field_value = getattr(self, field)
+            if isinstance(field_value, torch.Tensor):
+                setattr(self, field, field_value.cuda())
+        return self
+
+    def pin_memory(self) -> Self:
+        for field in self.model_fields.keys():
+            field_value = getattr(self, field)
+            if isinstance(field_value, torch.Tensor):
+                setattr(self, field, field_value.pin_memory().cuda())
+        return self
+
+    def hash(self) -> str:
+        return hash_bytes(pickle.dumps(self.model_dump(mode="json")))
+
+    def __hash__(self) -> int:
+        return int(self.hash(), 16)
+
+    def __getitem__(self, index: int | list[int] | slice) -> Self:
+        raise NotImplementedError("__getitem__ method must be implemented in subclass")
+
+    def get_unique_keys(self) -> dict[str, list[str]]:
+        raise NotImplementedError("You should use LazyMultimodalInput instead")
+
+    @staticmethod
+    def merge(batch: Sequence[ModelInputT], attr_name: str):
+        attr: list[torch.Tensor] = []
+        for item in batch:
+            if getattr(item, attr_name) is not None:
+                attr.append(getattr(item, attr_name))
+            else:
+                return None
+        return attr
+
+    @property
+    def device(self) -> torch.device:
+        raise NotImplementedError("device property must be implemented in subclass")
 
 
 class MultimodalInput(ModelInput):
@@ -179,78 +221,3 @@ class LazyMultimodalInput(MultimodalInput):
                     attr.extend(itme_attr)
             field_dict[field] = attr
         return cls(**field_dict)
-
-
-class MultimodalBackbone(Backbone[MultimodalInput]):
-    def compute_embs(self, inputs: MultimodalInput) -> dict[str, torch.Tensor]:
-        embs_dict: dict[str, torch.Tensor] = {}
-        if "T" in self.named_encoders and inputs.text_input_ids is not None:
-            text_outputs = self.named_encoders["T"](inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
-            # -1 corresponds to mask_token_id
-            text_embs = text_outputs.last_hidden_state[:, -1]
-            embs_dict["T"] = text_embs
-
-        if "A" in self.named_encoders and inputs.audio_input_values is not None:
-            audio_outputs = self.named_encoders["A"](
-                inputs.audio_input_values, attention_mask=inputs.audio_attention_mask
-            )
-            audio_embs = audio_outputs.last_hidden_state[:, 0]
-            embs_dict["A"] = audio_embs
-
-        if "V" in self.named_encoders and inputs.video_pixel_values is not None:
-            video_outputs = self.named_encoders["V"](inputs.video_pixel_values)
-            video_embs = video_outputs.last_hidden_state[:, 0]
-            embs_dict["V"] = video_embs
-
-        return embs_dict
-
-
-class MultimodalModel(ClassifierModel[MultimodalBackbone]):
-    __call__: Callable[[MultimodalInput], ClassifierOutput]
-
-    def __init__(
-        self,
-        backbone: MultimodalBackbone,
-        fusion_layer: FusionLayerLike,
-        *,
-        num_classes: int = 2,
-        num_experts: int = 1,
-        class_weights: torch.Tensor | None = None,
-    ):
-        super().__init__(
-            backbone,
-            fusion_layer.output_size,
-            num_classes=num_classes,
-            num_experts=num_experts,
-            class_weights=class_weights,
-        )
-        self.fusion_layer = fusion_layer
-
-    def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
-        embs_dict = self.backbone(inputs)
-        fusion_features = self.fusion_layer(embs_dict)
-        return self.classify(fusion_features, inputs.labels)
-
-    @classmethod
-    def from_checkpoint(
-        cls,
-        checkpoint_path: str | Path,
-        backbone: MultimodalBackbone,
-        fusion_layer: FusionLayerLike,
-        *,
-        class_weights: torch.Tensor | None = None,
-    ):
-        from recognize.utils import load_model
-
-        checkpoint_path = Path(checkpoint_path)
-        config = load_inference_config(checkpoint_path / "inference.toml")
-        model = cls(
-            backbone,
-            fusion_layer,
-            num_classes=config.num_classes,
-            num_experts=config.model.num_experts,
-            class_weights=class_weights,
-        )
-        load_model(checkpoint_path, model)
-
-        return model
