@@ -19,7 +19,7 @@ args = [
     "configs/dataset/{dataset}.toml",
     "{encoder}",
     "configs/fusion/vallina.toml",
-    "--teacher-checkpoint checkpoints/training/trainable--2/{dataset}/1xE--T/d2385e09--{seed}",
+    "--teacher-checkpoint checkpoints/training/trainable--2/{dataset}/1xE--T/ce200638--{seed}",
     "--seed {seed}",
 ]
 deps = ["T"]

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import itertools
 import pickle
+from abc import abstractmethod
 from collections.abc import Callable, Mapping
 from functools import cached_property
 from pathlib import Path
-from typing import Generic, Literal, Self
+from typing import Literal, Self
 
 import torch
 from loguru import logger
@@ -17,14 +18,19 @@ from torch import nn
 from recognize.cache import CacheManager, hash_bytes, load_cached_tensors, save_cached_tensors
 from recognize.config import load_dict_from_path, save_dict_to_file
 from recognize.module import Projector
-from recognize.typing import ModelInputT, StateDicts
+from recognize.typing import StateDicts
 
-from .inputs import MultimodalInput
+from .inputs import ModelInput, MultimodalInput
 
 
-class Backbone(nn.Module, Generic[ModelInputT]):
-    __call__: Callable[[ModelInputT], dict[str, torch.Tensor]]
+class Backbone[T: ModelInput](nn.Module):
+    __call__: Callable[[T], dict[str, torch.Tensor]]
 
+    @abstractmethod
+    def forward(self, inputs: T) -> dict[str, torch.Tensor]: ...
+
+
+class MultimodalBackbone(Backbone[MultimodalInput]):
     def __init__(
         self,
         encoders: Mapping[str, tuple[nn.Module, int]],
@@ -72,10 +78,29 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         for module in self.named_encoders.values():
             module.requires_grad_(True)
 
-    def compute_embs(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
-        raise NotImplementedError("compute_embs method must be implemented in subclass")
+    def compute_embs(self, inputs: MultimodalInput) -> dict[str, torch.Tensor]:
+        embs_dict: dict[str, torch.Tensor] = {}
+        if "T" in self.named_encoders and inputs.text_input_ids is not None:
+            text_outputs = self.named_encoders["T"](inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
+            # -1 corresponds to mask_token_id
+            text_embs = text_outputs.last_hidden_state[:, -1]
+            embs_dict["T"] = text_embs
 
-    def cached_compute_embs(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
+        if "A" in self.named_encoders and inputs.audio_input_values is not None:
+            audio_outputs = self.named_encoders["A"](
+                inputs.audio_input_values, attention_mask=inputs.audio_attention_mask
+            )
+            audio_embs = audio_outputs.last_hidden_state[:, 0]
+            embs_dict["A"] = audio_embs
+
+        if "V" in self.named_encoders and inputs.video_pixel_values is not None:
+            video_outputs = self.named_encoders["V"](inputs.video_pixel_values)
+            video_embs = video_outputs.last_hidden_state[:, 0]
+            embs_dict["V"] = video_embs
+
+        return embs_dict
+
+    def cached_compute_embs(self, inputs: MultimodalInput) -> dict[str, torch.Tensor]:
         unique_keys = inputs.get_unique_keys()
         cached_list = load_cached_tensors(unique_keys, cache_manager=self.cache_manager)
         if cached_list is None:
@@ -92,17 +117,17 @@ class Backbone(nn.Module, Generic[ModelInputT]):
     ) -> dict[str, torch.Tensor]:
         return {name: self.named_poolers[name](embs_dict[name]) for name in self.named_poolers if name in embs_dict}
 
-    def direct_forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
+    def direct_forward(self, inputs: MultimodalInput) -> dict[str, torch.Tensor]:
         embs_dict = self.compute_embs(inputs)
         pooler_output = self.pool_embs(embs_dict)
         return pooler_output
 
-    def cached_forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
+    def cached_forward(self, inputs: MultimodalInput) -> dict[str, torch.Tensor]:
         embs_dict = self.cached_compute_embs(inputs)
         pooler_output = self.pool_embs(embs_dict)
         return pooler_output
 
-    def forward(self, inputs: ModelInputT) -> dict[str, torch.Tensor]:
+    def forward(self, inputs: MultimodalInput) -> dict[str, torch.Tensor]:
         if self.frozen_encoders and self.use_cache:
             try:
                 return self.cached_forward(inputs)
@@ -230,27 +255,3 @@ class Backbone(nn.Module, Generic[ModelInputT]):
         self.named_poolers.load_state_dict(load_file(checkpoint_path / "poolers.safetensors"))
         self.cache_manager.cache_dir = Path(f"./cache/{self.encoder_hash}")
         return self
-
-
-class MultimodalBackbone(Backbone[MultimodalInput]):
-    def compute_embs(self, inputs: MultimodalInput) -> dict[str, torch.Tensor]:
-        embs_dict: dict[str, torch.Tensor] = {}
-        if "T" in self.named_encoders and inputs.text_input_ids is not None:
-            text_outputs = self.named_encoders["T"](inputs.text_input_ids, attention_mask=inputs.text_attention_mask)
-            # -1 corresponds to mask_token_id
-            text_embs = text_outputs.last_hidden_state[:, -1]
-            embs_dict["T"] = text_embs
-
-        if "A" in self.named_encoders and inputs.audio_input_values is not None:
-            audio_outputs = self.named_encoders["A"](
-                inputs.audio_input_values, attention_mask=inputs.audio_attention_mask
-            )
-            audio_embs = audio_outputs.last_hidden_state[:, 0]
-            embs_dict["A"] = audio_embs
-
-        if "V" in self.named_encoders and inputs.video_pixel_values is not None:
-            video_outputs = self.named_encoders["V"](inputs.video_pixel_values)
-            video_embs = video_outputs.last_hidden_state[:, 0]
-            embs_dict["V"] = video_embs
-
-        return embs_dict
