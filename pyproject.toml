@@ -20,6 +20,7 @@ dependencies = [
     "rtoml>=0.11.0",
     "pyyaml>=6.0.2",
     "bitsandbytes>=0.44.1",
+    "emotion-recognition-utils",
 ]
 requires-python = ">=3.12"
 readme = "README.md"
@@ -95,7 +96,7 @@ extra-index-url = [
 ]
 
 [tool.uv.sources]
-test-package = { workspace = true }
+emotion-recognition-utils = { workspace = true }
 
 [tool.uv.workspace]
 members = ["packages/*"]

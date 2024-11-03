@@ -10,8 +10,7 @@ from torch import nn
 from torch.nn import CrossEntropyLoss
 
 from recognize.config import load_inference_config
-from recognize.module import MoE
-from recognize.module.moe import SparseMoE
+from recognize.module import MoE, SparseMoE
 from recognize.typing import BackboneT, FusionLayerLike
 
 from .backbone import MultimodalBackbone

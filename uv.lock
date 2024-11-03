@@ -11,6 +11,12 @@ resolution-markers = [
     "python_full_version >= '3.13' and platform_system == 'Windows'",
 ]
 
+[manifest]
+members = [
+    "emotion-recognition",
+    "emotion-recognition-utils",
+]
+
 [[package]]
 name = "accelerate"
 version = "0.34.2"
@@ -188,6 +194,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "bitsandbytes" },
+    { name = "emotion-recognition-utils" },
     { name = "faster-whisper" },
     { name = "loguru" },
     { name = "numpy" },
@@ -222,6 +229,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "bitsandbytes", specifier = ">=0.44.1" },
+    { name = "emotion-recognition-utils", editable = "packages/emotion-recognition-utils" },
     { name = "faster-whisper", specifier = ">=1.0.3" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "numpy", specifier = ">=1.26.0" },
@@ -247,6 +255,21 @@ dev = [
     { name = "pyright", specifier = ">=1.1.384" },
     { name = "ruff", specifier = ">=0.6.8" },
     { name = "viztracer", specifier = ">=0.16.3" },
+]
+
+[[package]]
+name = "emotion-recognition-utils"
+version = "0.1.0"
+source = { editable = "packages/emotion-recognition-utils" }
+dependencies = [
+    { name = "loguru" },
+    { name = "rich" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "loguru", specifier = ">=0.7.0" },
+    { name = "rich", specifier = ">=13.7.1" },
 ]
 
 [[package]]

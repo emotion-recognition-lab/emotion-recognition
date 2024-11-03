@@ -3,55 +3,13 @@ from __future__ import annotations
 import os
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import typer
 from loguru import logger
-from rich.highlighter import NullHighlighter
-from rich.logging import RichHandler
 from rich.table import Table
-
-if TYPE_CHECKING:
-    from recognize.typing import LogLevel
-
-
-def init_logger(log_level: LogLevel):
-    handler = RichHandler(highlighter=NullHighlighter(), markup=True)
-    logger.remove()
-    logger.add(handler, format="{message}", level=log_level)
-
+from utils import OrderedSet, count_symlinks, format_bytes, init_logger
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
-
-
-def count_symlinks(target_path: str | Path, search_root: str | Path):
-    symlink_count = 0
-    target_inode = os.stat(target_path).st_ino
-
-    for root, dirs, files in os.walk(search_root):
-        for name in dirs + files:
-            path = os.path.join(root, name)
-            try:
-                if os.path.islink(path):
-                    real_path = os.path.realpath(path)
-                    if os.path.exists(real_path) and os.stat(real_path).st_ino == target_inode:
-                        symlink_count += 1
-                        logger.debug(f"Found symlink: {path} -> {real_path}")
-            except (PermissionError, OSError) as e:
-                logger.warning(f"Error accessing {path}: {e}")
-                continue
-
-    return symlink_count
-
-
-def format_bytes(size):
-    power = 2**10
-    n = 0
-    power_labels = {0: "", 1: "K", 2: "M", 3: "G", 4: "T"}
-    while size > power:
-        size /= power
-        n += 1
-    return f"{size:.2f} {power_labels[n]}B"
 
 
 @app.command()
@@ -159,12 +117,12 @@ def info(
         logger.info(f"encoder: [blue]{config.model.encoder}[/]")
         logger.info(f"fusion: [blue]{config.model.fusion}[/]")
         result: dict[int, dict] = {}
-        score_names = set()
+        score_names = OrderedSet[str]()
         best_epoch: dict[str, int] = {}
         for epoch, record in stopper.history:
             result.setdefault(epoch, {})
             result[epoch].update(record)
-            score_names.update(record.keys())
+            score_names |= record.keys()
             for k, v in record.items():
                 if k not in best_epoch or best_epoch[k] < v:
                     best_epoch[k] = epoch

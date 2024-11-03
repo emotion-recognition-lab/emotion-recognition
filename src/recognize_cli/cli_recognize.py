@@ -3,15 +3,13 @@ from __future__ import annotations
 import os
 import random
 from collections.abc import Sequence
-from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 import typer
 from loguru import logger
-from rich.highlighter import NullHighlighter
-from rich.logging import RichHandler
 from safetensors.torch import load_file
+from utils import init_logger
 
 from recognize.config import InferenceConfig, ModelEncoderConfig, load_training_config, save_config
 from recognize.dataset import IEMOCAPDataset, MELDDataset, MultimodalDataset, PilotDataset, SIMSDataset
@@ -24,20 +22,13 @@ from recognize.model import (
 )
 from recognize.module import gen_fusion_layer, get_feature_sizes_dict
 from recognize.preprocessor import Preprocessor
-from recognize.typing import DatasetClass, DatasetLabelType, LogLevel, ModalType
+from recognize.typing import DatasetClass, DatasetLabelType, ModalType
 from recognize.utils import (
     find_best_model,
     load_best_model,
     load_model,
     train_and_eval,
 )
-
-
-def init_logger(log_level: LogLevel, label: str):
-    handler = RichHandler(highlighter=NullHighlighter(), markup=True)
-    logger.remove()
-    logger.add(f"./logs/{label}/{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.txt")
-    logger.add(handler, format="{message}", level=log_level)
 
 
 def init_torch():
@@ -196,7 +187,7 @@ def distill(
     config_fusion = config.model.fusion
     config_dataset = config.dataset
 
-    init_logger(config.log_level, config.label)
+    init_logger(config.log_level, Path(f"./logs/{config.label}"))
     seed = seed_everything(seed)
     init_torch()
 
@@ -259,7 +250,6 @@ def distill(
         pin_memory=True,
         num_workers=0,
     )
-    class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
 
     inference_config = InferenceConfig(num_classes=train_dataset.num_classes, model=config.model)
     save_config(config, checkpoint_dir / "training.toml")
@@ -270,7 +260,6 @@ def distill(
         teacher_backbone,
         feature_size=feature_size,
         num_classes=train_dataset.num_classes,
-        class_weights=class_weights,
     ).cuda()
 
     if (teacher_checkpoint / "stopper.yaml").exists():
@@ -283,6 +272,7 @@ def distill(
     result.print()
     test_dataset.set_preprocessor(preprocessor)
 
+    class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
     feature_sizes_dict = get_feature_sizes_dict(config_model_encoder)
     fusion_layer = gen_fusion_layer(config_fusion, feature_sizes_dict)
     model = MultimodalModel(
@@ -334,7 +324,7 @@ def train(
     config_model_encoder = config.model.encoder
     config_dataset = config.dataset
 
-    init_logger(config.log_level, config.label)
+    init_logger(config.log_level, Path(f"./logs/{config.label}"))
     seed = seed_everything(seed)
     init_torch()
 
@@ -445,7 +435,7 @@ def evaluate(checkpoint: Path) -> None:
     from torch.utils.data import DataLoader
 
     config = load_training_config(checkpoint / "training.toml")
-    init_logger(config.log_level, config.label)
+    init_logger(config.log_level, Path(f"./logs/{config.label}"))
     config_model_encoder = config.model.encoder
     config_dataset = config.dataset
 
@@ -507,7 +497,7 @@ def inference(
     config = load_training_config(checkpoint / "training.toml")
     config_model_encoder = config.model.encoder
     config_fusion = config.model.fusion
-    init_logger(config.log_level, config.label)
+    init_logger(config.log_level, Path(f"./logs/{config.label}"))
 
     preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
     model_checkpoint = checkpoint / str(find_best_model(checkpoint))

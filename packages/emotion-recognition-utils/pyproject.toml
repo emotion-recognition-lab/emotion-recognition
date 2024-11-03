@@ -1,0 +1,11 @@
+[project]
+name = "emotion-recognition-utils"
+version = "0.1.0"
+description = "Utils for Emotion Recognition"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["loguru>=0.7.0", "rich>=13.7.1"]
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
