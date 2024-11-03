@@ -8,6 +8,8 @@ import torch
 from torch import nn
 from torch.nn.parameter import Parameter
 
+from .basic import Projector
+
 
 @overload
 def support_modal_missing(cls: type[FusionLayer]) -> type[FusionLayer]: ...
@@ -56,6 +58,9 @@ class FusionLayer(nn.Module):
     @abstractmethod
     def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor: ...
 
+    @abstractmethod
+    def forward_with_label(self, inputs: Mapping[str, torch.Tensor], label: torch.Tensor) -> torch.Tensor: ...
+
 
 @support_modal_missing()
 class VallinaFusionLayer(FusionLayer):
@@ -64,15 +69,16 @@ class VallinaFusionLayer(FusionLayer):
         dims: Mapping[str, int],
         output_size: int,
         *,
+        depth: int = 1,
         method: Literal["mean", "concat"] = "concat",
     ):
         super().__init__(dims, output_size)
         self.method = method
         if method == "mean":
             # TODO: support different input sizes
-            self.fc = nn.Linear(next(iter(dims.values())), output_size)
+            self.fc = Projector(next(iter(dims.values())), output_size, depth=depth)
         else:
-            self.fc = nn.Linear(sum(dims.values()), output_size)
+            self.fc = Projector(sum(dims.values()), output_size, depth=depth)
 
     def mean(self, inputs: Iterable[torch.Tensor]) -> torch.Tensor:
         filtered_embs_list = torch.stack([emb for emb in inputs if emb is not None])

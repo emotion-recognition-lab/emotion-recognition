@@ -25,7 +25,7 @@ from recognize.trainer import Trainer
 
 from .evaluate import TrainingResult
 from .model import Backbone, ClassifierModel, ModelInput
-from .module.loss import FeatureLoss, LogitLoss
+from .module import FeatureLoss, LogitLoss
 from .trainer import EarlyStopper
 
 
@@ -161,7 +161,6 @@ def distill_batch(
                 continue
             loss += FeatureLoss()(student_embs, teacher_embs)
             # loss += FeatureLoss()(student_pooled_embs_tuple[2], teacher_pooled_embs)
-
     trainer.training_step(loss)
 
 
