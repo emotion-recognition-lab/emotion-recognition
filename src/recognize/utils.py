@@ -24,7 +24,7 @@ from recognize.model import LazyMultimodalInput
 from recognize.trainer import Trainer
 
 from .evaluate import TrainingResult
-from .model import Backbone, ClassifierModel, ModelInput
+from .model import ClassifierModel, ModelInput
 from .module import FeatureLoss, LogitLoss
 from .trainer import EarlyStopper
 
@@ -32,7 +32,7 @@ from .trainer import EarlyStopper
 def save_checkpoint(
     checkpoint_dir: Path,
     epoch: int,
-    model: ClassifierModel[Backbone],
+    model: ClassifierModel,
     optimizer: Optimizer,
     stopper: EarlyStopper,
 ):
@@ -64,7 +64,7 @@ def save_checkpoint(
     stopper.save(checkpoint_dir / "stopper.yaml")
 
 
-def load_model(checkpoint_dir: Path | str, model: ClassifierModel[Backbone]):
+def load_model(checkpoint_dir: Path, model: ClassifierModel):
     checkpoint_dir = Path(checkpoint_dir)
     model_state_dict = load_file(checkpoint_dir / "model.safetensors")
     model.load_state_dict(model_state_dict, strict=False)
@@ -140,7 +140,6 @@ def distill_batch(
     student_model: ClassifierModel,
     teacher_model: ClassifierModel,
     batch: ModelInput,
-    trainer: Trainer,
 ):
     with amp.autocast("cuda"):
         with torch.no_grad():
@@ -161,13 +160,12 @@ def distill_batch(
                 continue
             loss += FeatureLoss()(student_embs, teacher_embs)
             # loss += FeatureLoss()(student_pooled_embs_tuple[2], teacher_pooled_embs)
-    trainer.training_step(loss)
+    return loss
 
 
 def train_batch(
     model: ClassifierModel,
     batch: ModelInput,
-    trainer: Trainer,
 ):
     # NOTE: randomly remove one modality
     if isinstance(batch, LazyMultimodalInput):
@@ -175,11 +173,10 @@ def train_batch(
             batch.audio_paths = None
         if random.random() < 0.2:
             batch.video_paths = None
-
     with amp.autocast("cuda"):
         output = model(batch)
         loss = output.loss
-    trainer.training_step(loss)
+    return loss
 
 
 def train_epoch(
@@ -196,9 +193,12 @@ def train_epoch(
     trainer.clear_losses()
     for batch_index, batch in enumerate(train_data_loader):
         if teacher_model is not None:
-            distill_batch(model, teacher_model, batch, trainer)
+            loss = distill_batch(model, teacher_model, batch)
         else:
-            train_batch(model, batch, trainer)
+            loss = train_batch(model, batch)
+        if loss is None:
+            continue
+        trainer.training_step(loss)
         if update_hook is not None:
             if batch_index % (len(train_data_loader) // 10):
                 loss_value = trainer.loss_mean()
