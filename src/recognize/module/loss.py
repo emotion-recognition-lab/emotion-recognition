@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from collections.abc import Sequence
 
 import torch
@@ -17,6 +18,12 @@ def inter_class_relation(y_s: torch.Tensor, y_t: torch.Tensor) -> torch.Tensor:
 
 def intra_class_relation(y_s: torch.Tensor, y_t: torch.Tensor) -> torch.Tensor:
     return inter_class_relation(y_s.transpose(0, 1), y_t.transpose(0, 1))
+
+
+def generate_orthogonal_vectors(num_classes: int, hidden_dim: int) -> torch.Tensor:
+    q_matrix, _ = torch.linalg.qr(torch.randn(hidden_dim, num_classes, device="cuda"))
+    orthogonal_vectors = q_matrix.t()[:num_classes]
+    return orthogonal_vectors
 
 
 class LogitLoss(nn.Module):
@@ -64,3 +71,92 @@ class InfoNCELoss(nn.Module):
             for j in range(i + 1, len(normalized_inputs))
         ]
         return -torch.sum(torch.stack(similarity_matrix))
+
+
+class SupervisedProtoContrastiveLoss(nn.Module):
+    def __init__(
+        self,
+        num_classes: int,
+        hidden_dim: int,
+        temp: float,
+        pool_size: int,
+        support_set_size: int,
+    ):
+        super().__init__()
+        self.temp = temp
+        self.default_centers = generate_orthogonal_vectors(num_classes, hidden_dim)
+        self.pools = {}
+        for idx in range(num_classes):
+            self.pools[idx] = [self.default_centers[idx]]
+        self.num_classes = num_classes
+        self.pool_size = pool_size
+        self.support_set_size = support_set_size
+        self.eps = 1e-8
+
+    def score_fn(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        return (1 + F.cosine_similarity(x, y, dim=-1)) / 2 + self.eps
+
+    def calculate_centers(self) -> torch.Tensor:
+        curr_centers = self.default_centers[:]
+        for idx in range(self.num_classes):
+            if len(self.pools[idx]) >= self.support_set_size:
+                tensor_center = torch.stack(self.pools[idx], 0)
+                perm = torch.randperm(tensor_center.size(0))
+                select_idx = perm[: self.support_set_size]
+                # select_idx = random.sample(range(tensor_center.size(0)), self.support_set_size)
+                curr_centers[idx] = tensor_center[select_idx].mean(0)
+        return curr_centers
+
+    def update_pools(self, embeddings: torch.Tensor, labels: torch.Tensor):
+        for idx, label in enumerate(labels):
+            label = label.item()
+            self.pools[label].append(embeddings[idx].detach())
+            random.shuffle(self.pools[label])
+            self.pools[label] = self.pools[label][-self.pool_size :]
+
+    def compute_scores_and_masks(
+        self, concated_embeddings: torch.Tensor, concated_labels: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        batch_size = concated_embeddings.size(0)
+        mask1 = concated_labels.unsqueeze(0).expand(batch_size, batch_size)
+        mask2 = concated_labels.unsqueeze(1).expand(batch_size, batch_size)
+        mask = 1 - torch.eye(batch_size, device=concated_embeddings.device)
+        pos_mask = (mask1 == mask2).long()
+        rep1 = concated_embeddings.unsqueeze(0).expand(batch_size, batch_size, -1)
+        rep2 = concated_embeddings.unsqueeze(1).expand(batch_size, batch_size, -1)
+        scores = self.score_fn(rep1, rep2)
+        scores *= mask
+        scores /= self.temp
+        scores -= torch.max(scores).item()
+        return scores, pos_mask * mask, 1 - pos_mask
+
+    def calculate_loss(
+        self, scores: torch.Tensor, pos_mask: torch.Tensor, neg_mask: torch.Tensor, decoupled: bool
+    ) -> torch.Tensor:
+        if decoupled:
+            pos_scores = scores * pos_mask
+            pos_scores = pos_scores.sum(-1)
+            pos_scores /= pos_mask.sum(-1) + self.eps
+            neg_scores = torch.exp(scores) * neg_mask
+            loss = -pos_scores + torch.log(neg_scores.sum(-1) + self.eps)
+            masked_loss = loss[loss > 0]
+        else:
+            scores = torch.exp(scores)
+            pos_scores = (scores * pos_mask).sum(-1)
+            neg_scores = (scores * neg_mask).sum(-1)
+            probs = pos_scores / (pos_scores + neg_scores)
+            probs /= pos_mask.sum(-1) + self.eps
+            loss = -torch.log(probs + self.eps)
+            masked_loss = loss[loss > 0.3]
+        return masked_loss.mean() if len(masked_loss) > 0 else torch.tensor(0.0, device=scores.device)
+
+    def forward(self, embeddings: torch.Tensor, labels: torch.Tensor, decoupled: bool = False) -> torch.Tensor:
+        curr_centers = self.calculate_centers()
+        self.update_pools(embeddings, labels)
+
+        concated_embeddings = torch.cat((embeddings, curr_centers), 0)
+        pad_labels = torch.arange(self.num_classes, device=embeddings.device)
+        concated_labels = torch.cat((labels, pad_labels), 0)
+
+        scores, pos_mask, mask = self.compute_scores_and_masks(concated_embeddings, concated_labels)
+        return self.calculate_loss(scores, pos_mask, mask, decoupled)
