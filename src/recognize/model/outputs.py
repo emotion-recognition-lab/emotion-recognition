@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import torch
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class ModelOutput(BaseModel):
@@ -10,5 +10,5 @@ class ModelOutput(BaseModel):
 
 class ClassifierOutput(ModelOutput):
     logits: torch.Tensor
-    pooler_output: tuple[torch.Tensor | None, ...] = Field(default_factory=tuple)
+    features: torch.Tensor | None = None
     loss: torch.Tensor | None = None

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import Generic
+from typing import overload
 
 import torch
 from safetensors.torch import save_file
@@ -11,19 +11,19 @@ from torch.nn import CrossEntropyLoss
 
 from recognize.config import load_inference_config
 from recognize.module import MoE, SparseMoE
-from recognize.typing import BackboneT, FusionLayerLike
+from recognize.typing import FusionLayerLike
 
-from .backbone import MultimodalBackbone
-from .inputs import MultimodalInput
+from .backbone import Backbone, MultimodalBackbone
+from .inputs import ModelInput, MultimodalInput
 from .outputs import ClassifierOutput
 
 
-class ClassifierModel(nn.Module, Generic[BackboneT]):
+class ClassifierModel[T: ModelInput](nn.Module):
     __call__: Callable[..., ClassifierOutput]
 
     def __init__(
         self,
-        backbone: BackboneT,
+        backbone: Backbone[T],
         feature_size: int,
         num_classes: int,
         *,
@@ -52,33 +52,29 @@ class ClassifierModel(nn.Module, Generic[BackboneT]):
                 act_expert_num=act_expert_num,
             )
 
-    def compute_loss(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-        if self.num_classes == 1:
-            loss_fn = nn.MSELoss()
-            return loss_fn(logits.view(-1), labels.float())
-        else:
-            loss_fn = CrossEntropyLoss(weight=self.sample_weights)
-            return loss_fn(logits, labels)
+    def compute_loss(self, features: torch.Tensor, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        loss_fn = CrossEntropyLoss(weight=self.sample_weights)
+        return loss_fn(logits, labels)
 
     @torch.compile(dynamic=True)
     def classify(self, features: torch.Tensor, labels: torch.Tensor | None = None) -> ClassifierOutput:
         logits = self.classifier(features)
         loss = None
         if labels is not None:
-            loss = self.compute_loss(logits, labels)
-        return ClassifierOutput(logits=logits, loss=loss)
+            loss = self.compute_loss(features, logits, labels)
+        return ClassifierOutput(logits=logits, features=features, loss=loss)
 
     def save_checkpoint(self, checkpoint_path: Path):
         model_state_dict = {key: value for key, value in self.state_dict().items() if not key.startswith("backbone.")}
         save_file(model_state_dict, checkpoint_path / "model.safetensors")
 
 
-class MultimodalModel(ClassifierModel[MultimodalBackbone]):
+class MultimodalModel(ClassifierModel[MultimodalInput]):
     __call__: Callable[[MultimodalInput], ClassifierOutput]
 
     def __init__(
         self,
-        backbone: MultimodalBackbone,
+        backbone: Backbone[MultimodalInput],
         fusion_layer: FusionLayerLike,
         *,
         num_classes: int = 2,
@@ -124,12 +120,12 @@ class MultimodalModel(ClassifierModel[MultimodalBackbone]):
         return model
 
 
-class UnimodalModel(ClassifierModel[MultimodalBackbone]):
+class UnimodalModel(ClassifierModel[MultimodalInput]):
     __call__: Callable[[MultimodalInput], ClassifierOutput]
 
     def __init__(
         self,
-        backbone: MultimodalBackbone,
+        backbone: Backbone[MultimodalInput],
         *,
         feature_size: int = 128,
         num_classes: int = 2,
@@ -177,3 +173,31 @@ class UnimodalModel(ClassifierModel[MultimodalBackbone]):
         )
         load_model(checkpoint_path, model)
         return model
+
+
+@overload
+def add_extra_loss_fn[T: ModelInput](
+    cls: type[ClassifierModel[T]], *, loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
+) -> type[ClassifierModel[T]]: ...
+@overload
+def add_extra_loss_fn[T: ModelInput](
+    cls: None = None, *, loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
+) -> Callable[[type[ClassifierModel[T]]], type[ClassifierModel[T]]]: ...
+
+
+def add_extra_loss_fn[T: ModelInput](
+    cls: type[ClassifierModel[T]] | None = None,
+    *,
+    loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
+) -> type[ClassifierModel[T]] | Callable[[type[ClassifierModel[T]]], type[ClassifierModel[T]]]:
+    def decorator(cls: type[ClassifierModel[T]]) -> type[ClassifierModel[T]]:
+        class ClassifierModelWithExtraLoss(cls):
+            def compute_loss(self, features: torch.Tensor, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+                return super().compute_loss(features, logits, labels) + loss_fn(features, labels)
+
+        return ClassifierModelWithExtraLoss
+
+    if cls is None:
+        return decorator
+    else:
+        return decorator(cls)
