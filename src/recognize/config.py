@@ -81,6 +81,17 @@ class DatasetConfig(BaseModel):
         return "--".join(model_labels)
 
 
+class ContrastiveConfig(BaseModel):
+    temperature: float = 0.08
+    pool_size: int = 512
+    support_set_size: int = 64
+
+
+class LossConfig(BaseModel):
+    # reweight_loss: bool = True
+    contrastive: ContrastiveConfig | None = None
+
+
 class TrainingConfig(BaseModel):
     log_level: LogLevel = "INFO"  # TODO: remove after typer supports Literal
     batch_size: int = 2
@@ -89,6 +100,7 @@ class TrainingConfig(BaseModel):
 
     model: ModelConfig
     dataset: DatasetConfig
+    loss: LossConfig | None = None
 
     @cached_property
     def label(self) -> str:

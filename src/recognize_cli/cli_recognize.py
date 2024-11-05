@@ -20,7 +20,8 @@ from recognize.model import (
     MultimodalModel,
     UnimodalModel,
 )
-from recognize.module import gen_fusion_layer, get_feature_sizes_dict
+from recognize.model.base import add_extra_loss_fn
+from recognize.module import SupervisedProtoContrastiveLoss, gen_fusion_layer, get_feature_sizes_dict
 from recognize.preprocessor import Preprocessor
 from recognize.typing import DatasetClass, DatasetLabelType, ModalType
 from recognize.utils import (
@@ -283,8 +284,8 @@ def distill(
     ).cuda()
 
     if config_training_mode == "trainable":
-        model.backbone.use_cache = False
-        model.backbone.unfreeze()
+        backbone.use_cache = False
+        backbone.unfreeze()
 
     if (checkpoint_dir / "stopper.yaml").exists():
         load_best_model(checkpoint_dir, model)
@@ -323,6 +324,7 @@ def train(
     config_batch_size = config.batch_size
     config_model_encoder = config.model.encoder
     config_dataset = config.dataset
+    config_loss = config.loss
 
     init_logger(config.log_level, Path(f"./logs/{config.label}"))
     seed = seed_everything(seed)
@@ -390,7 +392,20 @@ def train(
     if config.model.fusion is None:
         assert len(config_model_encoder) == 1, "Multiple modals must give a fusion layer"
         feature_size = next(iter(config_model_encoder.values())).feature_size
-        model = UnimodalModel(
+        if config_loss is not None and (config_loss_contrastive := config_loss.contrastive) is not None:
+            model_cls = add_extra_loss_fn(
+                UnimodalModel,
+                loss_fn=SupervisedProtoContrastiveLoss(
+                    num_classes=train_dataset.num_classes,
+                    hidden_dim=feature_size,
+                    pool_size=config_loss_contrastive.pool_size,
+                    support_set_size=config_loss_contrastive.support_set_size,
+                    temp=config_loss_contrastive.temperature,
+                ),
+            )
+        else:
+            model_cls = UnimodalModel
+        model = model_cls(
             backbone,
             feature_size=feature_size,
             num_classes=train_dataset.num_classes,
@@ -406,8 +421,8 @@ def train(
             class_weights=class_weights,
         ).cuda()
     if config_training_mode == "trainable":
-        model.backbone.use_cache = False
-        model.backbone.unfreeze()
+        backbone.use_cache = False
+        backbone.unfreeze()
 
     if (checkpoint_dir / "stopper.yaml").exists():
         # TODO: stopper should be loaded in the training process
