@@ -150,28 +150,19 @@ class LazyMultimodalInput(MultimodalInput):
     # TODO: add model_validator
 
     def __getattribute__(self, __name: str):
-        if __name in ["text_input_ids", "text_attention_mask"] and self.texts is None and self.audio_paths is not None:
-            logger.debug("Texts is not provided, but audio_paths is provided, so use audio_paths")
-            self.texts = [self.preprocessor.recoginize_audio(audio_path) for audio_path in self.audio_paths]
-        if (
-            __name in ["text_input_ids", "text_attention_mask"]
-            and super().__getattribute__("text_input_ids") is None
-            and self.texts is not None
-        ):
-            self.text_input_ids, self.text_attention_mask = self.preprocessor.load_texts(self.texts)
-        elif (
-            __name in ["audio_input_values", "audio_attention_mask"]
-            and super().__getattribute__("audio_input_values") is None
-            and self.audio_paths is not None
-        ):
-            self.audio_input_values, self.audio_attention_mask = self.preprocessor.load_audios(self.audio_paths)
-        elif (
-            __name == "video_pixel_values"
-            and super().__getattribute__("video_pixel_values") is None
-            and self.video_paths is not None
-        ):
-            self.video_pixel_values = self.preprocessor.load_videos(self.video_paths)
-
+        match __name:
+            case "text_input_ids" | "text_attention_mask":
+                if self.texts is None and self.audio_paths is not None:
+                    logger.debug("Texts is not provided, but audio_paths is provided, so use audio_paths")
+                    self.texts = [self.preprocessor.recoginize_audio(audio_path) for audio_path in self.audio_paths]
+                if super().__getattribute__("text_input_ids") is None and self.texts is not None:
+                    self.text_input_ids, self.text_attention_mask = self.preprocessor.load_texts(self.texts)
+            case "audio_input_values" | "audio_attention_mask":
+                if super().__getattribute__("audio_input_values") is None and self.audio_paths is not None:
+                    self.audio_input_values, self.audio_attention_mask = self.preprocessor.load_audios(self.audio_paths)
+            case "video_pixel_values":
+                if super().__getattribute__("video_pixel_values") is None and self.video_paths is not None:
+                    self.video_pixel_values = self.preprocessor.load_videos(self.video_paths)
         return super().__getattribute__(__name)
 
     def get_unique_keys(self) -> dict[str, list[str]]:
