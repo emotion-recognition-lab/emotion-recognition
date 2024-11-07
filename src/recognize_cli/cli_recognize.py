@@ -12,7 +12,12 @@ from loguru import logger
 from safetensors.torch import load_file
 from utils import init_logger
 
-from recognize.config import InferenceConfig, ModelEncoderConfig, load_training_config, save_config
+from recognize.config import (
+    InferenceConfig,
+    ModelEncoderConfig,
+    load_training_config,
+    save_config,
+)
 from recognize.dataset import IEMOCAPDataset, MELDDataset, MultimodalDataset, PilotDataset, SIMSDataset
 from recognize.evaluate import TrainingResult
 from recognize.model import (
@@ -509,34 +514,18 @@ def evaluate(checkpoint: Path) -> None:
 def inference(
     checkpoint: Path,
     text: str | None = None,
-    audio_path: Path | None = None,
-    video_path: Path | None = None,
+    audio: Path | None = None,
+    video: Path | None = None,
 ):
-    config = load_training_config(checkpoint / "training.toml")
-    config_model_encoder = config.model.encoder
-    config_fusion = config.model.fusion
-    init_logger(config.log_level, Path(f"./logs/{config.label}"))
+    from recognize.estimator import EmotionEstimator
 
-    preprocessor = Preprocessor.from_pretrained(f"{checkpoint}/preprocessor")
+    init_logger("INFO")
+
     model_checkpoint = checkpoint / str(find_best_model(checkpoint))
+    estimator = EmotionEstimator(model_checkpoint)
 
-    backbone = MultimodalBackbone.from_checkpoint(Path(f"{model_checkpoint}/backbone"))
-    if config_fusion is None:
-        model = UnimodalModel.from_checkpoint(model_checkpoint, backbone=backbone).cuda()
-    else:
-        feature_sizes_dict = get_feature_sizes_dict(config_model_encoder)
-        fusion_layer = gen_fusion_layer(config_fusion, feature_sizes_dict)
-        model = MultimodalModel.from_checkpoint(model_checkpoint, backbone=backbone, fusion_layer=fusion_layer).cuda()
-    model.eval()
-    inputs = LazyMultimodalInput(
-        preprocessor=preprocessor,
-        texts=[text] if text is not None else None,
-        audio_paths=[audio_path.as_posix()] if audio_path is not None else None,
-        video_paths=[video_path.as_posix()] if video_path is not None else None,
-    ).cuda()
-    outputs = model(inputs)
-    print("Predicted logits:", outputs.logits)
-    print("Predicted labels:", torch.argmax(outputs.logits, dim=-1).item())
+    print("Predicted logits:", estimator.compute_logits(text=text, audio_path=audio, video_path=video).tolist())
+    print("Predicted cls:", estimator.classify(text=text, audio_path=audio, video_path=video))
 
 
 if __name__ == "__main__":
