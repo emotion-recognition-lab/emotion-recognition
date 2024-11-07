@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
+import torch
 import typer
 from loguru import logger
 from safetensors.torch import load_file
@@ -22,6 +23,7 @@ from recognize.model import (
 )
 from recognize.model.base import add_extra_loss_fn
 from recognize.module import SupervisedProtoContrastiveLoss, gen_fusion_layer, get_feature_sizes_dict
+from recognize.module.loss import SelfContrastiveLoss
 from recognize.preprocessor import Preprocessor
 from recognize.typing import DatasetClass, DatasetLabelType, ModalType
 from recognize.utils import (
@@ -33,14 +35,10 @@ from recognize.utils import (
 
 
 def init_torch():
-    import torch
-
     torch.set_float32_matmul_precision("high")
 
 
 def seed_everything(seed: int | None = None):
-    import torch
-
     if seed is None:
         seed = random.randint(0, 2**32 - 1)
 
@@ -178,7 +176,7 @@ def distill(
     Generally, you can use the one corresponding to the student model,
     as the student model typically has more modalities.
     """
-    import torch
+
     from torch.utils.data import DataLoader
 
     config = load_training_config(*config_path, batch_size=batch_size, seed=seed)
@@ -316,7 +314,6 @@ def train(
     batch_size: int | None = None,
     seed: int | None = None,
 ) -> None:
-    import torch
     from torch.utils.data import DataLoader
 
     config = load_training_config(*config_path, batch_size=batch_size, seed=seed)
@@ -388,11 +385,12 @@ def train(
     save_config(inference_config, checkpoint_dir / "inference.toml")
 
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
+    feature_sizes_dict = get_feature_sizes_dict(config_model_encoder)
 
     if config.model.fusion is None:
         assert len(config_model_encoder) == 1, "Multiple modals must give a fusion layer"
-        feature_size = next(iter(config_model_encoder.values())).feature_size
-        if config_loss is not None and (config_loss_contrastive := config_loss.contrastive) is not None:
+        feature_size = next(iter(feature_sizes_dict.values()))
+        if config_loss is not None and (config_loss_contrastive := config_loss.proto_contrastive) is not None:
             model_cls = add_extra_loss_fn(
                 UnimodalModel,
                 loss_fn=SupervisedProtoContrastiveLoss(
@@ -412,8 +410,15 @@ def train(
             class_weights=class_weights,
         ).cuda()
     else:
-        feature_sizes_dict = get_feature_sizes_dict(config_model_encoder)
         fusion_layer = gen_fusion_layer(config.model.fusion, feature_sizes_dict)
+        if config_loss is not None and (config_loss_contrastive := config_loss.proto_contrastive) is not None:
+            model_cls = add_extra_loss_fn(
+                MultimodalModel,
+                loss_fn=SelfContrastiveLoss(feature_sizes_dict, hidden_dim=512),
+            )
+        else:
+            model_cls = MultimodalModel
+
         model = MultimodalModel(
             backbone,
             fusion_layer,
@@ -507,8 +512,6 @@ def inference(
     audio_path: Path | None = None,
     video_path: Path | None = None,
 ):
-    import torch
-
     config = load_training_config(checkpoint / "training.toml")
     config_model_encoder = config.model.encoder
     config_fusion = config.model.fusion

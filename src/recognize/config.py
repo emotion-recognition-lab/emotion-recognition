@@ -81,15 +81,20 @@ class DatasetConfig(BaseModel):
         return "--".join(model_labels)
 
 
-class ContrastiveConfig(BaseModel):
+class ProtoContrastiveConfig(BaseModel):
     temperature: float = 0.08
     pool_size: int = 512
     support_set_size: int = 64
 
 
+class SelfContrastiveConfig(BaseModel):
+    hidden_dim: int = 512
+
+
 class LossConfig(BaseModel):
     # reweight_loss: bool = True
-    contrastive: ContrastiveConfig | None = None
+    proto_contrastive: ProtoContrastiveConfig | None = None
+    self_contrastive: SelfContrastiveConfig | None = None
 
 
 class TrainingConfig(BaseModel):

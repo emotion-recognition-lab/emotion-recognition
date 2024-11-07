@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import abstractmethod
 from collections.abc import Callable
 from pathlib import Path
 from typing import overload
@@ -19,7 +20,10 @@ from .outputs import ClassifierOutput
 
 
 class ClassifierModel[T: ModelInput](nn.Module):
-    __call__: Callable[..., ClassifierOutput]
+    __call__: Callable[[T], ClassifierOutput]
+
+    @abstractmethod
+    def forward(self, inputs: T) -> ClassifierOutput: ...
 
     def __init__(
         self,
@@ -52,16 +56,15 @@ class ClassifierModel[T: ModelInput](nn.Module):
                 act_expert_num=act_expert_num,
             )
 
-    def compute_loss(self, features: torch.Tensor, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    def compute_loss(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         loss_fn = CrossEntropyLoss(weight=self.sample_weights)
         return loss_fn(logits, labels)
 
-    @torch.compile(dynamic=True)
     def classify(self, features: torch.Tensor, labels: torch.Tensor | None = None) -> ClassifierOutput:
         logits = self.classifier(features)
         loss = None
         if labels is not None:
-            loss = self.compute_loss(features, logits, labels)
+            loss = self.compute_loss(logits, labels)
         return ClassifierOutput(logits=logits, features=features, loss=loss)
 
     def save_checkpoint(self, checkpoint_path: Path):
@@ -93,7 +96,9 @@ class MultimodalModel(ClassifierModel[MultimodalInput]):
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
         embs_dict = self.backbone(inputs)
         fusion_features = self.fusion_layer(embs_dict)
-        return self.classify(fusion_features, inputs.labels)
+        output = self.classify(fusion_features, inputs.labels)
+        output.embs_dict = embs_dict
+        return output
 
     @classmethod
     def from_checkpoint(
@@ -147,6 +152,7 @@ class UnimodalModel(ClassifierModel[MultimodalInput]):
             assert inputs.labels is not None, "labels is required"
             return ClassifierOutput(
                 logits=torch.zeros((inputs.labels.shape[0], self.num_classes), device=inputs.device),
+                features=torch.zeros((inputs.labels.shape[0], self.feature_size), device=inputs.device),
             )
         pooled_emb = next(iter(pooled_embs.values()))
         return self.classify(pooled_emb, inputs.labels)
@@ -177,23 +183,26 @@ class UnimodalModel(ClassifierModel[MultimodalInput]):
 
 @overload
 def add_extra_loss_fn[T: ModelInput](
-    cls: type[ClassifierModel[T]], *, loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
+    cls: type[ClassifierModel[T]], *, loss_fn: Callable[[ClassifierOutput, torch.Tensor], torch.Tensor]
 ) -> type[ClassifierModel[T]]: ...
 @overload
 def add_extra_loss_fn[T: ModelInput](
-    cls: None = None, *, loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
+    cls: None = None, *, loss_fn: Callable[[ClassifierOutput, torch.Tensor], torch.Tensor]
 ) -> Callable[[type[ClassifierModel[T]]], type[ClassifierModel[T]]]: ...
 
 
 def add_extra_loss_fn[T: ModelInput](
     cls: type[ClassifierModel[T]] | None = None,
     *,
-    loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
+    loss_fn: Callable[[ClassifierOutput, torch.Tensor], torch.Tensor],
 ) -> type[ClassifierModel[T]] | Callable[[type[ClassifierModel[T]]], type[ClassifierModel[T]]]:
     def decorator(cls: type[ClassifierModel[T]]) -> type[ClassifierModel[T]]:
         class ClassifierModelWithExtraLoss(cls):
-            def compute_loss(self, features: torch.Tensor, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-                return super().compute_loss(features, logits, labels) + loss_fn(features, labels)
+            def forward(self, inputs) -> ClassifierOutput:
+                output = cls.forward(self, inputs)
+                if output.loss is not None and inputs.labels is not None:
+                    output.loss += loss_fn(output, inputs.labels)
+                return output
 
         return ClassifierModelWithExtraLoss
 

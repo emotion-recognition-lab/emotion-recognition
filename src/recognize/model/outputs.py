@@ -10,5 +10,6 @@ class ModelOutput(BaseModel):
 
 class ClassifierOutput(ModelOutput):
     logits: torch.Tensor
-    features: torch.Tensor | None = None
+    features: torch.Tensor
+    embs_dict: dict[str, torch.Tensor] | None = None
     loss: torch.Tensor | None = None
