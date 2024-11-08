@@ -20,7 +20,7 @@ def sample_frame_indices(length: int, target_length: int):
     return indices
 
 
-def read_videos(video_path: str, *, target_length: int = 32):
+def read_videos(video_path: str, *, target_length: int = 16):
     # if os.path.exists(f"{video_path}.cache.pkl"):
     #     with open(f"{video_path}.cache.pkl", "rb") as f:
     #         return pickle.load(f)

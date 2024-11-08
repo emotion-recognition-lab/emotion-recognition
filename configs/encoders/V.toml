@@ -1,4 +1,4 @@
-batch_size = 1
+batch_size = 2
 
 [model.encoder.V]
 feature_size = 768
