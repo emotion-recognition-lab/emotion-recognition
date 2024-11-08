@@ -199,7 +199,6 @@ class SelfContrastiveLoss(nn.Module):
             embs1 = embs_dict[name1]
             embs2 = embs_dict[name2]
             proj_embs1 = projector(embs1)
-            proj_embs2 = projector(embs2)
-            loss = F.mse_loss(proj_embs1, embs2) + F.mse_loss(proj_embs2, embs1)
+            loss = F.mse_loss(proj_embs1, embs2)
             total_loss += loss
         return total_loss

@@ -87,14 +87,6 @@ def provide_datasets(
     return train_dataset, dev_dataset, test_dataset
 
 
-def symlink(src: Path | str, dst: Path | str, target_is_directory: bool = False):
-    dst = Path(dst)
-    src = Path(src)
-    dst.unlink(missing_ok=True)
-    logger.info(f"Create symlink: {dst} -> {src}")
-    dst.symlink_to(src.absolute(), target_is_directory=target_is_directory)
-
-
 def generate_preprocessor_and_backbone(
     config_model_encoder: dict[ModalType, ModelEncoderConfig],
     datasets: list[MultimodalDataset],
@@ -109,6 +101,8 @@ def generate_preprocessor_and_backbone(
         VivitImageProcessor,
     )
 
+    assert len(datasets) > 0, "No dataset provided"
+
     for checkpoint in checkpoints:
         preprocessor_path = checkpoint / "preprocessor"
         if preprocessor_path.exists():
@@ -117,6 +111,8 @@ def generate_preprocessor_and_backbone(
             break
     else:
         preprocessor = Preprocessor()
+    for dataset in datasets:
+        dataset.set_preprocessor(preprocessor)
 
     for modal, config in config_model_encoder.items():
         encoder_name = config.model
@@ -134,8 +130,6 @@ def generate_preprocessor_and_backbone(
             preprocessor.image_processor = preprocessor.image_processor or AutoImageProcessor.from_pretrained(
                 encoder_name
             )
-    for dataset in datasets:
-        dataset.set_preprocessor(preprocessor)
     for checkpoint in checkpoints:
         backbone_path = checkpoint / "backbone"
         if backbone_path.exists():
@@ -159,7 +153,7 @@ def generate_preprocessor_and_backbone(
             backbone_encoders[modal] = (backbone_encoder, encoder_feature_size)
         backbone = MultimodalBackbone(
             backbone_encoders,
-            init_hook=datasets[0].special_process if len(datasets) > 0 else None,
+            init_hook=datasets[0].special_process,
         )
     return preprocessor, backbone
 
