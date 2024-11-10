@@ -95,7 +95,6 @@ def info(
     filter: str = "",
     max_show: int = 5,
 ):
-    # TODO: add more information
     from rich import print
 
     from recognize.config import load_training_config
@@ -114,8 +113,9 @@ def info(
         config = load_training_config(subpath / "training.toml")
         logger.info(f"find checkpoint: [blue]{subpath}[/]")
         logger.info(f"finished: [blue]{stopper.finished}[/]")
-        logger.info(f"encoder: [blue]{config.model.encoder}[/]")
-        logger.info(f"fusion: [blue]{config.model.fusion}[/]")
+        logger.info(f"model.encoder: [blue]{config.model.encoder}[/]")
+        logger.info(f"model.fusion: [blue]{config.model.fusion}[/]")
+        logger.info(f"loss: [blue]{config.loss}[/]")
         result: dict[int, dict] = {}
         score_names = OrderedSet[str]()
         best_epoch: dict[str, int] = {}

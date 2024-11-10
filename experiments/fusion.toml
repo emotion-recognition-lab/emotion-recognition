@@ -3,7 +3,7 @@ resources = "gpus"
 
 [matrix]
 dataset = ["configs/dataset/MELD--E.toml"]
-seed = ["0", "114"]
+seed = ["0", "42", "114"]
 
 [tasks.fusion]
 command = "uv run emotion-recognize train"

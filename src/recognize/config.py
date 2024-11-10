@@ -86,15 +86,32 @@ class ProtoContrastiveConfig(BaseModel):
     pool_size: int = 512
     support_set_size: int = 64
 
+    @cached_property
+    def label(self) -> str:
+        return f"pc{self.temperature}-{self.pool_size}-{self.support_set_size}"
+
 
 class SelfContrastiveConfig(BaseModel):
     hidden_dim: int = 512
+
+    @cached_property
+    def label(self) -> str:
+        return f"sc{self.hidden_dim}"
 
 
 class LossConfig(BaseModel):
     # reweight_loss: bool = True
     proto_contrastive: ProtoContrastiveConfig | None = None
     self_contrastive: SelfContrastiveConfig | None = None
+
+    @cached_property
+    def label(self) -> str:
+        labels = []
+        if self.proto_contrastive is not None:
+            labels.append(self.proto_contrastive.label)
+        if self.self_contrastive is not None:
+            labels.append(self.self_contrastive.label)
+        return "--".join(labels)
 
 
 class TrainingConfig(BaseModel):
@@ -109,7 +126,10 @@ class TrainingConfig(BaseModel):
 
     @cached_property
     def label(self) -> str:
-        return f"{self.training_mode}--{self.batch_size}/{self.dataset.label}/{self.model.label}"
+        if self.loss is None or self.loss.label == "":
+            return f"{self.dataset.label}/{self.training_mode}--{self.batch_size}/{self.model.label}"
+        else:
+            return f"{self.dataset.label}/{self.training_mode}--{self.batch_size}--{self.loss.label}/{self.model.label}"
 
 
 class InferenceConfig(BaseModel):

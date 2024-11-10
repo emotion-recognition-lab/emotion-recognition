@@ -3,7 +3,7 @@ resources = "gpus"
 
 [matrix]
 dataset = ["MELD--E"]
-seed = ["0", "114"]
+seed = ["0", "42", "114"]
 
 [tasks.MoE-unimodal]
 command = "uv run emotion-recognize train"

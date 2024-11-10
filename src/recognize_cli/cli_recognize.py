@@ -161,7 +161,7 @@ def generate_preprocessor_and_backbone(
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
-@app.command()
+@app.command(deprecated=True)
 def distill(
     config_path: list[Path],
     teacher_checkpoint: Path = typer.Option(..., help="The checkpoint of the teacher model"),
@@ -169,149 +169,19 @@ def distill(
     batch_size: int | None = None,
     seed: int | None = None,
 ) -> None:
-    """
-    When using knowledge distillation,
-    it is essential to ensure that the preprocessor for both the teacher model and the student model is the same.
-    Generally, you can use the one corresponding to the student model,
-    as the student model typically has more modalities.
-    """
-
-    from torch.utils.data import DataLoader
-
-    config = load_training_config(*config_path, batch_size=batch_size, seed=seed)
-    config_training_mode = config.training_mode
-    config_batch_size = config.batch_size
-    config_model_encoder = config.model.encoder
-    config_fusion = config.model.fusion
-    config_dataset = config.dataset
-
-    init_logger(config.log_level, Path(f"./logs/{config.label}"))
-    seed = seed_everything(seed)
-    init_torch()
-
-    model_label = config.model.label
-    model_hash = config.model.hash
-
-    assert config_training_mode != "lora", "Lora is not supported in distillation"
-    assert config_fusion is not None
-    assert (teacher_checkpoint / "preprocessor").exists()
-    assert (teacher_checkpoint / "backbone").exists()
-
-    if checkpoint is not None:
-        checkpoint_dir = checkpoint
-    else:
-        checkpoint_dir = Path(f"./checkpoints/distillation/{config.label}/{model_hash}--{seed}")
-    checkpoint_dir.mkdir(parents=True, exist_ok=True)
-
-    train_dataset, dev_dataset, test_dataset = provide_datasets(
-        config_dataset.path,
-        label_type=config_dataset.label_type,
-        dataset_class_str=config_dataset.dataset_class,
-    )
-    preprocessor, backbone = generate_preprocessor_and_backbone(
-        config_model_encoder,
-        datasets=[train_dataset, dev_dataset, test_dataset],
-        checkpoints=[checkpoint_dir],
-    )
-
-    teacher_backbone = MultimodalBackbone.from_checkpoint(teacher_checkpoint / "backbone")
-    teacher_preprocessor = Preprocessor.from_pretrained(teacher_checkpoint / "preprocessor")
-    # TODO: maybe those will be covered by load_best_model
-    backbone.named_encoders.load_state_dict(teacher_backbone.named_encoders.state_dict(), strict=False)
-    backbone.named_poolers.load_state_dict(teacher_backbone.named_poolers.state_dict(), strict=False)
-
-    preprocessor_dir = checkpoint_dir / "preprocessor"
-    if not preprocessor_dir.exists():
-        preprocessor.save_pretrained(preprocessor_dir)
-
-    train_data_loader = DataLoader(
-        train_dataset,
-        batch_size=config_batch_size,
-        shuffle=True,
-        collate_fn=LazyMultimodalInput.collate_fn,
-        pin_memory=True,
-        num_workers=0,
-    )
-    dev_data_loader = DataLoader(
-        dev_dataset,
-        batch_size=config_batch_size,
-        shuffle=True,
-        collate_fn=LazyMultimodalInput.collate_fn,
-        pin_memory=True,
-        num_workers=0,
-    )
-    test_data_loader = DataLoader(
-        test_dataset,
-        batch_size=config_batch_size,
-        shuffle=True,
-        collate_fn=LazyMultimodalInput.collate_fn,
-        pin_memory=True,
-        num_workers=0,
-    )
-
-    inference_config = InferenceConfig(num_classes=train_dataset.num_classes, model=config.model)
-    save_config(config, checkpoint_dir / "training.toml")
-    save_config(inference_config, checkpoint_dir / "inference.toml")
-
-    feature_size = next(iter(config_model_encoder.values())).feature_size
-    teacher_model = UnimodalModel(
-        teacher_backbone,
-        feature_size=feature_size,
-        num_classes=train_dataset.num_classes,
-    ).cuda()
-
-    if (teacher_checkpoint / "stopper.yaml").exists():
-        load_best_model(teacher_checkpoint, teacher_model)
-    else:
-        load_model(teacher_checkpoint, teacher_model)
-    test_dataset.set_preprocessor(teacher_preprocessor)
-    result = TrainingResult.auto_compute(teacher_model, test_data_loader)
-    logger.info("Test result in [green]best teacher model[/]:")
-    result.print()
-    test_dataset.set_preprocessor(preprocessor)
-
-    class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
-    feature_sizes_dict = get_feature_sizes_dict(config_model_encoder)
-    fusion_layer = gen_fusion_layer(config_fusion, feature_sizes_dict)
-    model = MultimodalModel(
-        backbone,
-        fusion_layer,
-        num_classes=train_dataset.num_classes,
-        class_weights=class_weights,
-    ).cuda()
-
-    if config_training_mode == "trainable":
-        backbone.use_cache = False
-        backbone.unfreeze()
-
-    if (checkpoint_dir / "stopper.yaml").exists():
-        load_best_model(checkpoint_dir, model)
-        result = TrainingResult.auto_compute(model, test_data_loader)
-        result.print()
-
-    result: TrainingResult = train_and_eval(
-        model,
-        train_data_loader,
-        dev_data_loader,
-        test_data_loader,
-        teacher_model=teacher_model,
-        checkpoint_dir=checkpoint_dir,
-        num_epochs=200,
-        model_label=model_label,
-        use_valid=False,
-    )
-
-    logger.info(f"Test result in best model({model_label}):")
-    result.print()
+    logger.warning("Distill command is deprecated, please use train instead")
 
 
 @app.command()
 def train(
     config_path: list[Path],
-    checkpoint: Path | None = None,
-    from_checkpoint: Path | None = None,
     batch_size: int | None = None,
     seed: int | None = None,
+    checkpoint: Path | None = None,
+    from_checkpoint: Path | None = None,
+    teacher_checkpoint: Path | None = typer.Option(
+        None, help="The checkpoint of the teacher model to be used in distillation"
+    ),
 ) -> None:
     from torch.utils.data import DataLoader
 
@@ -319,6 +189,7 @@ def train(
     config_training_mode = config.training_mode
     config_batch_size = config.batch_size
     config_model_encoder = config.model.encoder
+    config_model_fusion = config.model.fusion
     config_dataset = config.dataset
     config_loss = config.loss
 
@@ -330,9 +201,15 @@ def train(
     model_hash = config.model.hash
 
     assert config_training_mode != "lora", "Lora is not supported in training"
+    if teacher_checkpoint is not None:
+        assert config_model_fusion is not None
+        assert (teacher_checkpoint / "preprocessor").exists()
+        assert (teacher_checkpoint / "backbone").exists()
 
     if checkpoint is not None:
         checkpoint_dir = checkpoint
+    elif teacher_checkpoint is not None:
+        checkpoint_dir = Path(f"./checkpoints/distillation/{config.label}/{model_hash}--{seed}")
     else:
         checkpoint_dir = Path(f"./checkpoints/training/{config.label}/{model_hash}--{seed}")
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -376,6 +253,35 @@ def train(
         datasets=[train_dataset, dev_dataset, test_dataset],
         checkpoints=candidate_checkpoints,
     )
+
+    if teacher_checkpoint is not None:
+        teacher_backbone = MultimodalBackbone.from_checkpoint(teacher_checkpoint / "backbone")
+        teacher_preprocessor = Preprocessor.from_pretrained(teacher_checkpoint / "preprocessor")
+        # TODO: maybe those will be covered by load_best_model
+        backbone.named_encoders.load_state_dict(teacher_backbone.named_encoders.state_dict(), strict=False)
+        backbone.named_poolers.load_state_dict(teacher_backbone.named_poolers.state_dict(), strict=False)
+
+        teacher_config = load_training_config(teacher_checkpoint / "training.toml")
+        feature_size = next(iter(teacher_config.model.encoder.values())).feature_size
+        teacher_model = UnimodalModel(
+            teacher_backbone,
+            feature_size=feature_size,
+            num_classes=train_dataset.num_classes,
+        ).cuda()
+        if (teacher_checkpoint / "stopper.yaml").exists():
+            load_best_model(teacher_checkpoint, teacher_model)
+        else:
+            load_model(teacher_checkpoint, teacher_model)
+
+        # evaluate teacher model
+        test_dataset.set_preprocessor(teacher_preprocessor)
+        result = TrainingResult.auto_compute(teacher_model, test_data_loader)
+        logger.info("Test result in [green]best teacher model[/]:")
+        result.print()
+        test_dataset.set_preprocessor(preprocessor)
+    else:
+        teacher_model = None
+
     if not (checkpoint_dir / "preprocessor").exists():
         preprocessor.save_pretrained(checkpoint_dir / "preprocessor")
 
@@ -386,7 +292,7 @@ def train(
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
     feature_sizes_dict = get_feature_sizes_dict(config_model_encoder)
 
-    if config.model.fusion is None:
+    if config_model_fusion is None:
         assert len(config_model_encoder) == 1, "Multiple modals must give a fusion layer"
         feature_size = next(iter(feature_sizes_dict.values()))
         if config_loss is not None and (config_loss_contrastive := config_loss.proto_contrastive) is not None:
@@ -409,7 +315,7 @@ def train(
             class_weights=class_weights,
         ).cuda()
     else:
-        fusion_layer = gen_fusion_layer(config.model.fusion, feature_sizes_dict)
+        fusion_layer = gen_fusion_layer(config_model_fusion, feature_sizes_dict)
         if config_loss is not None and (config_loss_contrastive := config_loss.proto_contrastive) is not None:
             model_cls = add_extra_loss_fn(
                 MultimodalModel,
@@ -439,6 +345,7 @@ def train(
         train_data_loader,
         dev_data_loader,
         test_data_loader,
+        teacher_model=teacher_model,
         checkpoint_dir=checkpoint_dir,
         num_epochs=200,
         model_label=model_label,
