@@ -118,6 +118,7 @@ class TrainingConfig(BaseModel):
     log_level: LogLevel = "INFO"  # TODO: remove after typer supports Literal
     batch_size: int = 2
     training_mode: Literal["trainable", "lora", "frozen"] = "trainable"
+    dropout_prob: float | None = None
     seed: int | None = None
 
     model: ModelConfig
@@ -126,10 +127,12 @@ class TrainingConfig(BaseModel):
 
     @cached_property
     def label(self) -> str:
-        if self.loss is None or self.loss.label == "":
-            return f"{self.dataset.label}/{self.training_mode}--{self.batch_size}/{self.model.label}"
-        else:
-            return f"{self.dataset.label}/{self.training_mode}--{self.batch_size}--{self.loss.label}/{self.model.label}"
+        training_label = f"{self.training_mode}--{self.batch_size}"
+        if self.loss is not None and self.loss.label != "":
+            training_label += f"--{self.loss.label}"
+        if self.dropout_prob is not None:
+            training_label += f"--d{self.dropout_prob}"
+        return f"{self.dataset.label}/{training_label}/{self.model.label}"
 
 
 class InferenceConfig(BaseModel):

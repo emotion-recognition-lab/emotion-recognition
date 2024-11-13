@@ -140,7 +140,15 @@ def distill_batch(
     student_model: ClassifierModel,
     teacher_model: ClassifierModel,
     batch: ModelInput,
+    *,
+    dropout_prob: float | None = None,
 ):
+    # NOTE: randomly remove every modality independently
+    if isinstance(batch, LazyMultimodalInput) and dropout_prob is not None:
+        if random.random() < dropout_prob:
+            batch.audio_paths = None
+        if random.random() < dropout_prob:
+            batch.video_paths = None
     with amp.autocast("cuda"):
         with torch.no_grad():
             teacher_embs = teacher_model.backbone(batch)["T"]
@@ -166,12 +174,14 @@ def distill_batch(
 def train_batch(
     model: ClassifierModel,
     batch: ModelInput,
+    *,
+    dropout_prob: float | None = None,
 ):
-    # NOTE: randomly remove one modality
-    if isinstance(batch, LazyMultimodalInput):
-        if random.random() < 0.2:
+    # NOTE: randomly remove every modality independently
+    if isinstance(batch, LazyMultimodalInput) and dropout_prob is not None:
+        if random.random() < dropout_prob:
             batch.audio_paths = None
-        if random.random() < 0.2:
+        if random.random() < dropout_prob:
             batch.video_paths = None
     with amp.autocast("cuda"):
         output = model(batch)
@@ -185,6 +195,7 @@ def train_epoch(
     train_data_loader: DataLoader,
     *,
     teacher_model: ClassifierModel | None = None,
+    dropout_prob: float | None = None,
     update_hook: Callable[[int, float], None] | None = None,
 ):
     model.train()
@@ -193,9 +204,9 @@ def train_epoch(
     trainer.clear_losses()
     for batch_index, batch in enumerate(train_data_loader):
         if teacher_model is not None:
-            loss = distill_batch(model, teacher_model, batch)
+            loss = distill_batch(model, teacher_model, batch, dropout_prob=dropout_prob)
         else:
-            loss = train_batch(model, batch)
+            loss = train_batch(model, batch, dropout_prob=dropout_prob)
         if loss is None:
             continue
         trainer.training_step(loss)
@@ -221,6 +232,7 @@ def train_and_eval(
     model_label: str | None = None,
     use_valid: bool = True,
     eval_interval: int = 1,
+    dropout_prob: float | None = None,
 ):
     trainer = get_trainer(
         model,
@@ -278,6 +290,7 @@ def train_and_eval(
                 update_hook=lambda batch_index, loss_value: progress.update(
                     task, loss=loss_value, batch_index=batch_index + 1
                 ),
+                dropout_prob=dropout_prob,
             )
 
             if (epoch + 1) % eval_interval == 0 or epoch == num_epochs - 1:

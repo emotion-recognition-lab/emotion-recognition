@@ -350,6 +350,7 @@ def train(
         num_epochs=200,
         model_label=model_label,
         use_valid=False,
+        dropout_prob=config.dropout_prob,
     )
     logger.info(f"Test result in best model({model_label}):")
     result.print()

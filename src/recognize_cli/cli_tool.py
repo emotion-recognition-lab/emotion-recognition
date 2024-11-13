@@ -111,8 +111,8 @@ def info(
             continue
         stopper = EarlyStopper.from_file(stopper_path)
         config = load_training_config(subpath / "training.toml")
-        logger.info(f"find checkpoint: [blue]{subpath}[/]")
-        logger.info(f"finished: [blue]{stopper.finished}[/]")
+        logger.info(f"checkpoint: [blue]{subpath}[/]")
+        logger.info(f"last epoch: [blue]{stopper.history[-1][0]}[/], finished: [blue]{stopper.finished}[/]")
         logger.info(f"model.encoder: [blue]{config.model.encoder}[/]")
         logger.info(f"model.fusion: [blue]{config.model.fusion}[/]")
         logger.info(f"loss: [blue]{config.loss}[/]")
