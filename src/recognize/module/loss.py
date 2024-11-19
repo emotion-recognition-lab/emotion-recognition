@@ -3,12 +3,14 @@ from __future__ import annotations
 import itertools
 import random
 from collections.abc import Callable, Mapping, Sequence
+from typing import TYPE_CHECKING
 
 import torch
 import torch.nn.functional as F
 from torch import nn
 
-from recognize.model.outputs import ClassifierOutput
+if TYPE_CHECKING:
+    from recognize.model import ClassifierOutput
 
 
 def pearson_correlation(a: torch.Tensor, b: torch.Tensor, eps=1e-8) -> torch.Tensor:
@@ -57,13 +59,11 @@ class FeatureLoss(nn.Module):
         super().__init__()
         self.temp = temp
 
-    def forward(self, student_embeddings: torch.Tensor, teacher_embeddings: torch.Tensor) -> torch.Tensor:
-        teacher_embeddings = F.normalize(teacher_embeddings, p=2, dim=1)
-        student_embeddings = F.normalize(student_embeddings, p=2, dim=1)
-        log_q = torch.log_softmax(
-            torch.matmul(teacher_embeddings, student_embeddings.transpose(0, 1)) / self.temp, dim=1
-        )
-        p = torch.softmax(torch.matmul(teacher_embeddings, teacher_embeddings.transpose(0, 1)) / self.temp, dim=1)
+    def forward(self, features: torch.Tensor, target_features: torch.Tensor) -> torch.Tensor:
+        target_features = F.normalize(target_features, p=2, dim=1)
+        features = F.normalize(features, p=2, dim=1)
+        log_q = torch.log_softmax(torch.matmul(target_features, features.transpose(0, 1)) / self.temp, dim=1)
+        p = torch.softmax(torch.matmul(target_features, target_features.transpose(0, 1)) / self.temp, dim=1)
         return F.kl_div(log_q, p, reduction="batchmean")
 
 
@@ -82,7 +82,27 @@ class InfoNCELoss(nn.Module):
         return -torch.sum(torch.stack(similarity_matrix))
 
 
-class SupervisedProtoContrastiveLoss(nn.Module):
+class PrototypeContrastiveLoss(nn.Module):
+    def __init__(
+        self,
+        num_classes: int,
+        hidden_dim: int,
+        *,
+        temp: float = 0.08,
+        eps: float = 1e-8,
+    ):
+        super().__init__()
+        self.num_classes = num_classes
+        self.hidden_dim = hidden_dim
+
+        self.temp = temp
+        self.eps = eps
+
+    def score_fn(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        return (1 + F.cosine_similarity(x, y, dim=-1)) / 2 + self.eps
+
+
+class SupervisedProtoContrastiveLoss(PrototypeContrastiveLoss):
     def __init__(
         self,
         num_classes: int,
@@ -93,18 +113,12 @@ class SupervisedProtoContrastiveLoss(nn.Module):
         support_set_size: int = 64,
         eps: float = 1e-8,
     ):
-        super().__init__()
-        self.num_classes = num_classes
+        super().__init__(num_classes, hidden_dim, temp=temp, eps=eps)
 
-        self.temp = temp
         self.pool_size = pool_size
         self.support_set_size = support_set_size
-        self.eps = eps
         self.default_centers = generate_orthogonal_vectors(num_classes, hidden_dim)
         self.pools = {idx: [] for idx in range(num_classes)}
-
-    def score_fn(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        return (1 + F.cosine_similarity(x, y, dim=-1)) / 2 + self.eps
 
     def calculate_centers(self) -> torch.Tensor:
         curr_centers = self.default_centers[:]
@@ -175,11 +189,89 @@ class SupervisedProtoContrastiveLoss(nn.Module):
         return self.calculate_loss(scores, pos_mask, neg_mask, decoupled)
 
 
+class AdaptivePrototypeContrastiveLoss(PrototypeContrastiveLoss):
+    def __init__(
+        self,
+        num_classes: int,
+        hidden_dim: int,
+        *,
+        temp: float = 0.08,
+        eps: float = 1e-8,
+        beta: float = 0.9,
+        gamma: float = 0.01,
+    ):
+        """
+        dt = delta
+        x = x + v * dt
+        v * dt = v * dt + a * dt**2
+        a * dt**2 = beta * dx * dt**2 - gamma * v ** 2 * dt**2
+        a * dt**2 = beta * dx * dt**2 - gamma * (v * dt) ** 2
+        gamma * vdt ** 2 << vdt => vdt << 1/gamma
+        vdt += dx * beta - gamma * vdt ** 2
+        x = x + vdt
+        torch.clip(vdt, min=-1/gamma, max=1/gamma)
+        """
+        super().__init__(num_classes, hidden_dim, temp=temp, eps=eps)
+
+        self.beta = beta
+        self.gamma = gamma
+        self.centers = generate_orthogonal_vectors(num_classes, hidden_dim)
+        self.momentums = torch.zeros_like(self.centers)
+
+    def update_centers(self, embeddings: torch.Tensor, labels: torch.Tensor):
+        with torch.no_grad():
+            for idx, label in enumerate(labels):
+                label = label.item()
+                assert isinstance(label, int), "label must be an integer"
+                acceleration = embeddings[idx] - self.momentums[label]
+                self.momentums[label] = self.beta * self.momentums[label] + self.gamma * acceleration
+            for center, momentum in zip(self.centers, self.momentums, strict=True):
+                center += momentum
+
+    def compute_scores_and_masks(
+        self, concated_embeddings: torch.Tensor, concated_labels: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        batch_size = concated_embeddings.size(0)
+        mask1 = concated_labels.unsqueeze(0).expand(batch_size, batch_size)
+        mask2 = concated_labels.unsqueeze(1).expand(batch_size, batch_size)
+        mask = 1 - torch.eye(batch_size, device=concated_embeddings.device)
+        pos_mask = (mask1 == mask2).long()
+        rep1 = concated_embeddings.unsqueeze(0).expand(batch_size, batch_size, -1)
+        rep2 = concated_embeddings.unsqueeze(1).expand(batch_size, batch_size, -1)
+        scores = self.score_fn(rep1, rep2)
+        scores *= mask
+        scores /= self.temp
+        scores -= torch.max(scores).item()
+        return scores, pos_mask * mask, 1 - pos_mask
+
+    def calculate_loss(self, scores: torch.Tensor, pos_mask: torch.Tensor, neg_mask: torch.Tensor) -> torch.Tensor:
+        pos_scores = scores * pos_mask
+        pos_scores = pos_scores.sum(-1)
+        pos_scores /= pos_mask.sum(-1) + self.eps
+        neg_scores = torch.exp(scores) * neg_mask
+        loss = -pos_scores + torch.log(neg_scores.sum(-1) + self.eps)
+        masked_loss = loss[loss > 0]
+        return masked_loss.mean() if len(masked_loss) > 0 else torch.tensor(0.0, device=scores.device)
+
+    def forward(self, output: ClassifierOutput, labels: torch.Tensor) -> torch.Tensor:
+        features = output.features
+        self.update_centers(features, labels)
+
+        concated_features = torch.cat((features, self.centers), 0)
+        pad_labels = torch.arange(self.num_classes, device=features.device)
+        concated_labels = torch.cat((labels, pad_labels), 0)
+
+        scores, pos_mask, neg_mask = self.compute_scores_and_masks(concated_features, concated_labels)
+        return self.calculate_loss(scores, pos_mask, neg_mask)
+
+
 class SelfContrastiveLoss(nn.Module):
-    def __init__(self, dims: Mapping[str, int], *, hidden_dim: int = 128):
+    def __init__(self, dims: Mapping[str, int], main_modal: str, *, hidden_dim: int = 128):
         super().__init__()
         self.dims = dict(dims)
         self.hidden_dim = hidden_dim
+        self.main_modal = main_modal
+        self.feature_loss_fn = FeatureLoss()
         # sum_dim = sum(self.dims.values())
         self.named_projectors = nn.ModuleDict(
             {
@@ -191,14 +283,34 @@ class SelfContrastiveLoss(nn.Module):
     def forward(self, output: ClassifierOutput, labels: torch.Tensor) -> torch.Tensor:
         embs_dict = output.embs_dict
         assert embs_dict is not None
-        names = set(embs_dict.keys()) & set(self.dims.keys())
-
         total_loss = torch.tensor(0.0, device=output.logits.device)
-        for name1, name2 in itertools.product(names, repeat=2):
-            projector = self.named_projectors[f"{name1}->{name2}"]
-            embs1 = embs_dict[name1]
-            embs2 = embs_dict[name2]
-            proj_embs1 = projector(embs1)
-            loss = F.mse_loss(proj_embs1, embs2)
-            total_loss += loss
+        modals = set(embs_dict.keys()) & set(self.dims.keys())
+        for modal in modals - {self.main_modal}:
+            total_loss += self.feature_loss_fn(embs_dict[modal], embs_dict[self.main_modal])
+
+        # for name1, name2 in itertools.product(modals, repeat=2):
+        #     projector = self.named_projectors[f"{name1}->{name2}"]
+        #     embs1 = embs_dict[name1]
+        #     embs2 = embs_dict[name2]
+        #     proj_embs1 = projector(embs1)
+        #     loss = F.smooth_l1_loss(proj_embs1, embs2)
+        #     total_loss += loss
+        return total_loss
+
+
+class CrossModalContrastiveLoss(nn.Module):
+    def __init__(self, dims: Mapping[str, int], main_modal: str):
+        super().__init__()
+        self.dims = dict(dims)
+        self.main_modal = main_modal
+        self.feature_loss_fn = FeatureLoss()
+
+    def forward(self, output: ClassifierOutput, labels: torch.Tensor) -> torch.Tensor:
+        embs_dict = output.embs_dict
+        assert embs_dict is not None
+        total_loss = torch.tensor(0.0, device=output.logits.device)
+        modals = set(embs_dict.keys()) & set(self.dims.keys())
+        main_modal_embs = embs_dict[self.main_modal].detach()
+        for modal in modals - {self.main_modal}:
+            total_loss += self.feature_loss_fn(embs_dict[modal], main_modal_embs)
         return total_loss
