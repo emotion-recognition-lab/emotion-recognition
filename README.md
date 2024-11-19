@@ -105,25 +105,29 @@ uv sync --all-extras --dev
 - [dependency-finetuning.md](experiments/dependency-finetuning.md)
 
 
-## 实验结果（早期）
+## 实验结果
 
-### 单一模态
+### 文本模态
 
-|  模态   | 骨干网络 |            训练方式            |       准确率        | 精确率 | 召回率 |     weighted-F1     |
-| :-----: | :------: | :----------------------------: | :-----------------: | :----: | :----: | :-----------------: |
-| 文本(T) |   BERT   |          Full Tuning           |       55.40%        |   -    |   -    |       53.05%        |
-| 文本(T) | RoBERTa  |          Full Tuning           |       60.07%        |   -    |   -    |       57.99%        |
-| 文本(T) |  MPNet   |          Full Tuning           | 60.84%(1)/59.66%(2) |   -    |   -    | 58.56%(1)/59.75%(2) |
-| 文本(T) |  MPNet   |        Froze Backbones         |      58.01%(1)      |   -    |   -    |      56.33%(1)      |
-| 文本(T) |  MPNet   | Full Tuning -> Froze Backbones |      64.18%(2)      |   -    |   -    |      62.33%(2)      |
+|                        方法                         | 随机种子 |  准确率  | weighted-F1 |
+| :-------------------------------------------------: | :------: | :------: | :---------: |
+|            apcl(temp=0.08, beta=0.1, gamma=0.1)            |    43    | 67.7395% |  67.0433%   |
+|            apcl(temp=0.08, beta=0.1, gamma=0.1)            |    42    | 68.0460% |  66.9064%   |
+|            apcl(temp=0.08, beta=0.1, gamma=0.1)            |   114    | 67.5862% |  66.5470%   |
+|            apcl(temp=0.08, beta=0.1, gamma=0.1)            |    0     | 67.9310% |  66.9192%   |
+| spcl(temp=0.08, pool_size=512, support_set_size=64) |    42    | 68.3142% |  67.3102%   |
+| spcl(temp=0.08, pool_size=512, support_set_size=64) |   114    | 67.3180% |  66.5503%   |
+| spcl(temp=0.08, pool_size=512, support_set_size=64) |    0     | 66.6284% |  66.5037%   |
+
 
 ### 多模态
+| 方法  | 随机种子 | 准确率 | weighted-F1 |
+| :---: | :------: | :----: | :---------: |
+|       |          |        |             |
+|       |          |        |             |
+|       |          |        |             |
 
-|      模态      |    骨干网络    | 融合网络 |                        训练方式                         |      准确率      | 精确率 | 召回率 |   weighted-F1    |
-| :------------: | :------------: | :------: | :-----------------------------------------------------: | :--------------: | :----: | :----: | :--------------: |
-| 文本+语音(T+A) | MPNet+Wav2Vec2 |   LMF    |        Text-only Full Tuning -> Froze Backbones         |      58.62%      |   -    |   -    |      58.64%      |
-| 文本+语音(T+A) | MPNet+Wav2Vec2 |   LMF    |          Text-only Full Tuning -> Full Tuning           | 58.74%/63.29%(2) |   -    |   -    | 58.84%/62.90%(2) |
-| 文本+语音(T+A) | MPNet+Wav2Vec2 |   LMF    | Text-only Full Tuning -> Full Tuning -> Froze Backbones | 59.89%/62.64%(2) |   -    |   -    | 59.55%/62.66%(2) |
+
 
 ## 相关技术与参考文献
 

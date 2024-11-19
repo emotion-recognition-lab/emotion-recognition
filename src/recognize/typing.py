@@ -27,8 +27,13 @@ DatasetSplit = Literal["train", "valid", "test", "dev"]
 DatasetLabelType = Literal["emotion", "sentiment"]
 
 
+# TODO: deprecated
 @runtime_checkable
 class FusionLayerLike(Protocol):
     output_size: int
 
     def __call__(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor: ...
+
+    def forward_with_loss(
+        self, inputs: Mapping[str, torch.Tensor], label: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]: ...

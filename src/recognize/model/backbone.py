@@ -68,6 +68,13 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
             "feature_sizes": self.feature_sizes,
         }
 
+    def freeze_modal(self, modal: str):
+        if modal not in self.named_encoders:
+            logger.warning(f"Modal {modal} not found in {self.named_encoders.keys()}")
+            return
+        module = self.named_encoders[modal]
+        module.requires_grad_(False)
+
     def freeze(self):
         self.frozen_encoders = True
         for module in self.named_encoders.values():

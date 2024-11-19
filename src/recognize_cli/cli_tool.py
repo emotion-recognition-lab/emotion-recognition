@@ -141,7 +141,7 @@ def info(
             )
 
         for epoch, v in columns[:max_show]:
-            str_row = [f"{v[k]:.4f}" if k in v else "" for k in score_names]
+            str_row = [f"{v[k]:.4f}%" if k in v else "" for k in score_names]
             table.add_row(str(epoch), *str_row)
         print(table)
 
