@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from collections.abc import Callable
 from pathlib import Path
-from typing import overload
+from typing import Any, overload
 
 import torch
 from safetensors.torch import save_file
@@ -95,8 +95,13 @@ class MultimodalModel(ClassifierModel[MultimodalInput]):
 
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
         embs_dict = self.backbone(inputs)
-        fusion_features = self.fusion_layer(embs_dict)
-        output = self.classify(fusion_features, inputs.labels)
+        if inputs.labels is None:
+            fusion_features = self.fusion_layer(embs_dict)
+            output = self.classify(fusion_features)
+        else:
+            fusion_features, fusion_loss = self.fusion_layer.forward_with_loss(embs_dict, inputs.labels)
+            output = self.classify(fusion_features, inputs.labels)
+            output.loss += fusion_loss
         output.embs_dict = embs_dict
         return output
 
@@ -154,8 +159,8 @@ class UnimodalModel(ClassifierModel[MultimodalInput]):
                 logits=torch.zeros((inputs.labels.shape[0], self.num_classes), device=inputs.device),
                 features=torch.zeros((inputs.labels.shape[0], self.feature_size), device=inputs.device),
             )
-        pooled_emb = next(iter(pooled_embs.values()))
-        return self.classify(pooled_emb, inputs.labels)
+        features = next(iter(pooled_embs.values()))
+        return self.classify(features, inputs.labels)
 
     @classmethod
     def from_checkpoint(
@@ -182,29 +187,29 @@ class UnimodalModel(ClassifierModel[MultimodalInput]):
 
 
 @overload
-def add_extra_loss_fn[T: ModelInput](
-    cls: type[ClassifierModel[T]], *, loss_fn: Callable[[ClassifierOutput, torch.Tensor], torch.Tensor]
-) -> type[ClassifierModel[T]]: ...
+def add_extra_loss_fn[T: ClassifierModel[Any]](
+    cls: type[T], *, loss_fn: Callable[[ClassifierOutput, torch.Tensor], torch.Tensor]
+) -> type[T]: ...
 @overload
-def add_extra_loss_fn[T: ModelInput](
+def add_extra_loss_fn[T: ClassifierModel[Any]](
     cls: None = None, *, loss_fn: Callable[[ClassifierOutput, torch.Tensor], torch.Tensor]
-) -> Callable[[type[ClassifierModel[T]]], type[ClassifierModel[T]]]: ...
+) -> Callable[[type[T]], type[T]]: ...
 
 
-def add_extra_loss_fn[T: ModelInput](
-    cls: type[ClassifierModel[T]] | None = None,
+def add_extra_loss_fn[T: ClassifierModel[Any]](
+    cls: type[T] | None = None,
     *,
     loss_fn: Callable[[ClassifierOutput, torch.Tensor], torch.Tensor],
-) -> type[ClassifierModel[T]] | Callable[[type[ClassifierModel[T]]], type[ClassifierModel[T]]]:
-    def decorator(cls: type[ClassifierModel[T]]) -> type[ClassifierModel[T]]:
+) -> type[T] | Callable[[type[T]], type[T]]:
+    def decorator(cls: type[T]) -> type[T]:
         class ClassifierModelWithExtraLoss(cls):
-            def forward(self, inputs) -> ClassifierOutput:
-                output = cls.forward(self, inputs)
+            def forward(self, inputs: ModelInput) -> ClassifierOutput:
+                output = super().forward(inputs)  # type: ignore
                 if output.loss is not None and inputs.labels is not None:
                     output.loss += loss_fn(output, inputs.labels)
                 return output
 
-        return ClassifierModelWithExtraLoss
+        return ClassifierModelWithExtraLoss  # type: ignore
 
     if cls is None:
         return decorator
