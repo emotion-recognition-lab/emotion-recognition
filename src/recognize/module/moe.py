@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
-from functools import partial
+from collections.abc import Mapping, Sequence
 
 import torch
 import torch.nn.functional as F
 from torch import nn
-
-from .basic import Projector
-from .fusion import LowRankFusionLayer
 
 
 class Router(nn.Module):
@@ -133,14 +129,29 @@ class SparseMoE(nn.Module):
 
 
 class MultiHeadMoE(nn.Module):
-    def __init__(self, router: Callable[[Mapping[str, torch.Tensor]], torch.Tensor], experts: Mapping[str, nn.Module]):
+    def __init__(
+        self,
+        router_input_size: int,
+        experts: Mapping[str, nn.Module],
+        *,
+        hold_experts: bool = False,
+        noisy_router: bool = True,
+    ):
         super().__init__()
-        self.router = router
+        self.router = (
+            Router(router_input_size, len(experts))
+            if not noisy_router
+            else NoiseRouter(router_input_size, len(experts))
+        )
         self.expert_names = sorted(experts.keys())
-        self.experts = nn.ModuleDict(experts)
+        self.hold_experts = hold_experts
+        if hold_experts:
+            self.experts = nn.ModuleDict(experts)
+        else:
+            self.experts = experts
 
-    def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
-        routing_weights = torch.softmax(self.router(inputs), dim=-1)
+    def forward(self, router_input: torch.Tensor, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
+        routing_weights = self.router(router_input)
         sum_weights = torch.zeros(routing_weights.shape[0], device=routing_weights.device)
         outputs = []
         for i, name in enumerate(self.expert_names):
@@ -152,11 +163,14 @@ class MultiHeadMoE(nn.Module):
         return sum(outputs) / sum_weights.unsqueeze(1)
 
 
-class MultimodalMoE(MultiHeadMoE, LowRankFusionLayer):
-    def __init__(self, dims: dict[str, int], rank: int, output_size: int, *, trainable_placeholder: bool = False):
-        # NOTE: __init__ of MultiHeadMoE or LowRankFusionLayer all has Module.__init__, so only one can be used.
-        LowRankFusionLayer.__init__(self, dims, rank, len(dims), trainable_placeholder=trainable_placeholder)
-        self.router = partial(LowRankFusionLayer.forward, self)
-        self.expert_names = sorted(dims.keys())
-        self.experts = nn.ModuleDict({name: Projector(dim, output_size) for name, dim in dims.items()})
-        self.output_size = output_size
+class MultimodalMoE: ...
+
+
+# class MultimodalMoE(MultiHeadMoE, LowRankFusionLayer):
+#     def __init__(self, dims: dict[str, int], rank: int, output_size: int, *, trainable_placeholder: bool = False):
+#         # NOTE: __init__ of MultiHeadMoE or LowRankFusionLayer all has Module.__init__, so only one can be used.
+#         LowRankFusionLayer.__init__(self, dims, rank, len(dims), trainable_placeholder=trainable_placeholder)
+#         self.router = partial(LowRankFusionLayer.forward, self)
+#         self.expert_names = sorted(dims.keys())
+#         self.experts = nn.ModuleDict({name: Projector(dim, output_size) for name, dim in dims.items()})
+#         self.output_size = output_size
