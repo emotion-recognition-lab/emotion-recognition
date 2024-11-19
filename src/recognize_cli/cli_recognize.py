@@ -13,6 +13,7 @@ from safetensors.torch import load_file
 from utils import init_logger
 
 from recognize.config import (
+    CrossModalContrastiveConfig,
     InferenceConfig,
     ModelEncoderConfig,
     load_training_config,
@@ -27,8 +28,7 @@ from recognize.model import (
     UnimodalModel,
 )
 from recognize.model.base import add_extra_loss_fn
-from recognize.module import SupervisedProtoContrastiveLoss, gen_fusion_layer, get_feature_sizes_dict
-from recognize.module.loss import SelfContrastiveLoss
+from recognize.module import gen_fusion_layer, get_feature_sizes_dict
 from recognize.preprocessor import Preprocessor
 from recognize.typing import DatasetClass, DatasetLabelType, ModalType
 from recognize.utils import (
@@ -295,19 +295,12 @@ def train(
     if config_model_fusion is None:
         assert len(config_model_encoder) == 1, "Multiple modals must give a fusion layer"
         feature_size = next(iter(feature_sizes_dict.values()))
-        if config_loss is not None and (config_loss_contrastive := config_loss.proto_contrastive) is not None:
+        model_cls = UnimodalModel
+        if config_loss is not None and (config_loss_contrastive := config_loss.sample_contrastive) is not None:
             model_cls = add_extra_loss_fn(
-                UnimodalModel,
-                loss_fn=SupervisedProtoContrastiveLoss(
-                    num_classes=train_dataset.num_classes,
-                    hidden_dim=feature_size,
-                    pool_size=config_loss_contrastive.pool_size,
-                    support_set_size=config_loss_contrastive.support_set_size,
-                    temp=config_loss_contrastive.temperature,
-                ),
+                model_cls,
+                loss_fn=config_loss_contrastive.to_loss_object(train_dataset.num_classes, feature_size),
             )
-        else:
-            model_cls = UnimodalModel
         model = model_cls(
             backbone,
             feature_size=feature_size,
@@ -316,15 +309,23 @@ def train(
         ).cuda()
     else:
         fusion_layer = gen_fusion_layer(config_model_fusion, feature_sizes_dict)
-        if config_loss is not None and (config_loss_contrastive := config_loss.proto_contrastive) is not None:
-            model_cls = add_extra_loss_fn(
-                MultimodalModel,
-                loss_fn=SelfContrastiveLoss(feature_sizes_dict, hidden_dim=512),
-            )
-        else:
-            model_cls = MultimodalModel
+        model_cls = MultimodalModel
+        if config_loss is not None:
+            if (config_sample_contrastive := config_loss.sample_contrastive) is not None:
+                model_cls = add_extra_loss_fn(
+                    model_cls,
+                    loss_fn=config_sample_contrastive.to_loss_object(
+                        train_dataset.num_classes, fusion_layer.output_size
+                    ),
+                )
+            if (config_modal_contrastive := config_loss.modal_contrastive) is not None:
+                assert isinstance(config_modal_contrastive, CrossModalContrastiveConfig)
+                model_cls = add_extra_loss_fn(
+                    model_cls,
+                    loss_fn=config_modal_contrastive.to_loss_object(feature_sizes_dict),
+                )
 
-        model = MultimodalModel(
+        model = model_cls(
             backbone,
             fusion_layer,
             num_classes=train_dataset.num_classes,
@@ -333,6 +334,8 @@ def train(
     if config_training_mode == "trainable":
         backbone.use_cache = False
         backbone.unfreeze()
+        # if teacher_checkpoint is not None:
+        #     backbone.freeze_modal("T")
 
     if (checkpoint_dir / "stopper.yaml").exists():
         # TODO: stopper should be loaded in the training process

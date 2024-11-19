@@ -1,14 +1,25 @@
 from __future__ import annotations
 
 import hashlib
+from abc import abstractmethod
+from collections.abc import Mapping
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from loguru import logger
 from pydantic import BaseModel
 
 from .typing import DatasetClass, DatasetLabelType, LogLevel, ModalType
+
+if TYPE_CHECKING:
+    from recognize.module import (
+        AdaptivePrototypeContrastiveLoss,
+        CrossModalContrastiveLoss,
+        PrototypeContrastiveLoss,
+        SelfContrastiveLoss,
+        SupervisedProtoContrastiveLoss,
+    )
 
 
 def hash_string(string: str) -> str:
@@ -81,14 +92,55 @@ class DatasetConfig(BaseModel):
         return "--".join(model_labels)
 
 
-class ProtoContrastiveConfig(BaseModel):
+class PrototypeContrastiveConfig(BaseModel):
     temperature: float = 0.08
+
+    @abstractmethod
+    def to_loss_object(self, num_classes: int, hidden_dim: int) -> PrototypeContrastiveLoss: ...
+
+
+class SupervisedPrototypeContrastiveConfig(PrototypeContrastiveConfig):
     pool_size: int = 512
     support_set_size: int = 64
 
     @cached_property
     def label(self) -> str:
-        return f"pc{self.temperature}-{self.pool_size}-{self.support_set_size}"
+        return f"spcl{self.temperature}-{self.pool_size}-{self.support_set_size}"
+
+    def to_loss_object(self, num_classes: int, hidden_dim: int) -> SupervisedProtoContrastiveLoss:
+        from recognize.module import (
+            SupervisedProtoContrastiveLoss,
+        )
+
+        return SupervisedProtoContrastiveLoss(
+            num_classes=num_classes,
+            hidden_dim=hidden_dim,
+            temp=self.temperature,
+            pool_size=self.pool_size,
+            support_set_size=self.support_set_size,
+        )
+
+
+class AdaptivePrototypeContrastiveConfig(PrototypeContrastiveConfig):
+    beta: float = 0.1
+    gamma: float = 0.1
+
+    @cached_property
+    def label(self) -> str:
+        return f"apcl{self.temperature}-{self.beta}-{self.gamma}"
+
+    def to_loss_object(self, num_classes: int, hidden_dim: int) -> AdaptivePrototypeContrastiveLoss:
+        from recognize.module import (
+            AdaptivePrototypeContrastiveLoss,
+        )
+
+        return AdaptivePrototypeContrastiveLoss(
+            num_classes=num_classes,
+            hidden_dim=hidden_dim,
+            temp=self.temperature,
+            beta=self.beta,
+            gamma=self.gamma,
+        )
 
 
 class SelfContrastiveConfig(BaseModel):
@@ -96,21 +148,40 @@ class SelfContrastiveConfig(BaseModel):
 
     @cached_property
     def label(self) -> str:
-        return f"sc{self.hidden_dim}"
+        return f"scl{self.hidden_dim}"
+
+    def to_loss_object(self, feature_sizes_dict: Mapping[str, int]) -> SelfContrastiveLoss:
+        raise NotImplementedError
+
+
+class CrossModalContrastiveConfig(BaseModel):
+    main_modal: ModalType
+
+    @cached_property
+    def label(self) -> str:
+        return f"cmcl-{self.main_modal}"
+
+    def to_loss_object(self, feature_sizes_dict: Mapping[str, int]) -> CrossModalContrastiveLoss:
+        from recognize.module import (
+            CrossModalContrastiveLoss,
+        )
+
+        return CrossModalContrastiveLoss(feature_sizes_dict, self.main_modal)
 
 
 class LossConfig(BaseModel):
     # reweight_loss: bool = True
-    proto_contrastive: ProtoContrastiveConfig | None = None
-    self_contrastive: SelfContrastiveConfig | None = None
+
+    sample_contrastive: SupervisedPrototypeContrastiveConfig | AdaptivePrototypeContrastiveConfig | None = None
+    modal_contrastive: SelfContrastiveConfig | CrossModalContrastiveConfig | None = None
 
     @cached_property
     def label(self) -> str:
         labels = []
-        if self.proto_contrastive is not None:
-            labels.append(self.proto_contrastive.label)
-        if self.self_contrastive is not None:
-            labels.append(self.self_contrastive.label)
+        if self.sample_contrastive is not None:
+            labels.append(self.sample_contrastive.label)
+        if self.modal_contrastive is not None:
+            labels.append(self.modal_contrastive.label)
         return "--".join(labels)
 
 

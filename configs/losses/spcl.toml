@@ -1,4 +1,4 @@
-[loss.proto_contrastive]
+[loss.sample_contrastive]
 temperature = 0.08
 pool_size = 512
 support_set_size = 64
