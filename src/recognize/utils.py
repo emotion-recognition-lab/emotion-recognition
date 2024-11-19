@@ -140,15 +140,7 @@ def distill_batch(
     student_model: ClassifierModel,
     teacher_model: ClassifierModel,
     batch: ModelInput,
-    *,
-    dropout_prob: float | None = None,
 ):
-    # NOTE: randomly remove every modality independently
-    if isinstance(batch, LazyMultimodalInput) and dropout_prob is not None:
-        if random.random() < dropout_prob:
-            batch.audio_paths = None
-        if random.random() < dropout_prob:
-            batch.video_paths = None
     with amp.autocast("cuda"):
         with torch.no_grad():
             teacher_embs = teacher_model.backbone(batch)["T"]
@@ -159,30 +151,19 @@ def distill_batch(
             # NOTE: only T modality or no input
             return
         student_output = student_model.classify(student_model.fusion_layer(student_embs_dict), batch.labels)
-
-        assert student_output.loss is not None
-        # TODO: 5 is a magic number, the value should be a hyper-parameter
         loss = LogitLoss()(student_output.logits, teacher_logits) + student_output.loss
+        # TODO: to remove feature loss
         for name, student_embs in student_embs_dict.items():
             if name == "T":
                 continue
             loss += FeatureLoss()(student_embs, teacher_embs)
-            # loss += FeatureLoss()(student_pooled_embs_tuple[2], teacher_pooled_embs)
     return loss
 
 
 def train_batch(
     model: ClassifierModel,
     batch: ModelInput,
-    *,
-    dropout_prob: float | None = None,
 ):
-    # NOTE: randomly remove every modality independently
-    if isinstance(batch, LazyMultimodalInput) and dropout_prob is not None:
-        if random.random() < dropout_prob:
-            batch.audio_paths = None
-        if random.random() < dropout_prob:
-            batch.video_paths = None
     with amp.autocast("cuda"):
         output = model(batch)
         loss = output.loss
@@ -203,10 +184,16 @@ def train_epoch(
         teacher_model.eval()
     trainer.clear_losses()
     for batch_index, batch in enumerate(train_data_loader):
+        # NOTE: randomly remove every modality independently
+        if isinstance(batch, LazyMultimodalInput) and dropout_prob is not None:
+            if random.random() < dropout_prob:
+                batch.audio_paths = None
+            elif random.random() < dropout_prob:
+                batch.video_paths = None
         if teacher_model is not None:
-            loss = distill_batch(model, teacher_model, batch, dropout_prob=dropout_prob)
+            loss = distill_batch(model, teacher_model, batch)
         else:
-            loss = train_batch(model, batch, dropout_prob=dropout_prob)
+            loss = train_batch(model, batch)
         if loss is None:
             continue
         trainer.training_step(loss)
