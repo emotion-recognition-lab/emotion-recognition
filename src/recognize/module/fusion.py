@@ -5,10 +5,11 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Literal, overload
 
 import torch
+import torch.nn.functional as F
 from torch import nn
-from torch.nn.parameter import Parameter
 
-from .basic import Projector
+from .basic import Projector, SelfAttentionProjector
+from .moe import NoiseRouter
 
 
 @overload
@@ -39,6 +40,18 @@ def support_modal_missing(
                 }
                 return cls.forward(self, wrapped_inputs)
 
+            def forward_with_loss(
+                self, inputs: Mapping[str, torch.Tensor], label: torch.Tensor
+            ) -> tuple[torch.Tensor, torch.Tensor]:
+                batch_size = next(iter(inputs.values())).size(0)
+                wrapped_inputs = {
+                    name: torch.broadcast_to(self.placeholders[name], (batch_size, dim))
+                    if name not in inputs
+                    else inputs[name]
+                    for name, dim in self.dims.items()
+                }
+                return cls.forward_with_loss(self, wrapped_inputs, label)
+
         return WrappedFusionLayer
 
     if cls is None:
@@ -58,8 +71,10 @@ class FusionLayer(nn.Module):
     @abstractmethod
     def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor: ...
 
-    @abstractmethod
-    def forward_with_label(self, inputs: Mapping[str, torch.Tensor], label: torch.Tensor) -> torch.Tensor: ...
+    def forward_with_loss(
+        self, inputs: Mapping[str, torch.Tensor], label: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        return self.forward(inputs), torch.tensor(0.0, device=label.device)
 
 
 @support_modal_missing()
@@ -96,7 +111,14 @@ class VallinaFusionLayer(FusionLayer):
 
 @support_modal_missing()
 class SelfAttentionFusionLayer(FusionLayer):
-    def __init__(self, dims: Mapping[str, int], output_size: int, *, head_num: int = 8):
+    def __init__(
+        self,
+        dims: Mapping[str, int],
+        output_size: int,
+        *,
+        num_experts: int = 1,
+        head_num: int = 8,
+    ):
         super().__init__(dims, output_size)
         self.head_num = head_num
         self.pooler = nn.Linear(sum(dims.values()), output_size)
@@ -141,7 +163,7 @@ class TensorFusionLayer(FusionLayer):
         self.text_size = text_size
         self.audio_size = audio_size
         self.video_size = video_size
-        self.augmentation = Parameter(torch.ones(1))
+        self.augmentation = nn.Parameter(torch.ones(1))
 
     def forward(self, inputs: Mapping[str, torch.Tensor]):
         zl = inputs["T"]
@@ -261,3 +283,98 @@ class ConcatFusionMoE(FusionLayer):
                 outputs.append(routing_weights[:, i : i + 1] * self.experts[i](input))
 
         return torch.sum(torch.stack(outputs), dim=0)
+
+
+@support_modal_missing()
+class DisentanglementFusion(FusionLayer):
+    def __init__(
+        self,
+        dims: Mapping[str, int],
+        private_feature_size: int,
+        shared_feature_size: int,
+    ):
+        """
+        Experts are expected to be a sequence of tuples of the form (needed_inputs, expert_module, output_dim).
+        """
+        super().__init__(dims, shared_feature_size * (len(dims) - 1) + private_feature_size)
+        self.dim_names = sorted(dims.keys())
+        # TODO: dims should be the same, or use Pooler
+        self.shared_projector = SelfAttentionProjector(
+            next(iter(dims.values())), shared_feature_size * (len(dims) - 1), head_num=8, depth=4
+        )
+        self.named_cross_projectors = nn.ModuleDict(
+            {name: SelfAttentionProjector(dims[name], shared_feature_size, head_num=8, depth=2) for name in dims.keys()}
+        )
+        self.named_private_projectors = nn.ModuleDict(
+            {
+                name: SelfAttentionProjector(dims[name], private_feature_size, head_num=4, depth=2)
+                for name in dims.keys()
+            }
+        )
+        self.shared_reconstruction_projector = Projector(
+            shared_feature_size * (len(dims) - 1), sum(dims.values()), depth=3
+        )
+        self.fusion_reconstruction_projector = Projector(
+            shared_feature_size * (len(dims) - 1) + private_feature_size, sum(dims.values()), depth=3
+        )
+        self.shared_router = NoiseRouter(sum(dims.values()), len(dims))
+        self.private_router = NoiseRouter(sum(dims.values()), len(dims))
+
+    def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
+        concatenated_inputs = torch.cat([inputs[modal] for modal in self.dim_names if modal in inputs], dim=1)
+        private_routing_weights = self.private_router(concatenated_inputs)
+        private_features_dict = {modal: self.named_private_projectors[modal](inputs[modal]) for modal in self.dim_names}
+        private_features = torch.einsum(
+            "bn,bnk->bk",
+            private_routing_weights,
+            torch.stack([private_features_dict[modal] for modal in self.dim_names], 1),
+        )
+        shared_routing_weights = self.shared_router(concatenated_inputs)
+        shared_features_dict = {modal: self.shared_projector(inputs[modal]) for modal in self.dim_names}
+        shared_features = torch.einsum(
+            "bn,bnk->bk",
+            shared_routing_weights,
+            torch.stack([shared_features_dict[modal] for modal in self.dim_names], 1),
+        )
+        return torch.cat((shared_features, private_features), dim=1)
+
+    def forward_with_loss(
+        self, inputs: Mapping[str, torch.Tensor], label: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        concatenated_inputs = torch.cat([inputs[modal] for modal in self.dim_names if modal in inputs], dim=1)
+        private_routing_weights = self.private_router(concatenated_inputs)
+        private_features_dict = {modal: self.named_private_projectors[modal](inputs[modal]) for modal in self.dim_names}
+        private_features = torch.einsum(
+            "bn,bnk->bk",
+            private_routing_weights,
+            torch.stack([private_features_dict[modal] for modal in self.dim_names], 1),
+        )
+        shared_routing_weights = self.shared_router(concatenated_inputs)
+        shared_features_dict = {modal: self.shared_projector(inputs[modal]) for modal in self.dim_names}
+        shared_features = torch.einsum(
+            "bn,bnk->bk",
+            shared_routing_weights,
+            torch.stack([shared_features_dict[modal] for modal in self.dim_names], 1),
+        )
+        cross_features_dict = {
+            modal1: torch.cat(
+                [self.named_cross_projectors[modal1](inputs[modal2]) for modal2 in self.dim_names if modal1 != modal2],
+                dim=1,
+            )
+            for modal1 in self.dim_names
+        }
+        feature_loss = torch.sum(
+            torch.stack(
+                [F.smooth_l1_loss(shared_features_dict[modal], cross_features_dict[modal]) for modal in self.dim_names]
+            ),
+            dim=0,
+        )
+        fusion_features = torch.cat((shared_features, private_features), dim=1)
+        reconstruction_loss = F.smooth_l1_loss(
+            self.shared_reconstruction_projector(shared_features),
+            concatenated_inputs,
+        ) + F.smooth_l1_loss(
+            self.fusion_reconstruction_projector(fusion_features),
+            concatenated_inputs,
+        )
+        return fusion_features, (feature_loss + reconstruction_loss) / 2

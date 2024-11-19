@@ -1,5 +1,21 @@
 from .basic import Projector
-from .fusion import ConcatFusionMoE, FusionLayer, LowRankFusionLayer, TensorFusionLayer, VallinaFusionLayer
-from .loss import FeatureLoss, LogitLoss, SupervisedProtoContrastiveLoss
-from .moe import MoE, MultiHeadMoE, MultimodalMoE, SparseMoE
+from .fusion import (
+    ConcatFusionMoE,
+    DisentanglementFusion,
+    FusionLayer,
+    LowRankFusionLayer,
+    TensorFusionLayer,
+    VallinaFusionLayer,
+)
+from .loss import (
+    AdaptivePrototypeContrastiveLoss,
+    CrossModalContrastiveLoss,
+    FeatureLoss,
+    LogitLoss,
+    MultiLoss,
+    PrototypeContrastiveLoss,
+    SelfContrastiveLoss,
+    SupervisedProtoContrastiveLoss,
+)
+from .moe import MoE, MultiHeadMoE, SparseMoE
 from .utils import gen_fusion_layer, get_feature_sizes_dict

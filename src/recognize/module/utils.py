@@ -4,13 +4,13 @@ from recognize.config import ModelEncoderConfig
 from recognize.module.fusion import (
     ConcatFusionMoE,
     CrossAttentionFusionLayer,
+    DisentanglementFusion,
     LowRankFusionLayer,
     MultiHeadFusionMoE,
     SelfAttentionFusionLayer,
     TensorFusionLayer,
     VallinaFusionLayer,
 )
-from recognize.module.moe import MultimodalMoE
 from recognize.typing import FusionLayerLike, ModalType
 
 
@@ -28,9 +28,9 @@ def gen_fusion_layer(fusion: str, feature_sizes_dict: dict[str, int]) -> FusionL
             "CrossAttentionFusionLayer": CrossAttentionFusionLayer,
             "TensorFusionLayer": TensorFusionLayer,
             "LowRankFusionLayer": LowRankFusionLayer,
-            "MultimodalMoE": MultimodalMoE,
             "MultiHeadFusionMoE": MultiHeadFusionMoE,
             "ConcatFusionMoE": ConcatFusionMoE,
+            "DisentanglementFusion": DisentanglementFusion,
             "feature_sizes_dict": feature_sizes_dict,
         },
     )
