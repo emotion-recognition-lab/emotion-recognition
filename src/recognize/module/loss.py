@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from torch import nn
 
 if TYPE_CHECKING:
-    from recognize.model import ClassifierOutput
+    from recognize.model import ClassifierOutput, UnimodalModel
 
 
 def pearson_correlation(a: torch.Tensor, b: torch.Tensor, eps=1e-8) -> torch.Tensor:
@@ -65,6 +65,33 @@ class FeatureLoss(nn.Module):
         log_q = torch.log_softmax(torch.matmul(target_features, features.transpose(0, 1)) / self.temp, dim=1)
         p = torch.softmax(torch.matmul(target_features, target_features.transpose(0, 1)) / self.temp, dim=1)
         return F.kl_div(log_q, p, reduction="batchmean")
+
+
+class DistillationLoss(nn.Module):
+    def __init__(
+        self, teacher_model: UnimodalModel, main_modal: str, dims: Mapping[str, int], *, hidden_dim: int = 128
+    ):
+        super().__init__()
+        self.teacher_model = teacher_model
+        self.dims = dict(dims)
+        self.main_modal = main_modal
+        self.feature_loss_fn = FeatureLoss()
+
+        # TODO: to implement forward
+
+
+class MultiLoss(nn.Module):
+    def __init__(self, loss_num: int):
+        super().__init__()
+        self.loss_num = loss_num
+        self.sigmas_dota = nn.Parameter(torch.randn(self.loss_num))
+
+    def forward(self, losses: torch.Tensor) -> torch.Tensor:
+        factor = 0.5 / self.sigmas_dota
+        loss_part = factor @ losses
+        regular_part = torch.sum(torch.log(self.sigmas_dota))
+        loss = loss_part + regular_part
+        return loss
 
 
 class InfoNCELoss(nn.Module):
