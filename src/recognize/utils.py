@@ -69,7 +69,7 @@ def load_model(checkpoint_dir: Path, model: ClassifierModel):
     model_state_dict = load_file(checkpoint_dir / "model.safetensors")
     model.load_state_dict(model_state_dict, strict=False)
     if (checkpoint_dir / "backbone").exists():
-        model.backbone = model.backbone.from_checkpoint(checkpoint_dir / "backbone").cuda()
+        model.backbone.load_checkpoint(checkpoint_dir / "backbone")
 
 
 def find_best_model(checkpoint_dir: Path) -> int:

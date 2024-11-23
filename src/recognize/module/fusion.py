@@ -8,7 +8,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from .basic import Projector, SelfAttentionProjector
+from .basic import CrossAttention, Projector, SelfAttentionProjector
+from .loss import SimSiamLoss
 from .moe import NoiseRouter
 
 
@@ -130,29 +131,23 @@ class SelfAttentionFusionLayer(FusionLayer):
         return self.pooler(new_embeddings)
 
 
-@support_modal_missing()
 class CrossAttentionFusionLayer(FusionLayer):
-    def __init__(self, dims: Mapping[str, int], output_size: int, *, head_num: int = 8):
-        super().__init__(dims, output_size)
+    def __init__(self, dims: Mapping[str, int], *, head_num: int = 8):
         sum_dim = sum(dims.values())
+        super().__init__(dims, sum_dim)
 
-        self.head_num = head_num
         self.named_attns = nn.ModuleDict(
-            {
-                name: nn.MultiheadAttention(dim, head_num, kdim=sum_dim - dim, vdim=sum_dim - dim)
-                for name, dim in dims.items()
-            }
+            {name: CrossAttention(dim, sum_dim - dim, head_num=head_num) for name, dim in dims.items()}
         )
-        self.pooler = nn.Linear(sum_dim, output_size)
 
     def forward(self, inputs: Mapping[str, torch.Tensor]):
         new_embeddings = []
         for name in self.dims.keys():
             attn = self.named_attns[name]
             embeddings = torch.cat([emb for emb_name, emb in inputs.items() if emb_name != name], dim=1)
-            embeddings, _ = attn(inputs[name], embeddings, embeddings)
+            embeddings = attn(inputs[name], embeddings)
             new_embeddings.append(embeddings)
-        return self.pooler(torch.cat(new_embeddings, dim=1))
+        return torch.cat(new_embeddings, dim=1)
 
 
 class TensorFusionLayer(FusionLayer):
@@ -311,14 +306,17 @@ class DisentanglementFusion(FusionLayer):
                 for name in dims.keys()
             }
         )
-        self.shared_reconstruction_projector = Projector(
-            shared_feature_size * (len(dims) - 1), sum(dims.values()), depth=3
+        self.shared_reconstruction_projector = nn.ModuleDict(
+            {name: Projector(shared_feature_size * (len(dims) - 1), dims[name], depth=3) for name in dims.keys()}
         )
-        self.fusion_reconstruction_projector = Projector(
-            shared_feature_size * (len(dims) - 1) + private_feature_size, sum(dims.values()), depth=3
+        self.fusion_reconstruction_loss_fn = SimSiamLoss(
+            shared_feature_size * (len(dims) - 1) + private_feature_size, sum(dims.values())
         )
         self.shared_router = NoiseRouter(sum(dims.values()), len(dims))
         self.private_router = NoiseRouter(sum(dims.values()), len(dims))
+        self.cross_attn = CrossAttentionFusionLayer(
+            {"shared": shared_feature_size * (len(dims) - 1), "private": private_feature_size}
+        )
 
     def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
         concatenated_inputs = torch.cat([inputs[modal] for modal in self.dim_names if modal in inputs], dim=1)
@@ -336,7 +334,13 @@ class DisentanglementFusion(FusionLayer):
             shared_routing_weights,
             torch.stack([shared_features_dict[modal] for modal in self.dim_names], 1),
         )
-        return torch.cat((shared_features, private_features), dim=1)
+        fusion_features = self.cross_attn(
+            {
+                "shared": shared_features,
+                "private": private_features,
+            }
+        )
+        return fusion_features
 
     def forward_with_loss(
         self, inputs: Mapping[str, torch.Tensor], label: torch.Tensor
@@ -356,6 +360,12 @@ class DisentanglementFusion(FusionLayer):
             shared_routing_weights,
             torch.stack([shared_features_dict[modal] for modal in self.dim_names], 1),
         )
+        fusion_features = self.cross_attn(
+            {
+                "shared": shared_features,
+                "private": private_features,
+            }
+        )
         cross_features_dict = {
             modal1: torch.cat(
                 [self.named_cross_projectors[modal1](inputs[modal2]) for modal2 in self.dim_names if modal1 != modal2],
@@ -365,16 +375,20 @@ class DisentanglementFusion(FusionLayer):
         }
         feature_loss = torch.sum(
             torch.stack(
-                [F.smooth_l1_loss(shared_features_dict[modal], cross_features_dict[modal]) for modal in self.dim_names]
+                [
+                    F.smooth_l1_loss(shared_features_dict[modal], cross_features_dict[modal].detach())
+                    for modal in self.dim_names
+                ]
             ),
             dim=0,
         )
-        fusion_features = torch.cat((shared_features, private_features), dim=1)
-        reconstruction_loss = F.smooth_l1_loss(
-            self.shared_reconstruction_projector(shared_features),
-            concatenated_inputs,
-        ) + F.smooth_l1_loss(
-            self.fusion_reconstruction_projector(fusion_features),
+        reconstruction_loss = self.fusion_reconstruction_loss_fn(
+            fusion_features,
             concatenated_inputs,
         )
+        for modal in self.dim_names:
+            reconstruction_loss += F.smooth_l1_loss(
+                self.shared_reconstruction_projector[modal](cross_features_dict[modal]),
+                inputs[modal],
+            )
         return fusion_features, (feature_loss + reconstruction_loss) / 2
