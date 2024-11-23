@@ -262,3 +262,16 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
         self.named_poolers.load_state_dict(load_file(checkpoint_path / "poolers.safetensors"))
         self.cache_manager.cache_dir = Path(f"./cache/{self.encoder_hash}")
         return self
+
+    def load_checkpoint(self, checkpoint_path: Path) -> Self:
+        for name, encoder in self.named_encoders.items():
+            if not (checkpoint_path / name).exists():
+                logger.warning(f"{name} not found in {checkpoint_path}")
+                continue
+            encoder.load_state_dict(load_file(checkpoint_path / f"{name}.safetensors"), strict=False)
+            if (checkpoint_path / f"peft_{name}.safetensors").exists():
+                encoder.load_state_dict(load_file(checkpoint_path / f"peft_{name}.safetensors"), strict=False)
+        self.named_poolers.load_state_dict(load_file(checkpoint_path / "poolers.safetensors"))
+        # TODO: encoder hash maybe changed but not updated
+        self.cache_manager.cache_dir = Path(f"./cache/{self.encoder_hash}")
+        return self
