@@ -9,11 +9,13 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from .basic import Projector
+
 if TYPE_CHECKING:
     from recognize.model import ClassifierOutput, UnimodalModel
 
 
-def pearson_correlation(a: torch.Tensor, b: torch.Tensor, eps=1e-8) -> torch.Tensor:
+def pearson_correlation(a: torch.Tensor, b: torch.Tensor, *, eps=1e-8) -> torch.Tensor:
     return F.cosine_similarity(a - a.mean(1).unsqueeze(1), b - b.mean(1).unsqueeze(1), eps=eps)
 
 
@@ -36,6 +38,25 @@ def merge_loss_fns[**P](loss_fns: Sequence[Callable[P, torch.Tensor]]) -> Callab
         return torch.sum(torch.stack([loss_fn(*args, **kwargs) for loss_fn in loss_fns]))
 
     return merged_loss_fn
+
+
+class SimSiamLoss(nn.Module):
+    def __init__(self, a_dim: int, b_dim: int):
+        super().__init__()
+        hidden_dim = a_dim + b_dim
+        self.projectors = nn.ModuleList([Projector(a_dim, hidden_dim), Projector(b_dim, hidden_dim)])
+        self.predictors = nn.ModuleList([Projector(hidden_dim, hidden_dim), Projector(hidden_dim, hidden_dim)])
+
+    def forward(self, a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+        h_a = self.projectors[0](a)
+        h_b = self.projectors[1](b)
+        p_b = self.predictors[0](h_a)
+        p_a = self.predictors[1](h_b)
+        loss = (
+            F.cosine_similarity(p_b, h_b.detach(), dim=-1).mean()
+            + F.cosine_similarity(p_a, h_a.detach(), dim=-1).mean()
+        )
+        return loss
 
 
 class LogitLoss(nn.Module):

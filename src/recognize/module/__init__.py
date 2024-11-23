@@ -15,6 +15,7 @@ from .loss import (
     MultiLoss,
     PrototypeContrastiveLoss,
     SelfContrastiveLoss,
+    SimSiamLoss,
     SupervisedProtoContrastiveLoss,
 )
 from .moe import MoE, MultiHeadMoE, SparseMoE

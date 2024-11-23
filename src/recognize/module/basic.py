@@ -63,3 +63,24 @@ class Pooler(nn.Module):
 
     def forward(self, inputs: Mapping[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         return {modal: self.proj[modal](inputs[modal]) for modal in self.proj.keys()}
+
+
+class CrossAttention(nn.Module):
+    def __init__(
+        self,
+        query_features: int,
+        key_features: int,
+        *,
+        head_num: int = 8,
+    ):
+        super().__init__()
+        self.multihead_attn = nn.MultiheadAttention(query_features, head_num, kdim=key_features, vdim=key_features)
+        self.layer_norm = nn.Sequential(
+            nn.LayerNorm(query_features),
+            nn.Dropout(0.1),
+        )
+
+    @torch.compile(dynamic=True, fullgraph=True)
+    def forward(self, query: torch.Tensor, key: torch.Tensor) -> torch.Tensor:
+        attention, _ = self.multihead_attn(query, key, key)
+        return self.layer_norm(attention + query)
