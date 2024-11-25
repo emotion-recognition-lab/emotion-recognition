@@ -91,6 +91,9 @@ def generate_preprocessor_and_backbone(
     config_model_encoder: dict[ModalType, ModelEncoderConfig],
     datasets: list[MultimodalDataset],
     checkpoints: Sequence[Path] = (),
+    *,
+    frozen_encoders: bool = False,
+    use_cache: bool = True,
 ):
     from transformers import (
         AutoConfig,
@@ -98,6 +101,7 @@ def generate_preprocessor_and_backbone(
         AutoImageProcessor,
         AutoModel,
         AutoTokenizer,
+        VideoMAEImageProcessor,
         VivitImageProcessor,
     )
 
@@ -123,9 +127,14 @@ def generate_preprocessor_and_backbone(
                 encoder_name
             )
         elif modal == "V":
-            preprocessor.image_processor = preprocessor.image_processor or VivitImageProcessor.from_pretrained(
-                encoder_name
-            )
+            if "timesformer" in encoder_name or "vivit" in encoder_name:
+                preprocessor.image_processor = preprocessor.image_processor or VivitImageProcessor.from_pretrained(
+                    encoder_name
+                )
+            else:
+                preprocessor.image_processor = preprocessor.image_processor or VideoMAEImageProcessor.from_pretrained(
+                    encoder_name
+                )
         else:
             preprocessor.image_processor = preprocessor.image_processor or AutoImageProcessor.from_pretrained(
                 encoder_name
@@ -133,7 +142,9 @@ def generate_preprocessor_and_backbone(
     for checkpoint in checkpoints:
         backbone_path = checkpoint / "backbone"
         if backbone_path.exists():
-            backbone = MultimodalBackbone.from_checkpoint(backbone_path)
+            backbone = MultimodalBackbone.from_checkpoint(
+                backbone_path, frozen_encoders=frozen_encoders, use_cache=use_cache
+            )
             logger.info(f"Load backbone from [blue]{checkpoint}[/]")
             break
     else:
@@ -154,6 +165,8 @@ def generate_preprocessor_and_backbone(
         backbone = MultimodalBackbone(
             backbone_encoders,
             init_hook=datasets[0].special_process,
+            frozen_encoders=frozen_encoders,
+            use_cache=use_cache,
         )
     return preprocessor, backbone
 
@@ -252,6 +265,8 @@ def train(
         config_model_encoder,
         datasets=[train_dataset, dev_dataset, test_dataset],
         checkpoints=candidate_checkpoints,
+        frozen_encoders=config_training_mode == "frozen",
+        use_cache=config_training_mode == "frozen",
     )
 
     if teacher_checkpoint is not None:
@@ -331,11 +346,9 @@ def train(
             num_classes=train_dataset.num_classes,
             class_weights=class_weights,
         ).cuda()
-    if config_training_mode == "trainable":
-        backbone.use_cache = False
-        backbone.unfreeze()
-        # if teacher_checkpoint is not None:
-        #     backbone.freeze_modal("T")
+    # if config_training_mode == "trainable":
+    #     if teacher_checkpoint is not None:
+    #         backbone.freeze_modal("T")
 
     if (checkpoint_dir / "stopper.yaml").exists():
         # TODO: stopper should be loaded in the training process
@@ -360,12 +373,16 @@ def train(
 
 
 @app.command()
-def evaluate(checkpoint: Path) -> None:
+def evaluate(
+    checkpoint: Path,
+    seed: int | None = None,
+) -> None:
     init_torch()
     from torch.utils.data import DataLoader
 
-    config = load_training_config(checkpoint / "training.toml")
+    config = load_training_config(checkpoint / "training.toml", seed=seed)
     init_logger(config.log_level, Path(f"./logs/{config.label}"))
+    seed_everything(seed)
     config_model_encoder = config.model.encoder
     config_dataset = config.dataset
 
@@ -383,11 +400,12 @@ def evaluate(checkpoint: Path) -> None:
         config_model_encoder,
         datasets=[test_dataset],
         checkpoints=[checkpoint],
+        frozen_encoders=True,
     )
 
     test_data_loader = DataLoader(
         test_dataset,
-        batch_size=config_batch_size,
+        batch_size=config_batch_size * 2,
         shuffle=True,
         collate_fn=LazyMultimodalInput.collate_fn,
         pin_memory=True,
@@ -409,7 +427,6 @@ def evaluate(checkpoint: Path) -> None:
             num_classes=test_dataset.num_classes,
         ).cuda()
 
-    model.backbone.freeze()
     load_best_model(checkpoint, model)
     result = TrainingResult.auto_compute(model, test_data_loader)
     result.print()

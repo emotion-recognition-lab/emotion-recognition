@@ -5,7 +5,8 @@ description = ""
 authors = [{ name = "Zhan Rongrui", email = "2742392377@qq.com" }]
 dependencies = [
     "transformers>=4.43.1",
-    "numpy>=1.26.0",
+    "sentencepiece>=0.2.0",
+    "numpy>=2.1.2",
     "torch==2.4.1; platform_system!='Windows'",
     "torch==2.4.1+cu121; platform_system=='Windows'",
     "peft>=0.8.2",
