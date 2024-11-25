@@ -10,4 +10,4 @@ model = "facebook/data2vec-audio-base-960h"
 
 [model.encoder.V]
 feature_size = 768
-model = "facebook/timesformer-base-finetuned-k400"
+model = "MCG-NJU/videomae-base-finetuned-kinetics"

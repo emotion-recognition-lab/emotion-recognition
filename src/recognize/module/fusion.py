@@ -319,7 +319,7 @@ class DisentanglementFusion(FusionLayer):
         )
 
     def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
-        concatenated_inputs = torch.cat([inputs[modal] for modal in self.dim_names if modal in inputs], dim=1)
+        concatenated_inputs = torch.cat([inputs[modal] for modal in self.dim_names if modal in inputs], dim=1).detach()
         private_routing_weights = self.private_router(concatenated_inputs)
         private_features_dict = {modal: self.named_private_projectors[modal](inputs[modal]) for modal in self.dim_names}
         private_features = torch.einsum(
@@ -345,7 +345,7 @@ class DisentanglementFusion(FusionLayer):
     def forward_with_loss(
         self, inputs: Mapping[str, torch.Tensor], label: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        concatenated_inputs = torch.cat([inputs[modal] for modal in self.dim_names if modal in inputs], dim=1)
+        concatenated_inputs = torch.cat([inputs[modal] for modal in self.dim_names if modal in inputs], dim=1).detach()
         private_routing_weights = self.private_router(concatenated_inputs)
         private_features_dict = {modal: self.named_private_projectors[modal](inputs[modal]) for modal in self.dim_names}
         private_features = torch.einsum(
@@ -389,6 +389,6 @@ class DisentanglementFusion(FusionLayer):
         for modal in self.dim_names:
             reconstruction_loss += F.smooth_l1_loss(
                 self.shared_reconstruction_projector[modal](cross_features_dict[modal]),
-                inputs[modal],
+                inputs[modal].detach(),
             )
         return fusion_features, (feature_loss + reconstruction_loss) / 2
