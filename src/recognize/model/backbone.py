@@ -190,8 +190,7 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
     @cached_property
     def encoder_hash(self):
         if not self.frozen_encoders:
-            self.frozen_encoders = True
-            logger.warning("Encoders are not frozen, freezing encoders for hashing")
+            logger.warning("Encoders are not frozen, hash may be incorrect")
         bytes_dict: dict[str, bytes] = {}
         state_dicts, peft_state_dicts = self.get_state_dicts()
         for name, state_dict in itertools.chain(state_dicts.items(), peft_state_dicts.items()):

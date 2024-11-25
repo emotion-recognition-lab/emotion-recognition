@@ -92,9 +92,9 @@ def get_outputs(model: ClassifierModel, data_loader: DataLoader) -> tuple[list[i
                 predicted = (outputs.logits > 0).int().view(-1)
                 labels = (batch.labels > 0).int()
             else:
-                _, predicted = torch.max(outputs.logits.detach(), 1)
+                _, predicted = torch.max(outputs.logits, 1)
                 labels = batch.labels
-            predicted_list.extend(predicted.detach().cpu().numpy().tolist())
+            predicted_list.extend(predicted.cpu().numpy().tolist())
             labels_list.extend(labels.cpu().numpy().tolist())
     return predicted_list, labels_list
 

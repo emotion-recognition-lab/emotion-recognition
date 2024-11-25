@@ -108,7 +108,7 @@ class CacheManager:
     def set(self, key: str, value: StateDict):
         self.cache.set(key, {k: v.to("cpu") for k, v in value.items()})
         if self.deivce_cache is not None:
-            value = {k: v.to(self.device) for k, v in value.items()}
+            value = {k: v.to(self.device, copy=True) for k, v in value.items()}
             self.deivce_cache.set(key, value)
         self.save_disk_cache(key, value)
 
