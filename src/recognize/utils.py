@@ -25,7 +25,7 @@ from recognize.trainer import Trainer
 
 from .evaluate import TrainingResult
 from .model import ClassifierModel, ModelInput
-from .module import FeatureLoss, LogitLoss
+from .module import LogitLoss
 from .trainer import EarlyStopper
 
 
@@ -150,13 +150,10 @@ def distill_batch(
         if len(student_embs_dict) < 2:
             # NOTE: only T modality or no input
             return
-        student_output = student_model.classify(student_model.fusion_layer(student_embs_dict), batch.labels)
+        student_output = student_model.classify(student_model.fusion_layer(student_embs_dict))
+        student_output.embs_dict = student_embs_dict
+        student_model.compute_loss(batch, student_output)
         loss = LogitLoss()(student_output.logits, teacher_logits) + student_output.loss
-        # TODO: to remove feature loss
-        for name, student_embs in student_embs_dict.items():
-            if name == "T":
-                continue
-            loss += FeatureLoss()(student_embs, teacher_embs)
     return loss
 
 
