@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, overload
 
 import torch
+import torch.nn.functional as F
 from safetensors.torch import save_file
 from torch import nn
-from torch.nn import CrossEntropyLoss
 
 from recognize.config import load_inference_config
 from recognize.module import MoE, SparseMoE
+from recognize.module.loss import MultiLoss
 from recognize.typing import FusionLayerLike
 
 from .backbone import Backbone, MultimodalBackbone
@@ -34,6 +34,7 @@ class ClassifierModel[T: ModelInput](nn.Module):
         num_experts: int = 1,
         act_expert_num: int | None = None,
         class_weights: torch.Tensor | None = None,
+        extra_loss_fns: Sequence[Callable[[ClassifierOutput, torch.Tensor], torch.Tensor]] | None = None,
     ):
         super().__init__()
         self.backbone = backbone
@@ -41,6 +42,8 @@ class ClassifierModel[T: ModelInput](nn.Module):
         self.class_weights = class_weights
         self.sample_weights = 1 / self.class_weights if self.class_weights is not None else None
         self.feature_size = feature_size
+        self.extra_loss_fns = list(extra_loss_fns) if extra_loss_fns is not None else []
+        self.multi_loss_fn = MultiLoss(len(self.extra_loss_fns) + 1)
         if num_experts == 1:
             self.classifier = nn.Linear(feature_size, num_classes)
         elif act_expert_num is None or act_expert_num == num_experts:
@@ -56,16 +59,27 @@ class ClassifierModel[T: ModelInput](nn.Module):
                 act_expert_num=act_expert_num,
             )
 
-    def compute_loss(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-        loss_fn = CrossEntropyLoss(weight=self.sample_weights)
-        return loss_fn(logits, labels)
+    def add_extra_loss_fn(self, loss_fn: Callable[[ClassifierOutput, torch.Tensor], torch.Tensor]) -> None:
+        self.extra_loss_fns.append(loss_fn)
+        self.multi_loss_fn = MultiLoss(len(self.extra_loss_fns) + 1)
 
-    def classify(self, features: torch.Tensor, labels: torch.Tensor | None = None) -> ClassifierOutput:
+    def clear_extra_loss_fns(self) -> None:
+        self.extra_loss_fns.clear()
+        self.multi_loss_fn = MultiLoss(1)
+
+    def compute_loss(self, inputs: T, output: ClassifierOutput) -> torch.Tensor:
+        logits = output.logits
+        labels = inputs.labels
+        assert labels is not None
+        loss = F.cross_entropy(logits, labels, weight=self.sample_weights)
+        if self.extra_loss_fns:
+            loss += sum(fn(output, labels) for fn in self.extra_loss_fns)
+        output.loss = loss
+        return loss
+
+    def classify(self, features: torch.Tensor) -> ClassifierOutput:
         logits = self.classifier(features)
-        loss = None
-        if labels is not None:
-            loss = self.compute_loss(logits, labels)
-        return ClassifierOutput(logits=logits, features=features, loss=loss)
+        return ClassifierOutput(logits=logits, features=features)
 
     def save_checkpoint(self, checkpoint_path: Path):
         model_state_dict = {key: value for key, value in self.state_dict().items() if not key.startswith("backbone.")}
@@ -100,9 +114,11 @@ class MultimodalModel(ClassifierModel[MultimodalInput]):
             output = self.classify(fusion_features)
         else:
             fusion_features, fusion_loss = self.fusion_layer.forward_with_loss(embs_dict, inputs.labels)
-            output = self.classify(fusion_features, inputs.labels)
+            output = self.classify(fusion_features)
+            output.embs_dict = embs_dict
+            self.compute_loss(inputs, output)
             output.loss += fusion_loss
-        output.embs_dict = embs_dict
+
         return output
 
     @classmethod
@@ -160,7 +176,9 @@ class UnimodalModel(ClassifierModel[MultimodalInput]):
                 features=torch.zeros((inputs.labels.shape[0], self.feature_size), device=inputs.device),
             )
         features = next(iter(pooled_embs.values()))
-        return self.classify(features, inputs.labels)
+        output = self.classify(features)
+        self.compute_loss(inputs, output)
+        return output
 
     @classmethod
     def from_checkpoint(
@@ -184,34 +202,3 @@ class UnimodalModel(ClassifierModel[MultimodalInput]):
         )
         load_model(checkpoint_path, model)
         return model
-
-
-@overload
-def add_extra_loss_fn[T: ClassifierModel[Any]](
-    cls: type[T], *, loss_fn: Callable[[ClassifierOutput, torch.Tensor], torch.Tensor]
-) -> type[T]: ...
-@overload
-def add_extra_loss_fn[T: ClassifierModel[Any]](
-    cls: None = None, *, loss_fn: Callable[[ClassifierOutput, torch.Tensor], torch.Tensor]
-) -> Callable[[type[T]], type[T]]: ...
-
-
-def add_extra_loss_fn[T: ClassifierModel[Any]](
-    cls: type[T] | None = None,
-    *,
-    loss_fn: Callable[[ClassifierOutput, torch.Tensor], torch.Tensor],
-) -> type[T] | Callable[[type[T]], type[T]]:
-    def decorator(cls: type[T]) -> type[T]:
-        class ClassifierModelWithExtraLoss(cls):
-            def forward(self, inputs: ModelInput) -> ClassifierOutput:
-                output = super().forward(inputs)  # type: ignore
-                if output.loss is not None and inputs.labels is not None:
-                    output.loss += loss_fn(output, inputs.labels)
-                return output
-
-        return ClassifierModelWithExtraLoss  # type: ignore
-
-    if cls is None:
-        return decorator
-    else:
-        return decorator(cls)

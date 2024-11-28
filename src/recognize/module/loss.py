@@ -248,17 +248,6 @@ class AdaptivePrototypeContrastiveLoss(PrototypeContrastiveLoss):
         beta: float = 0.9,
         gamma: float = 0.01,
     ):
-        """
-        dt = delta
-        x = x + v * dt
-        v * dt = v * dt + a * dt**2
-        a * dt**2 = beta * dx * dt**2 - gamma * v ** 2 * dt**2
-        a * dt**2 = beta * dx * dt**2 - gamma * (v * dt) ** 2
-        gamma * vdt ** 2 << vdt => vdt << 1/gamma
-        vdt += dx * beta - gamma * vdt ** 2
-        x = x + vdt
-        torch.clip(vdt, min=-1/gamma, max=1/gamma)
-        """
         super().__init__(num_classes, hidden_dim, temp=temp, eps=eps)
 
         self.beta = beta
