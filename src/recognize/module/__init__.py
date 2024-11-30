@@ -10,6 +10,7 @@ from .fusion import (
 from .loss import (
     AdaptivePrototypeContrastiveLoss,
     CrossModalContrastiveLoss,
+    DistillationLoss,
     FeatureLoss,
     LogitLoss,
     MultiLoss,

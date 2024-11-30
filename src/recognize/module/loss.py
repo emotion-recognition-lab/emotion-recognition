@@ -9,6 +9,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from recognize.model.inputs import MultimodalInput
+
 from .basic import Projector
 
 if TYPE_CHECKING:
@@ -89,16 +91,16 @@ class FeatureLoss(nn.Module):
 
 
 class DistillationLoss(nn.Module):
-    def __init__(
-        self, teacher_model: UnimodalModel, main_modal: str, dims: Mapping[str, int], *, hidden_dim: int = 128
-    ):
+    def __init__(self, teacher_model: UnimodalModel):
         super().__init__()
         self.teacher_model = teacher_model
-        self.dims = dict(dims)
-        self.main_modal = main_modal
-        self.feature_loss_fn = FeatureLoss()
+        self.logit_loss_fn = LogitLoss()
 
-        # TODO: to implement forward
+    def forward(self, input: MultimodalInput, output: ClassifierOutput):
+        with torch.no_grad():
+            teacher_output = self.teacher_model(input)
+        loss = self.logit_loss_fn(output.logits, teacher_output.logits)
+        return loss
 
 
 class MultiLoss(nn.Module):
@@ -224,8 +226,11 @@ class SupervisedProtoContrastiveLoss(PrototypeContrastiveLoss):
             masked_loss = loss[loss > 0.3]
         return masked_loss.mean() if len(masked_loss) > 0 else torch.tensor(0.0, device=scores.device)
 
-    def forward(self, output: ClassifierOutput, labels: torch.Tensor, *, decoupled: bool = False) -> torch.Tensor:
+    def forward(self, input: MultimodalInput, output: ClassifierOutput, *, decoupled: bool = False) -> torch.Tensor:
         embeddings = output.features
+        labels = input.labels
+        assert labels is not None
+
         curr_centers = self.calculate_centers()
         self.update_pools(embeddings, labels)
 
@@ -290,8 +295,11 @@ class AdaptivePrototypeContrastiveLoss(PrototypeContrastiveLoss):
         masked_loss = loss[loss > 0]
         return masked_loss.mean() if len(masked_loss) > 0 else torch.tensor(0.0, device=scores.device)
 
-    def forward(self, output: ClassifierOutput, labels: torch.Tensor) -> torch.Tensor:
+    def forward(self, input: MultimodalInput, output: ClassifierOutput) -> torch.Tensor:
         features = output.features
+        labels = input.labels
+        assert labels is not None
+
         self.update_centers(features, labels)
 
         concated_features = torch.cat((features, self.centers), 0)
@@ -317,7 +325,7 @@ class SelfContrastiveLoss(nn.Module):
             }
         )
 
-    def forward(self, output: ClassifierOutput, labels: torch.Tensor) -> torch.Tensor:
+    def forward(self, input: MultimodalInput, output: ClassifierOutput) -> torch.Tensor:
         embs_dict = output.embs_dict
         assert embs_dict is not None
         total_loss = torch.tensor(0.0, device=output.logits.device)
@@ -342,7 +350,7 @@ class CrossModalContrastiveLoss(nn.Module):
         self.main_modal = main_modal
         self.feature_loss_fn = FeatureLoss()
 
-    def forward(self, output: ClassifierOutput, labels: torch.Tensor) -> torch.Tensor:
+    def forward(self, input: MultimodalInput, output: ClassifierOutput) -> torch.Tensor:
         embs_dict = output.embs_dict
         assert embs_dict is not None
         total_loss = torch.tensor(0.0, device=output.logits.device)

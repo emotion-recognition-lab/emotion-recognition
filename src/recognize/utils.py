@@ -143,17 +143,10 @@ def distill_batch(
 ):
     with amp.autocast("cuda"):
         with torch.no_grad():
-            teacher_embs = teacher_model.backbone(batch)["T"]
-            teacher_logits = teacher_model.classifier(teacher_embs)
+            teacher_output = teacher_model(batch)
 
-        student_embs_dict = student_model.backbone(batch)
-        if len(student_embs_dict) < 2:
-            # NOTE: only T modality or no input
-            return
-        student_output = student_model.classify(student_model.fusion_layer(student_embs_dict))
-        student_output.embs_dict = student_embs_dict
-        student_model.compute_loss(batch, student_output)
-        loss = LogitLoss()(student_output.logits, teacher_logits) + student_output.loss
+        student_output = student_model(batch)
+        loss = LogitLoss()(student_output.logits, teacher_output.logits) + student_output.loss
     return loss
 
 

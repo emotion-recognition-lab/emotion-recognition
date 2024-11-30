@@ -27,7 +27,7 @@ from recognize.model import (
     MultimodalModel,
     UnimodalModel,
 )
-from recognize.module import gen_fusion_layer, get_feature_sizes_dict
+from recognize.module import DistillationLoss, gen_fusion_layer, get_feature_sizes_dict
 from recognize.preprocessor import Preprocessor
 from recognize.typing import DatasetClass, DatasetLabelType, ModalType
 from recognize.utils import (
@@ -334,9 +334,10 @@ def train(
                 assert isinstance(config_modal_contrastive, CrossModalContrastiveConfig)
                 model.add_extra_loss_fn(config_modal_contrastive.to_loss_object(feature_sizes_dict))
 
-    # if config_training_mode == "trainable":
-    #     if teacher_checkpoint is not None:
-    #         backbone.freeze_modal("T")
+    if teacher_model is not None:
+        model.add_extra_loss_fn(DistillationLoss(teacher_model))
+        # if config_training_mode == "trainable":
+        #     backbone.freeze_modal("T")
 
     if (checkpoint_dir / "stopper.yaml").exists():
         # TODO: stopper should be loaded in the training process
@@ -349,7 +350,6 @@ def train(
         train_data_loader,
         dev_data_loader,
         test_data_loader,
-        teacher_model=teacher_model,
         checkpoint_dir=checkpoint_dir,
         num_epochs=200,
         model_label=model_label,
@@ -370,7 +370,7 @@ def evaluate(
 
     config = load_training_config(checkpoint / "training.toml", seed=seed)
     init_logger(config.log_level, Path(f"./logs/{config.label}"))
-    seed_everything(seed)
+    seed_everything(config.seed)
     config_model_encoder = config.model.encoder
     config_dataset = config.dataset
 

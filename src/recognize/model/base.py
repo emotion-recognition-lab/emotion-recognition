@@ -11,7 +11,8 @@ from torch import nn
 
 from recognize.config import load_inference_config
 from recognize.module import MoE, SparseMoE
-from recognize.module.loss import MultiLoss
+
+# from recognize.module.loss import MultiLoss
 from recognize.typing import FusionLayerLike
 
 from .backbone import Backbone, MultimodalBackbone
@@ -34,7 +35,7 @@ class ClassifierModel[T: ModelInput](nn.Module):
         num_experts: int = 1,
         act_expert_num: int | None = None,
         class_weights: torch.Tensor | None = None,
-        extra_loss_fns: Sequence[Callable[[ClassifierOutput, torch.Tensor], torch.Tensor]] | None = None,
+        extra_loss_fns: Sequence[Callable[[T, ClassifierOutput], torch.Tensor]] | None = None,
     ):
         super().__init__()
         self.backbone = backbone
@@ -43,7 +44,7 @@ class ClassifierModel[T: ModelInput](nn.Module):
         self.sample_weights = 1 / self.class_weights if self.class_weights is not None else None
         self.feature_size = feature_size
         self.extra_loss_fns = list(extra_loss_fns) if extra_loss_fns is not None else []
-        self.multi_loss_fn = MultiLoss(len(self.extra_loss_fns) + 1)
+        # self.multi_loss_fn = MultiLoss(len(self.extra_loss_fns) + 1)
         if num_experts == 1:
             self.classifier = nn.Linear(feature_size, num_classes)
         elif act_expert_num is None or act_expert_num == num_experts:
@@ -59,13 +60,13 @@ class ClassifierModel[T: ModelInput](nn.Module):
                 act_expert_num=act_expert_num,
             )
 
-    def add_extra_loss_fn(self, loss_fn: Callable[[ClassifierOutput, torch.Tensor], torch.Tensor]) -> None:
+    def add_extra_loss_fn(self, loss_fn: Callable[[T, ClassifierOutput], torch.Tensor]) -> None:
         self.extra_loss_fns.append(loss_fn)
-        self.multi_loss_fn = MultiLoss(len(self.extra_loss_fns) + 1)
+        # self.multi_loss_fn = MultiLoss(len(self.extra_loss_fns) + 1)
 
     def clear_extra_loss_fns(self) -> None:
         self.extra_loss_fns.clear()
-        self.multi_loss_fn = MultiLoss(1)
+        # self.multi_loss_fn = MultiLoss(1)
 
     def compute_loss(self, inputs: T, output: ClassifierOutput) -> torch.Tensor:
         logits = output.logits
@@ -73,7 +74,7 @@ class ClassifierModel[T: ModelInput](nn.Module):
         assert labels is not None
         loss = F.cross_entropy(logits, labels, weight=self.sample_weights)
         if self.extra_loss_fns:
-            loss += sum(fn(output, labels) for fn in self.extra_loss_fns)
+            loss += sum(fn(inputs, output) for fn in self.extra_loss_fns)
         output.loss = loss
         return loss
 
