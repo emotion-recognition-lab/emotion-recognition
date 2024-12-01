@@ -90,6 +90,18 @@ class FeatureLoss(nn.Module):
         return F.kl_div(log_q, p, reduction="batchmean")
 
 
+class FocalLoss(nn.Module):
+    def __init__(self, gamma: float = 2.0):
+        super().__init__()
+        self.gamma = gamma
+
+    def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        ce_loss = F.cross_entropy(input, target, reduction="none")
+        p = torch.exp(-ce_loss)
+        loss = (1 - p) ** self.gamma * ce_loss
+        return loss.mean()
+
+
 class DistillationLoss(nn.Module):
     def __init__(self, teacher_model: UnimodalModel):
         super().__init__()
