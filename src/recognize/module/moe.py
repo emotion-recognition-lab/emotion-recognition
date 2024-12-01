@@ -6,35 +6,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-
-class Router(nn.Module):
-    def __init__(self, dim: int, num_experts: int):
-        super().__init__()
-        self.router = nn.Sequential(
-            nn.Linear(dim, num_experts, bias=False),
-            nn.Softmax(1),
-        )
-
-    def forward(self, x: torch.Tensor):
-        routing_weights = self.router(x)
-        return routing_weights
-
-
-class NoiseRouter(nn.Module):
-    def __init__(self, dim: int, num_experts: int):
-        super().__init__()
-        self.router = nn.Linear(dim, num_experts, bias=False)
-        self.noise = nn.Sequential(
-            nn.Linear(dim, num_experts, bias=False),
-            nn.Softplus(),
-        )
-
-    def forward(self, x: torch.Tensor):
-        routing_logit = self.router(x)
-        if self.training:
-            noise_logit = self.noise(x)
-            routing_logit += torch.randn_like(routing_logit) * noise_logit
-        return F.softmax(routing_logit, dim=1)
+from .router import NoiseRouter, Router
 
 
 class CopyExpert(nn.Module):
@@ -161,16 +133,3 @@ class MultiHeadMoE(nn.Module):
             outputs.append(routing_weights[:, i : i + 1] * expert_outputs)
             sum_weights += routing_weights[:, i]
         return sum(outputs) / sum_weights.unsqueeze(1)
-
-
-class MultimodalMoE: ...
-
-
-# class MultimodalMoE(MultiHeadMoE, LowRankFusionLayer):
-#     def __init__(self, dims: dict[str, int], rank: int, output_size: int, *, trainable_placeholder: bool = False):
-#         # NOTE: __init__ of MultiHeadMoE or LowRankFusionLayer all has Module.__init__, so only one can be used.
-#         LowRankFusionLayer.__init__(self, dims, rank, len(dims), trainable_placeholder=trainable_placeholder)
-#         self.router = partial(LowRankFusionLayer.forward, self)
-#         self.expert_names = sorted(dims.keys())
-#         self.experts = nn.ModuleDict({name: Projector(dim, output_size) for name, dim in dims.items()})
-#         self.output_size = output_size

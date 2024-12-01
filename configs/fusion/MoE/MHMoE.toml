@@ -1,2 +1,0 @@
-[model]
-fusion = "MultiHeadFusionMoE(feature_sizes_dict, experts=[((), MultimodalMoE(feature_sizes_dict, 32, 512), 128), ((), MultimodalMoE(feature_sizes_dict, 32, 512), 128)],output_size=128)"

@@ -20,4 +20,5 @@ from .loss import (
     SupervisedProtoContrastiveLoss,
 )
 from .moe import MoE, MultiHeadMoE, SparseMoE
+from .router import NoiseRouter, Router
 from .utils import gen_fusion_layer, get_feature_sizes_dict

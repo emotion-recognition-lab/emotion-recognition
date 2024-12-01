@@ -10,7 +10,7 @@ from torch import nn
 
 from .basic import CrossAttention, Projector, SelfAttentionProjector
 from .loss import SimSiamLoss
-from .moe import NoiseRouter
+from .router import NoiseRouter
 
 
 @overload
