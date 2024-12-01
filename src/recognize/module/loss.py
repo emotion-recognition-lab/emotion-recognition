@@ -262,12 +262,10 @@ class AdaptivePrototypeContrastiveLoss(PrototypeContrastiveLoss):
         *,
         temp: float = 0.08,
         eps: float = 1e-8,
-        beta: float = 0.9,
-        gamma: float = 0.01,
+        gamma: float = 0.99,
     ):
         super().__init__(num_classes, hidden_dim, temp=temp, eps=eps)
 
-        self.beta = beta
         self.gamma = gamma
         self.centers = generate_orthogonal_vectors(num_classes, hidden_dim)
         self.momentums = torch.zeros_like(self.centers)
@@ -277,8 +275,8 @@ class AdaptivePrototypeContrastiveLoss(PrototypeContrastiveLoss):
             for idx, label in enumerate(labels):
                 label = label.item()
                 assert isinstance(label, int), "label must be an integer"
-                acceleration = embeddings[idx] - self.momentums[label]
-                self.momentums[label] = self.beta * self.momentums[label] + self.gamma * acceleration
+                delta = embeddings[idx] - self.momentums[label]
+                self.momentums[label] = self.gamma * self.momentums[label] + (1 - self.gamma) * delta
             for center, momentum in zip(self.centers, self.momentums, strict=True):
                 center += momentum
 

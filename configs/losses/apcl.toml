@@ -1,4 +1,3 @@
 [loss.sample_contrastive]
 temperature = 0.08
-beta = 0.99
-gamma = 0.005
+gamma = 0.99

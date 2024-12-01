@@ -122,12 +122,11 @@ class SupervisedPrototypeContrastiveConfig(PrototypeContrastiveConfig):
 
 
 class AdaptivePrototypeContrastiveConfig(PrototypeContrastiveConfig):
-    beta: float = 0.1
     gamma: float = 0.1
 
     @cached_property
     def label(self) -> str:
-        return f"apcl{self.temperature}-{self.beta}-{self.gamma}"
+        return f"apcl{self.temperature}-{self.gamma}"
 
     def to_loss_object(self, num_classes: int, hidden_dim: int) -> AdaptivePrototypeContrastiveLoss:
         from recognize.module import (
@@ -138,7 +137,6 @@ class AdaptivePrototypeContrastiveConfig(PrototypeContrastiveConfig):
             num_classes=num_classes,
             hidden_dim=hidden_dim,
             temp=self.temperature,
-            beta=self.beta,
             gamma=self.gamma,
         )
 
