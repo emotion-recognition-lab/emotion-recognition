@@ -12,6 +12,7 @@ from .loss import (
     CrossModalContrastiveLoss,
     DistillationLoss,
     FeatureLoss,
+    FocalLoss,
     LogitLoss,
     MultiLoss,
     PrototypeContrastiveLoss,

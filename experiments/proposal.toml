@@ -23,6 +23,7 @@ args = [
     "configs/encoders/{encoder}.toml",
     "configs/fusion/disentanglement.toml",
     # "configs/losses/{modal_contrastive}.toml",
+    "configs/losses/classification/focal.toml",
     "--teacher-checkpoint checkpoints/training/{dataset}/trainable--2--apcl0.08-0.99/1xE--T/ce200638--{seed}",
     "--seed {seed}",
 ]

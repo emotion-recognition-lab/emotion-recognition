@@ -168,14 +168,15 @@ class CrossModalContrastiveConfig(BaseModel):
 
 
 class LossConfig(BaseModel):
-    # reweight_loss: bool = True
-
+    classification: Literal["weight", "focal"] | None = None
     sample_contrastive: SupervisedPrototypeContrastiveConfig | AdaptivePrototypeContrastiveConfig | None = None
     modal_contrastive: SelfContrastiveConfig | CrossModalContrastiveConfig | None = None
 
     @cached_property
     def label(self) -> str:
         labels = []
+        if self.classification is not None:
+            labels.append(self.classification)
         if self.sample_contrastive is not None:
             labels.append(self.sample_contrastive.label)
         if self.modal_contrastive is not None:

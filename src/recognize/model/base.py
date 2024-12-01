@@ -3,16 +3,16 @@ from __future__ import annotations
 from abc import abstractmethod
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Literal
 
 import torch
-import torch.nn.functional as F
 from safetensors.torch import save_file
 from torch import nn
 
 from recognize.config import load_inference_config
-from recognize.module import MoE, SparseMoE
 
-# from recognize.module.loss import MultiLoss
+# from recognize.module import MultiLoss
+from recognize.module import FocalLoss, MoE, SparseMoE
 from recognize.typing import FusionLayerLike
 
 from .backbone import Backbone, MultimodalBackbone
@@ -30,11 +30,12 @@ class ClassifierModel[T: ModelInput](nn.Module):
         self,
         backbone: Backbone[T],
         feature_size: int,
-        num_classes: int,
         *,
+        num_classes: int = 2,
         num_experts: int = 1,
         act_expert_num: int | None = None,
         class_weights: torch.Tensor | None = None,
+        classification_loss: Literal["weight", "focal"] | None = None,
         extra_loss_fns: Sequence[Callable[[T, ClassifierOutput], torch.Tensor]] | None = None,
     ):
         super().__init__()
@@ -45,6 +46,11 @@ class ClassifierModel[T: ModelInput](nn.Module):
         self.feature_size = feature_size
         self.extra_loss_fns = list(extra_loss_fns) if extra_loss_fns is not None else []
         # self.multi_loss_fn = MultiLoss(len(self.extra_loss_fns) + 1)
+        self.loss_fn = {
+            None: nn.CrossEntropyLoss(),
+            "weight": nn.CrossEntropyLoss(self.sample_weights),
+            "focal": FocalLoss(gamma=2),
+        }[classification_loss]
         if num_experts == 1:
             self.classifier = nn.Linear(feature_size, num_classes)
         elif act_expert_num is None or act_expert_num == num_experts:
@@ -72,7 +78,8 @@ class ClassifierModel[T: ModelInput](nn.Module):
         logits = output.logits
         labels = inputs.labels
         assert labels is not None
-        loss = F.cross_entropy(logits, labels, weight=self.sample_weights)
+        # loss = F.cross_entropy(logits, labels, weight=self.sample_weights)
+        loss = self.loss_fn(logits, labels)
         if self.extra_loss_fns:
             loss += sum(fn(inputs, output) for fn in self.extra_loss_fns)
         output.loss = loss
@@ -97,14 +104,18 @@ class MultimodalModel(ClassifierModel[MultimodalInput]):
         *,
         num_classes: int = 2,
         num_experts: int = 1,
+        act_expert_num: int | None = None,
         class_weights: torch.Tensor | None = None,
+        classification_loss: Literal["weight", "focal"] | None = None,
     ):
         super().__init__(
             backbone,
             fusion_layer.output_size,
             num_classes=num_classes,
             num_experts=num_experts,
+            act_expert_num=act_expert_num,
             class_weights=class_weights,
+            classification_loss=classification_loss,
         )
         self.fusion_layer = fusion_layer
 
@@ -149,23 +160,6 @@ class MultimodalModel(ClassifierModel[MultimodalInput]):
 
 class UnimodalModel(ClassifierModel[MultimodalInput]):
     __call__: Callable[[MultimodalInput], ClassifierOutput]
-
-    def __init__(
-        self,
-        backbone: Backbone[MultimodalInput],
-        *,
-        feature_size: int = 128,
-        num_classes: int = 2,
-        num_experts: int = 1,
-        class_weights: torch.Tensor | None = None,
-    ):
-        super().__init__(
-            backbone,
-            feature_size,
-            num_classes=num_classes,
-            num_experts=num_experts,
-            class_weights=class_weights,
-        )
 
     def forward(self, inputs: MultimodalInput) -> ClassifierOutput:
         pooled_embs: dict[str, torch.Tensor] = self.backbone(inputs)

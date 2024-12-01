@@ -306,6 +306,7 @@ def train(
     class_weights = torch.tensor(train_dataset.class_weights, dtype=torch.float32).cuda()
     feature_sizes_dict = get_feature_sizes_dict(config_model_encoder)
 
+    classification_loss = config_loss.classification if config_loss is not None else None
     if config_model_fusion is None:
         assert len(config_model_encoder) == 1, "Multiple modals must give a fusion layer"
         feature_size = next(iter(feature_sizes_dict.values()))
@@ -314,6 +315,7 @@ def train(
             feature_size=feature_size,
             num_classes=train_dataset.num_classes,
             class_weights=class_weights,
+            classification_loss=classification_loss,
         ).cuda()
         if config_loss is not None and (config_loss_contrastive := config_loss.sample_contrastive) is not None:
             model.add_extra_loss_fn(config_loss_contrastive.to_loss_object(train_dataset.num_classes, feature_size))
@@ -324,6 +326,7 @@ def train(
             fusion_layer,
             num_classes=train_dataset.num_classes,
             class_weights=class_weights,
+            classification_loss=classification_loss,
         ).cuda()
         if config_loss is not None:
             if (config_sample_contrastive := config_loss.sample_contrastive) is not None:
