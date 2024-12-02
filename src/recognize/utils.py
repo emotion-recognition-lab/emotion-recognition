@@ -25,7 +25,6 @@ from recognize.trainer import Trainer
 
 from .evaluate import TrainingResult
 from .model import ClassifierModel, ModelInput
-from .module import LogitLoss
 from .trainer import EarlyStopper
 
 
@@ -113,7 +112,7 @@ def get_trainer(
     num_warmup_steps: int,
     num_training_steps: int,
     *,
-    use_amp: bool = True,
+    use_amp: bool = False,
     use_8bit_optimizer: bool = True,
 ):
     import bitsandbytes as bnb
@@ -130,24 +129,11 @@ def get_trainer(
         num_training_steps=num_training_steps,
     )
     if use_amp:
+        # NOTE: GradScaler will introduce randomness in the training process
         scaler = amp.GradScaler("cuda")
     else:
         scaler = None
     return Trainer(model, data_loaders, optimizer, scheduler, max_grad_norm=10, scaler=scaler)
-
-
-def distill_batch(
-    student_model: ClassifierModel,
-    teacher_model: ClassifierModel,
-    batch: ModelInput,
-):
-    with amp.autocast("cuda"):
-        with torch.no_grad():
-            teacher_output = teacher_model(batch)
-
-        student_output = student_model(batch)
-        loss = LogitLoss()(student_output.logits, teacher_output.logits) + student_output.loss
-    return loss
 
 
 def train_batch(
@@ -165,13 +151,10 @@ def train_epoch(
     trainer: Trainer,
     train_data_loader: DataLoader,
     *,
-    teacher_model: ClassifierModel | None = None,
     dropout_prob: float | None = None,
     update_hook: Callable[[int, float], None] | None = None,
 ):
     model.train()
-    if teacher_model is not None:
-        teacher_model.eval()
     trainer.clear_losses()
     for batch_index, batch in enumerate(train_data_loader):
         # NOTE: randomly remove every modality independently
@@ -180,10 +163,7 @@ def train_epoch(
                 batch.audio_paths = None
             elif random.random() < dropout_prob:
                 batch.video_paths = None
-        if teacher_model is not None:
-            loss = distill_batch(model, teacher_model, batch)
-        else:
-            loss = train_batch(model, batch)
+        loss = train_batch(model, batch)
         if loss is None:
             continue
         trainer.training_step(loss)
@@ -201,7 +181,6 @@ def train_and_eval(
     train_data_loader: DataLoader,
     valid_data_loader: DataLoader,
     test_data_loader: DataLoader | None = None,
-    teacher_model: ClassifierModel | None = None,
     *,
     checkpoint_dir: Path,
     stopper: EarlyStopper | None = None,
@@ -228,7 +207,7 @@ def train_and_eval(
     if model_label is None:
         # TODO: improve default model label
         model_label = f"{model.__class__.__name__}-{id(model)}"
-    logger.info(f"Train model [blue]{model_label}[/] . Save to [blue]{checkpoint_dir}[/]")
+    logger.info(f"Train model [blue]{model_label}[/]. Save to [blue]{checkpoint_dir}[/]")
 
     epoch_start = load_last_checkpoint(
         checkpoint_dir,
@@ -263,7 +242,6 @@ def train_and_eval(
                 model,
                 trainer,
                 train_data_loader,
-                teacher_model=teacher_model,
                 update_hook=lambda batch_index, loss_value: progress.update(
                     task, loss=loss_value, batch_index=batch_index + 1
                 ),

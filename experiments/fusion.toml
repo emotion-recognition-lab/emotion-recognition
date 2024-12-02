@@ -12,7 +12,7 @@ args = [
     "{dataset}",
     "{encoder}",
     "{fusion}",
-    "configs/losses/classification/{classification}.toml",
+    "configs/losses/classification/weight.toml",
     "--seed {seed}",
 ]
 [tasks.fusion.matrix]
