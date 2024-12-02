@@ -24,7 +24,7 @@ from recognize.model import LazyMultimodalInput
 from recognize.trainer import Trainer
 
 from .evaluate import TrainingResult
-from .model import ClassifierModel, ModelInput
+from .model import ClassifierModel
 from .trainer import EarlyStopper
 
 
@@ -136,16 +136,6 @@ def get_trainer(
     return Trainer(model, data_loaders, optimizer, scheduler, max_grad_norm=10, scaler=scaler)
 
 
-def train_batch(
-    model: ClassifierModel,
-    batch: ModelInput,
-):
-    with amp.autocast("cuda"):
-        output = model(batch)
-        loss = output.loss
-    return loss
-
-
 def train_epoch(
     model: ClassifierModel,
     trainer: Trainer,
@@ -163,10 +153,7 @@ def train_epoch(
                 batch.audio_paths = None
             elif random.random() < dropout_prob:
                 batch.video_paths = None
-        loss = train_batch(model, batch)
-        if loss is None:
-            continue
-        trainer.training_step(loss)
+        trainer.train_batch(batch)
         if update_hook is not None:
             if batch_index % (len(train_data_loader) // 10):
                 loss_value = trainer.loss_mean()

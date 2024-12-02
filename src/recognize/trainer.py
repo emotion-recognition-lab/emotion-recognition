@@ -15,7 +15,7 @@ from recognize.config import load_dict_from_path, save_dict_to_file
 
 if TYPE_CHECKING:
     from .evaluate import TrainingResult
-    from .model import ClassifierModel
+    from .model import ClassifierModel, ModelInput
 
 
 class EarlyStopper(BaseModel):
@@ -91,14 +91,22 @@ class Trainer:
         self.loss_mean_cache = torch.stack(self.losses).mean().item()
         return self.loss_mean_cache
 
-    def training_step(self, loss: torch.Tensor | None) -> None:
-        if loss is None:
-            return
-
-        self.optimizer.zero_grad()
+    def train_batch(
+        self,
+        batch: ModelInput,
+    ) -> None:
         if self.scaler is not None:
+            with amp.autocast("cuda"):
+                output = self.model(batch)
+            loss = output.loss
+            if loss is None:
+                return
             self.scaler.scale(loss).backward()
         else:
+            output = self.model(batch)
+            loss = output.loss
+            if loss is None:
+                return
             loss.backward()
         if self.max_grad_norm is not None:
             nn.utils.clip_grad_norm_(self.model.parameters(), self.max_grad_norm)
@@ -109,8 +117,8 @@ class Trainer:
             self.optimizer.step()
         if self.scheduler is not None:
             self.scheduler.step()
-
         self.losses.append(loss.detach())
+        self.optimizer.zero_grad()
 
     def fit(self) -> TrainingResult:
         logger.warning("Trainer.fit is not implemented!")
