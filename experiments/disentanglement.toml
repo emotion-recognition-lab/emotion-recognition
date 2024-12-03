@@ -4,7 +4,6 @@ resources = "gpus"
 [matrix]
 dataset = ["MELD--E"]
 seed = ["0", "42", "114"]
-classification = ["focal", "weight"]
 
 [tasks.unimodal-sample-contrastive]
 command = "uv run emotion-recognize train"
