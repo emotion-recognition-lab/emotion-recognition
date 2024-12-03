@@ -33,7 +33,6 @@ def save_checkpoint(
     epoch: int,
     model: ClassifierModel,
     optimizer: Optimizer,
-    stopper: EarlyStopper,
 ):
     epoch_checkpoint_dir = checkpoint_dir / str(epoch)
     epoch_checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -60,7 +59,6 @@ def save_checkpoint(
 
     # TODO: improve optimizer size
     torch.save(optimizer.state_dict(), checkpoint_dir / "optimizer.pt")
-    stopper.save(checkpoint_dir / "stopper.yaml")
 
 
 def load_model(checkpoint_dir: Path, model: ClassifierModel):
@@ -242,7 +240,7 @@ def train_and_eval(
                     valid_accuracy = result.accuracy
                     better_metrics = stopper.update(epoch=epoch, valid_accuracy=valid_accuracy, valid_f1=valid_f1_score)
                     if stopper.finished:
-                        save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
+                        save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer)
                         break
                 result = trainer.eval("test")
                 test_f1_score = result.f1_score
@@ -250,11 +248,11 @@ def train_and_eval(
                 progress.update(task, f1_score=test_f1_score, accuracy=test_accuracy)
                 better_metrics = stopper.update(epoch=epoch, test_accuracy=test_accuracy, test_f1=test_f1_score)
                 if stopper.finished:
-                    save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
+                    save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer)
                     break
                 if stopper.best_epoch != best_epoch:
                     best_epoch = stopper.best_epoch
-                    save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
+                    save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer)
                     better_metrics_str = ", ".join(better_metrics)
                     logger.info(f"Epoch {epoch}: Better model found(improved {better_metrics_str})")
                     logger.info(
@@ -262,8 +260,9 @@ def train_and_eval(
                     )
 
             if epoch == num_epochs - 1:
-                save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer, stopper)
+                save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer)
 
+            stopper.save(checkpoint_dir / "stopper.yaml")
             progress.update(task, advance=1)
 
     load_model(checkpoint_dir / str(best_epoch), model)

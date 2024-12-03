@@ -43,7 +43,7 @@ class SelfAttentionProjector(Projector):
     ):
         super().__init__(in_features, out_features, bias, depth=depth)
         self.multihead_attn = nn.MultiheadAttention(in_features, head_num)
-        self.layer_norm = nn.Sequential(
+        self.norm = nn.Sequential(
             nn.LayerNorm(in_features),
             nn.Dropout(0.1),
         )
@@ -51,7 +51,7 @@ class SelfAttentionProjector(Projector):
     @torch.compile(dynamic=True, fullgraph=True)
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         attention, _ = self.multihead_attn(x, x, x)
-        return self.proj(self.layer_norm(attention + x))
+        return self.proj(self.norm(attention + x))
 
 
 class Pooler(nn.Module):
@@ -75,7 +75,7 @@ class CrossAttention(nn.Module):
     ):
         super().__init__()
         self.multihead_attn = nn.MultiheadAttention(query_features, head_num, kdim=key_features, vdim=key_features)
-        self.layer_norm = nn.Sequential(
+        self.norm = nn.Sequential(
             nn.LayerNorm(query_features),
             nn.Dropout(0.1),
         )
@@ -83,4 +83,4 @@ class CrossAttention(nn.Module):
     @torch.compile(dynamic=True, fullgraph=True)
     def forward(self, query: torch.Tensor, key: torch.Tensor) -> torch.Tensor:
         attention, _ = self.multihead_attn(query, key, key)
-        return self.layer_norm(attention + query)
+        return self.norm(attention + query)

@@ -78,10 +78,10 @@ class ClassifierModel[T: ModelInput](nn.Module):
         logits = output.logits
         labels = inputs.labels
         assert labels is not None
-        # loss = F.cross_entropy(logits, labels, weight=self.sample_weights)
         loss = self.loss_fn(logits, labels)
         if self.extra_loss_fns:
-            loss += sum(fn(inputs, output) for fn in self.extra_loss_fns)
+            for loss_fn in self.extra_loss_fns:
+                loss += loss_fn(inputs, output)
         output.loss = loss
         return loss
 
