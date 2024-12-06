@@ -15,6 +15,7 @@ class Projector(nn.Module):
         bias: bool = True,
         *,
         depth: int = 1,
+        dropout_prob: float = 0.1,
     ):
         super().__init__()
         if out_features is None:
@@ -22,7 +23,10 @@ class Projector(nn.Module):
         self.proj = nn.Sequential(
             nn.Linear(in_features, out_features, bias=bias),
             *itertools.chain(
-                *[[nn.GELU(), nn.Linear(out_features, out_features, bias=bias)] for _ in range(depth - 1)]
+                *[
+                    [nn.Dropout(dropout_prob), nn.GELU(), nn.Linear(out_features, out_features, bias=bias)]
+                    for _ in range(depth - 1)
+                ]
             ),
         )
 
@@ -40,12 +44,13 @@ class SelfAttentionProjector(Projector):
         *,
         depth: int = 1,
         head_num: int = 8,
+        dropout_prob: float = 0.1,
     ):
-        super().__init__(in_features, out_features, bias, depth=depth)
+        super().__init__(in_features, out_features, bias, depth=depth, dropout_prob=dropout_prob)
         self.multihead_attn = nn.MultiheadAttention(in_features, head_num)
         self.norm = nn.Sequential(
             nn.LayerNorm(in_features),
-            nn.Dropout(0.1),
+            nn.Dropout(dropout_prob),
         )
 
     @torch.compile(dynamic=True, fullgraph=True)
@@ -72,12 +77,13 @@ class CrossAttention(nn.Module):
         key_features: int,
         *,
         head_num: int = 8,
+        dropout_prob: float = 0.1,
     ):
         super().__init__()
         self.multihead_attn = nn.MultiheadAttention(query_features, head_num, kdim=key_features, vdim=key_features)
         self.norm = nn.Sequential(
             nn.LayerNorm(query_features),
-            nn.Dropout(0.1),
+            nn.Dropout(dropout_prob),
         )
 
     @torch.compile(dynamic=True, fullgraph=True)

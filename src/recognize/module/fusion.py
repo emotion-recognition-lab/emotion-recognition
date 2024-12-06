@@ -291,14 +291,23 @@ class DisentanglementFusion(FusionLayer):
         """
         Experts are expected to be a sequence of tuples of the form (needed_inputs, expert_module, output_dim).
         """
-        super().__init__(dims, shared_feature_size * (len(dims) - 1) + private_feature_size)
+        num_modal = len(dims)
+        super().__init__(dims, shared_feature_size * (num_modal - 1) + private_feature_size)
         self.dim_names = sorted(dims.keys())
         # TODO: dims should be the same, or use Pooler
         self.shared_projector = SelfAttentionProjector(
-            next(iter(dims.values())), shared_feature_size * (len(dims) - 1), head_num=8, depth=4
+            next(iter(dims.values())),
+            shared_feature_size * (num_modal - 1),
+            head_num=4 * num_modal,
+            depth=2 * num_modal,
         )
         self.named_cross_projectors = nn.ModuleDict(
-            {name: SelfAttentionProjector(dims[name], shared_feature_size, head_num=8, depth=2) for name in dims.keys()}
+            {
+                name: SelfAttentionProjector(
+                    dims[name], shared_feature_size, head_num=4 * (num_modal - 1), depth=2 ** (num_modal - 1)
+                )
+                for name in dims.keys()
+            }
         )
         self.named_private_projectors = nn.ModuleDict(
             {
@@ -306,16 +315,16 @@ class DisentanglementFusion(FusionLayer):
                 for name in dims.keys()
             }
         )
-        self.shared_reconstruction_projector = nn.ModuleDict(
-            {name: Projector(shared_feature_size * (len(dims) - 1), dims[name], depth=3) for name in dims.keys()}
+        self.cross_reconstruction_predictor = nn.ModuleDict(
+            {name: Projector(shared_feature_size * (num_modal - 1), dims[name], depth=4) for name in dims.keys()}
         )
         self.fusion_reconstruction_loss_fn = SimSiamLoss(
-            shared_feature_size * (len(dims) - 1) + private_feature_size, sum(dims.values())
+            shared_feature_size * (num_modal - 1) + private_feature_size, sum(dims.values())
         )
-        self.shared_router = NoiseRouter(sum(dims.values()), len(dims))
-        self.private_router = NoiseRouter(sum(dims.values()), len(dims))
+        self.shared_router = NoiseRouter(sum(dims.values()), num_modal)
+        self.private_router = NoiseRouter(sum(dims.values()), num_modal)
         self.cross_attn = CrossAttentionFusionLayer(
-            {"shared": shared_feature_size * (len(dims) - 1), "private": private_feature_size}
+            {"shared": shared_feature_size * (num_modal - 1), "private": private_feature_size}
         )
 
     def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
@@ -388,7 +397,7 @@ class DisentanglementFusion(FusionLayer):
         )
         for modal in self.dim_names:
             reconstruction_loss += F.smooth_l1_loss(
-                self.shared_reconstruction_projector[modal](cross_features_dict[modal]),
+                self.cross_reconstruction_predictor[modal](cross_features_dict[modal]),
                 inputs[modal].detach(),
             )
         return fusion_features, (feature_loss + reconstruction_loss) / 2
