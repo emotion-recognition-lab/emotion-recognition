@@ -22,7 +22,8 @@ class EarlyStopper(BaseModel):
     patience: int = 20
     history: list[tuple[int, dict[str, float]]] = Field(default_factory=list)
     best_scores: dict[str, float] = Field(default_factory=dict)
-    best_epoch: int = -1
+    best_epoch: dict[str, int] = Field(default_factory=dict)
+    last_better_epoch: int = -1
     finished: bool = False
 
     @classmethod
@@ -52,11 +53,12 @@ class EarlyStopper(BaseModel):
                 self.best_scores[key] = float("-inf")
             if value > self.best_scores[key]:
                 self.best_scores[key] = value
-                self.best_epoch = epoch
+                self.best_epoch[key] = epoch
+                self.last_better_epoch = epoch
                 better_metrics.append(key)
             else:
-                if epoch - self.best_epoch >= self.patience:
-                    logger.info(f"Early stopping! Best epoch: {self.best_epoch}")
+                if epoch - self.last_better_epoch >= self.patience:
+                    logger.info(f"Early stopping! Last better epoch: {self.last_better_epoch}")
                     self.finished = True
                     return []
         return better_metrics

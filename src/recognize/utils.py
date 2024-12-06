@@ -39,11 +39,11 @@ def save_checkpoint(
     model.save_checkpoint(epoch_checkpoint_dir)
 
     epoch_encoder_dir = epoch_checkpoint_dir / "backbone"
-    original_encoder_dir = checkpoint_dir / "backbone"
     epoch_encoder_dir.mkdir(parents=True, exist_ok=True)
     for name, path in model.backbone.save(epoch_encoder_dir).items():
         (epoch_encoder_dir / f"{name}.safetensors").symlink_to(path)
 
+    original_encoder_dir = checkpoint_dir / "backbone"
     original_encoder_dir.unlink(missing_ok=True)
     original_encoder_dir.symlink_to(
         epoch_encoder_dir.relative_to(original_encoder_dir.parent),
@@ -69,14 +69,14 @@ def load_model(checkpoint_dir: Path, model: ClassifierModel):
         model.backbone.load_checkpoint(checkpoint_dir / "backbone")
 
 
-def find_best_model(checkpoint_dir: Path) -> int:
+def find_best_model(checkpoint_dir: Path, key: str = "test_f1") -> int:
     if (checkpoint_dir / "stopper.yaml").exists():
         stopper = EarlyStopper.from_file(checkpoint_dir / "stopper.yaml")
         best_epoch = stopper.best_epoch
     else:
         logger.warning(f"No stopper or result file found in [blue]{checkpoint_dir}")
-        best_epoch = -1
-    return best_epoch
+        best_epoch = {}
+    return best_epoch.get(key, -1)
 
 
 def load_best_model(checkpoint_dir: Path, model: ClassifierModel) -> int:
@@ -200,7 +200,7 @@ def train_and_eval(
         trainer.optimizer,
     )
 
-    best_epoch = stopper.best_epoch
+    last_better_epoch = stopper.last_better_epoch
     batch_num = len(train_data_loader)
     result: TrainingResult | None = None
     with Progress(
@@ -250,8 +250,8 @@ def train_and_eval(
                 if stopper.finished:
                     save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer)
                     break
-                if stopper.best_epoch != best_epoch:
-                    best_epoch = stopper.best_epoch
+                if stopper.last_better_epoch != last_better_epoch:
+                    last_better_epoch = stopper.last_better_epoch
                     save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer)
                     better_metrics_str = ", ".join(better_metrics)
                     logger.info(f"Epoch {epoch}: Better model found(improved {better_metrics_str})")
@@ -265,6 +265,6 @@ def train_and_eval(
             stopper.save(checkpoint_dir / "stopper.yaml")
             progress.update(task, advance=1)
 
-    load_model(checkpoint_dir / str(best_epoch), model)
+    load_model(checkpoint_dir / str(last_better_epoch), model)
     result = trainer.eval("test")
     return result

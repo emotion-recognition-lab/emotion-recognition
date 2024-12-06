@@ -62,17 +62,17 @@ class SimSiamLoss(nn.Module):
 
 
 class LogitLoss(nn.Module):
-    def __init__(self, beta: float = 1.0, gamma: float = 1.0, tau: float = 4.0):
+    def __init__(self, beta: float = 1.0, gamma: float = 1.0, temp: float = 4.0):
         super().__init__()
         self.beta = beta
         self.gamma = gamma
-        self.tau = tau
+        self.temp = temp
 
     def forward(self, z_s: torch.Tensor, z_t: torch.Tensor):
-        y_s = (z_s / self.tau).softmax(dim=1)
-        y_t = (z_t / self.tau).softmax(dim=1)
-        inter_loss = self.tau**2 * inter_class_relation(y_s, y_t)
-        intra_loss = self.tau**2 * intra_class_relation(y_s, y_t)
+        y_s = (z_s / self.temp).softmax(dim=1)
+        y_t = (z_t / self.temp).softmax(dim=1)
+        inter_loss = self.temp**2 * inter_class_relation(y_s, y_t)
+        intra_loss = self.temp**2 * intra_class_relation(y_s, y_t)
         kd_loss = self.beta * inter_loss + self.gamma * intra_loss
         return kd_loss
 
@@ -111,6 +111,8 @@ class DistillationLoss(nn.Module):
     def forward(self, input: MultimodalInput, output: ClassifierOutput):
         with torch.no_grad():
             teacher_output = self.teacher_model(input)
+        # if all(input.labels != torch.argmax(output.logits, dim=1)):
+        #     return torch.tensor(0.0, device=output.logits.device)
         loss = self.logit_loss_fn(output.logits, teacher_output.logits)
         return loss
 
