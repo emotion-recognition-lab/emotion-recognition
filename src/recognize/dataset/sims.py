@@ -46,8 +46,8 @@ class SIMSDataset(MultimodalDataset):
         video_id = item["video_id"]
         audio_id = video_id.replace("video", "audio")
         clip_id = item["clip_id"]
-        audio_path = f"{self.dataset_path}/Raw/{audio_id}/{clip_id}.flac"
-        video_path = f"{self.dataset_path}/Raw/{video_id}/{clip_id}.mp4"
+        audio_path = f"{self.dataset_path}/Raw/{audio_id}/{clip_id:04d}.flac"
+        video_path = f"{self.dataset_path}/Raw/{video_id}/{clip_id:04d}.mp4"
 
         assert self.preprocessor is not None, "Preprocessor is not set"
         return LazyMultimodalInput(
