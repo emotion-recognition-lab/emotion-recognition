@@ -367,6 +367,7 @@ def train(
 def evaluate(
     checkpoint: Path,
     seed: int | None = None,
+    use_cache: bool = True,
 ) -> None:
     init_torch()
     from torch.utils.data import DataLoader
@@ -392,6 +393,7 @@ def evaluate(
         datasets=[test_dataset],
         checkpoints=[checkpoint],
         frozen_encoders=True,
+        use_cache=use_cache,
     )
 
     test_data_loader = DataLoader(

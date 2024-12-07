@@ -43,13 +43,6 @@ def save_checkpoint(
     for name, path in model.backbone.save(epoch_encoder_dir).items():
         (epoch_encoder_dir / f"{name}.safetensors").symlink_to(path)
 
-    original_encoder_dir = checkpoint_dir / "backbone"
-    original_encoder_dir.unlink(missing_ok=True)
-    original_encoder_dir.symlink_to(
-        epoch_encoder_dir.relative_to(original_encoder_dir.parent),
-        target_is_directory=True,
-    )
-
     (epoch_checkpoint_dir / "preprocessor").symlink_to(
         "../preprocessor",
     )

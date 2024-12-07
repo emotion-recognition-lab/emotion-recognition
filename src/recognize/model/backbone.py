@@ -4,7 +4,6 @@ import itertools
 import pickle
 from abc import abstractmethod
 from collections.abc import Callable, Mapping
-from functools import cached_property
 from pathlib import Path
 from typing import Literal, Self
 
@@ -187,10 +186,8 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
                 state_dicts[name] = module.state_dict()
         return state_dicts, peft_state_dicts
 
-    @cached_property
+    @property
     def encoder_hash(self):
-        if not self.frozen_encoders:
-            logger.warning("Encoders are not frozen, hash may be incorrect")
         bytes_dict: dict[str, bytes] = {}
         state_dicts, peft_state_dicts = self.get_state_dicts()
         for name, state_dict in itertools.chain(state_dicts.items(), peft_state_dicts.items()):
