@@ -1,0 +1,16 @@
+name = "basic"
+resources = "gpus"
+
+[matrix]
+dataset = ["configs/dataset/MELD--E.toml"]
+seed = ["0", "42", "114"]
+
+[tasks.unimodal]
+command = "uv run emotion-recognize train"
+args = ["{dataset}", "{encoder}", "--seed {seed}"]
+[tasks.unimodal.matrix]
+encoder = [
+    "configs/encoders/T.toml",
+    "configs/encoders/A.toml",
+    "configs/encoders/V.toml",
+]
