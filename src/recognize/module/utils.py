@@ -7,7 +7,9 @@ from recognize.module.fusion import (
     DisentanglementFusion,
     LowRankFusionLayer,
     MultiHeadFusionMoE,
+    PrivateFeatureFusion,
     SelfAttentionFusionLayer,
+    SharedFeatureFusion,
     TensorFusionLayer,
     VallinaFusionLayer,
 )
@@ -31,6 +33,8 @@ def gen_fusion_layer(fusion: str, feature_sizes_dict: dict[str, int]) -> FusionL
             "MultiHeadFusionMoE": MultiHeadFusionMoE,
             "ConcatFusionMoE": ConcatFusionMoE,
             "DisentanglementFusion": DisentanglementFusion,
+            "SharedFeatureFusion": SharedFeatureFusion,
+            "PrivateFeatureFusion": PrivateFeatureFusion,
             "feature_sizes_dict": feature_sizes_dict,
         },
     )

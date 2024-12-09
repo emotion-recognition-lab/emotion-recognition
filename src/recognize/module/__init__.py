@@ -4,6 +4,8 @@ from .fusion import (
     DisentanglementFusion,
     FusionLayer,
     LowRankFusionLayer,
+    PrivateFeatureFusion,
+    SharedFeatureFusion,
     TensorFusionLayer,
     VallinaFusionLayer,
 )

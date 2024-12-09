@@ -3,7 +3,7 @@ resources = "gpus"
 
 [matrix]
 dataset = ["MELD--E"]
-seed = ["0", "42", "114"]
+seed = ["114"]
 
 [tasks.unimodal]
 command = "uv run emotion-recognize train"
@@ -14,22 +14,34 @@ args = [
     "--seed {seed}",
 ]
 
-[tasks.disentanglement]
+[tasks.losses]
 command = "uv run emotion-recognize train"
 args = [
     "configs/dataset/{dataset}.toml",
-    "configs/encoders/{encoder}.toml",
+    "configs/encoders/T+A+V.toml",
     "configs/fusion/disentanglement.toml",
-    "configs/losses/frl.toml",
-    # "configs/losses/{modal_contrastive}.toml",
     "configs/losses/classification/focal.toml",
+    "{extra}",
+    "--seed {seed}",
+]
+deps = ["unimodal"]
+[tasks.losses.matrix]
+extra = [
+    "configs/losses/frl.toml",
+    "--teacher-checkpoint checkpoints/training/{dataset}/trainable--2--focal/1xE--T/ce200638--{seed}",
+]
+
+[tasks.model]
+command = "uv run emotion-recognize train"
+args = [
+    "configs/dataset/{dataset}.toml",
+    "configs/encoders/T+A+V.toml",
+    "configs/fusion/{fusion}.toml",
+    "configs/losses/classification/focal.toml",
+    "configs/losses/frl.toml",
     "--teacher-checkpoint checkpoints/training/{dataset}/trainable--2--focal/1xE--T/ce200638--{seed}",
     "--seed {seed}",
 ]
-deps = ["unimodal-sample-contrastive"]
-[tasks.disentanglement.matrix]
-encoder = [
-    "T+A",
-    "T+A+V",
-]
-# modal_contrastive = ["cmcl"]
+deps = ["unimodal"]
+[tasks.model.matrix]
+fusion = ["shared", "private"]
