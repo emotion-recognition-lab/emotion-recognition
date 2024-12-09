@@ -109,7 +109,7 @@ class Preprocessor:
                 logger.warning(f"Audio file {audio_path} does not exist")
                 return None, None
 
-            raw_speech, sampling_rate = sf.read(audio_path)
+            raw_speech, sampling_rate = sf.read(audio_path, always_2d=True)
             audio_inputs = self.feature_extractor(
                 raw_speech.mean(1),
                 sampling_rate=sampling_rate,

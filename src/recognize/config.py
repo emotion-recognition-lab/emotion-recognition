@@ -183,6 +183,10 @@ class CrossModalContrastiveConfig(LossConfigItem):
 class ReconstructionLossConfig(LossConfigItem):
     alpha: float = 0.5
 
+    @cached_property
+    def label(self) -> str:
+        return f"rec{self.alpha}"
+
     def to_loss_object(self, num_classes: int, original_dims: Mapping[str, int], hidden_dim: int) -> ReconstructionLoss:
         from recognize.module import (
             ReconstructionLoss,
@@ -219,6 +223,8 @@ class LossConfig(BaseModel):
             labels.append(self.sample_contrastive.label)
         if self.modal_contrastive is not None:
             labels.append(self.modal_contrastive.label)
+        if self.reconstruction is not None:
+            labels.append(self.reconstruction.label)
         return "--".join(labels)
 
 
