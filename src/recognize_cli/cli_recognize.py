@@ -307,7 +307,7 @@ def train(
 
     classification_loss = config_loss.classification if config_loss is not None else None
     if config_model_fusion is None:
-        assert len(config_model_encoder) == 1, "Multiple modals must give a fusion layer"
+        assert len(config_model_encoder) == 1, "Multimodal model must give a fusion layer"
         feature_size = next(iter(feature_sizes_dict.values()))
         model = UnimodalModel(
             backbone,
@@ -402,7 +402,7 @@ def evaluate(
         pin_memory=True,
     )
     if config.model.fusion is None:
-        assert len(config_model_encoder) == 1, "Multiple modals must give a fusion layer"
+        assert len(config_model_encoder) == 1, "Multimodal model must give a fusion layer"
         feature_size = next(iter(config_model_encoder.values())).feature_size
         model = UnimodalModel(
             backbone,

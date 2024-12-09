@@ -55,11 +55,11 @@ class ModelConfig(BaseModel):
 
     @cached_property
     def label(self) -> str:
-        modals = "+".join(self.encoder.keys())
+        modalities = "+".join(self.encoder.keys())
         # TODO: fusion need more explicit label
         model_labels = [
             f"{self.num_experts}xE",
-            f"{modals}",
+            f"{modalities}",
         ]
         return "--".join(model_labels)
 

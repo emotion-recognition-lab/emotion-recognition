@@ -342,8 +342,8 @@ class SelfContrastiveLoss(nn.Module):
         embs_dict = output.embs_dict
         assert embs_dict is not None
         total_loss = torch.tensor(0.0, device=output.logits.device)
-        modals = set(embs_dict.keys()) & set(self.dims.keys())
-        for modal in modals - {self.main_modal}:
+        modalities = set(embs_dict.keys()) & set(self.dims.keys())
+        for modal in modalities - {self.main_modal}:
             total_loss += self.feature_loss_fn(embs_dict[modal], embs_dict[self.main_modal])
 
         return total_loss
@@ -360,9 +360,9 @@ class CrossModalContrastiveLoss(nn.Module):
         embs_dict = output.embs_dict
         assert embs_dict is not None
         total_loss = torch.tensor(0.0, device=output.logits.device)
-        modals = set(embs_dict.keys()) & set(self.dims.keys())
+        modalities = set(embs_dict.keys()) & set(self.dims.keys())
         main_modal_embs = embs_dict[self.main_modal].detach()
-        for modal in modals - {self.main_modal}:
+        for modal in modalities - {self.main_modal}:
             total_loss += self.feature_loss_fn(embs_dict[modal], main_modal_embs)
         return total_loss
 
