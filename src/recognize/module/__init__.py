@@ -16,6 +16,7 @@ from .loss import (
     LogitLoss,
     MultiLoss,
     PrototypeContrastiveLoss,
+    ReconstructionLoss,
     SelfContrastiveLoss,
     SimSiamLoss,
     SupervisedProtoContrastiveLoss,

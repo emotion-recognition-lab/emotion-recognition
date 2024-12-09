@@ -391,10 +391,7 @@ class DisentanglementFusion(FusionLayer):
             ),
             dim=0,
         )
-        reconstruction_loss = self.fusion_reconstruction_loss_fn(
-            fusion_features,
-            concatenated_inputs,
-        )
+        reconstruction_loss = 0.0
         for modal in self.dim_names:
             reconstruction_loss += F.smooth_l1_loss(
                 self.cross_reconstruction_predictor[modal](cross_features_dict[modal]),

@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from loguru import logger
 from pydantic import BaseModel
+from torch import nn
 
 from .typing import DatasetClass, DatasetLabelType, LogLevel, ModalType
 
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
     from recognize.module import (
         AdaptivePrototypeContrastiveLoss,
         CrossModalContrastiveLoss,
-        PrototypeContrastiveLoss,
+        ReconstructionLoss,
         SelfContrastiveLoss,
         SupervisedProtoContrastiveLoss,
     )
@@ -92,11 +93,13 @@ class DatasetConfig(BaseModel):
         return "--".join(model_labels)
 
 
-class PrototypeContrastiveConfig(BaseModel):
-    temperature: float = 0.08
-
+class LossConfigItem[T](BaseModel):
     @abstractmethod
-    def to_loss_object(self, num_classes: int, hidden_dim: int) -> PrototypeContrastiveLoss: ...
+    def to_loss_object(self, num_classes: int, original_dims: Mapping[str, int], hidden_dim: int) -> T: ...
+
+
+class PrototypeContrastiveConfig(LossConfigItem):
+    temperature: float = 0.08
 
 
 class SupervisedPrototypeContrastiveConfig(PrototypeContrastiveConfig):
@@ -107,7 +110,9 @@ class SupervisedPrototypeContrastiveConfig(PrototypeContrastiveConfig):
     def label(self) -> str:
         return f"spcl{self.temperature}-{self.pool_size}-{self.support_set_size}"
 
-    def to_loss_object(self, num_classes: int, hidden_dim: int) -> SupervisedProtoContrastiveLoss:
+    def to_loss_object(
+        self, num_classes: int, original_dims: Mapping[str, int], hidden_dim: int
+    ) -> SupervisedProtoContrastiveLoss:
         from recognize.module import (
             SupervisedProtoContrastiveLoss,
         )
@@ -129,7 +134,9 @@ class AdaptivePrototypeContrastiveConfig(PrototypeContrastiveConfig):
     def label(self) -> str:
         return f"apcl{self.temperature}-{self.gamma}-{self.alpha}"
 
-    def to_loss_object(self, num_classes: int, hidden_dim: int) -> AdaptivePrototypeContrastiveLoss:
+    def to_loss_object(
+        self, num_classes: int, original_dims: Mapping[str, int], hidden_dim: int
+    ) -> AdaptivePrototypeContrastiveLoss:
         from recognize.module import (
             AdaptivePrototypeContrastiveLoss,
         )
@@ -143,36 +150,65 @@ class AdaptivePrototypeContrastiveConfig(PrototypeContrastiveConfig):
         )
 
 
-class SelfContrastiveConfig(BaseModel):
+class SelfContrastiveConfig(LossConfigItem):
     hidden_dim: int = 512
 
     @cached_property
     def label(self) -> str:
         return f"scl{self.hidden_dim}"
 
-    def to_loss_object(self, feature_sizes_dict: Mapping[str, int]) -> SelfContrastiveLoss:
-        raise NotImplementedError
+    def to_loss_object(
+        self, num_classes: int, original_dims: Mapping[str, int], hidden_dim: int
+    ) -> SelfContrastiveLoss:
+        raise NotImplementedError("SelfContrastiveLoss is not implemented")
 
 
-class CrossModalContrastiveConfig(BaseModel):
+class CrossModalContrastiveConfig(LossConfigItem):
     main_modal: ModalType
 
     @cached_property
     def label(self) -> str:
         return f"cmcl-{self.main_modal}"
 
-    def to_loss_object(self, feature_sizes_dict: Mapping[str, int]) -> CrossModalContrastiveLoss:
+    def to_loss_object(
+        self, num_classes: int, original_dims: Mapping[str, int], hidden_dim: int
+    ) -> CrossModalContrastiveLoss:
         from recognize.module import (
             CrossModalContrastiveLoss,
         )
 
-        return CrossModalContrastiveLoss(feature_sizes_dict, self.main_modal)
+        return CrossModalContrastiveLoss(original_dims, self.main_modal)
+
+
+class ReconstructionLossConfig(LossConfigItem):
+    alpha: float = 0.5
+
+    def to_loss_object(self, num_classes: int, original_dims: Mapping[str, int], hidden_dim: int) -> ReconstructionLoss:
+        from recognize.module import (
+            ReconstructionLoss,
+        )
+
+        return ReconstructionLoss(original_dims, hidden_dim, alpha=self.alpha)
 
 
 class LossConfig(BaseModel):
     classification: Literal["weight", "focal"] | None = None
     sample_contrastive: SupervisedPrototypeContrastiveConfig | AdaptivePrototypeContrastiveConfig | None = None
     modal_contrastive: SelfContrastiveConfig | CrossModalContrastiveConfig | None = None
+    reconstruction: ReconstructionLossConfig | None = None
+
+    def get_loss_objects(self, num_classes: int, original_dims: Mapping[str, int], hidden_dim: int) -> list[nn.Module]:
+        loss_objects = []
+        if self.sample_contrastive is not None:
+            loss_objects.append(self.sample_contrastive.to_loss_object(num_classes, original_dims, hidden_dim))
+        if len(original_dims) == 1:
+            # NOTE: some loss functions only support multiple modalities
+            return loss_objects
+        if self.modal_contrastive is not None:
+            loss_objects.append(self.modal_contrastive.to_loss_object(num_classes, original_dims, hidden_dim))
+        if self.reconstruction is not None:
+            loss_objects.append(self.reconstruction.to_loss_object(num_classes, original_dims, hidden_dim))
+        return loss_objects
 
     @cached_property
     def label(self) -> str:

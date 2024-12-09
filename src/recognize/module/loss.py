@@ -373,3 +373,22 @@ class CrossModalContrastiveLoss(nn.Module):
         for modal in modals - {self.main_modal}:
             total_loss += self.feature_loss_fn(embs_dict[modal], main_modal_embs)
         return total_loss
+
+
+class ReconstructionLoss(nn.Module):
+    def __init__(self, dims: Mapping[str, int], feature_size: int, *, alpha: float = 0.5):
+        super().__init__()
+        self.dims = dict(dims)
+        self.feature_size = feature_size
+        self.alpha = alpha
+        self.loss_fn = SimSiamLoss(feature_size, sum(self.dims.values()))
+
+    def forward(self, input: MultimodalInput, output: ClassifierOutput) -> torch.Tensor:
+        embs_dict = output.embs_dict
+        assert embs_dict is not None
+        concatenated_inputs = torch.cat([embs_dict[name] for name in self.dims.keys()], dim=1).detach()
+        loss = self.loss_fn(
+            output.features,
+            concatenated_inputs,
+        )
+        return self.alpha * loss

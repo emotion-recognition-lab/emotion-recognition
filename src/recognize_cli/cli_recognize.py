@@ -13,7 +13,6 @@ from safetensors.torch import load_file
 from utils import init_logger
 
 from recognize.config import (
-    CrossModalContrastiveConfig,
     InferenceConfig,
     ModelEncoderConfig,
     load_training_config,
@@ -318,9 +317,14 @@ def train(
             classification_loss=classification_loss,
         ).cuda()
         if config_loss is not None and (config_loss_contrastive := config_loss.sample_contrastive) is not None:
-            model.add_extra_loss_fn(config_loss_contrastive.to_loss_object(train_dataset.num_classes, feature_size))
+            model.add_extra_loss_fn(
+                config_loss_contrastive.to_loss_object(
+                    train_dataset.num_classes, feature_sizes_dict, backbone.hidden_dim
+                )
+            )
     else:
         fusion_layer = gen_fusion_layer(config_model_fusion, feature_sizes_dict)
+        feature_size = fusion_layer.output_size
         model = MultimodalModel(
             backbone,
             fusion_layer,
@@ -328,15 +332,9 @@ def train(
             class_weights=class_weights,
             classification_loss=classification_loss,
         ).cuda()
-        if config_loss is not None:
-            if (config_sample_contrastive := config_loss.sample_contrastive) is not None:
-                model.add_extra_loss_fn(
-                    config_sample_contrastive.to_loss_object(train_dataset.num_classes, fusion_layer.output_size),
-                )
-            if (config_modal_contrastive := config_loss.modal_contrastive) is not None:
-                assert isinstance(config_modal_contrastive, CrossModalContrastiveConfig)
-                model.add_extra_loss_fn(config_modal_contrastive.to_loss_object(feature_sizes_dict))
-
+    if config_loss is not None:
+        for loss_fn in config_loss.get_loss_objects(train_dataset.num_classes, feature_sizes_dict, feature_size):
+            model.add_extra_loss_fn(loss_fn.cuda())
     if teacher_model is not None:
         model.add_extra_loss_fn(DistillationLoss(teacher_model))
         # if config_training_mode == "trainable":
