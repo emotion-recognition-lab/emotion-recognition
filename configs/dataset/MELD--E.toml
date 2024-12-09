@@ -1,3 +1,5 @@
+batch_size = 2
+
 [dataset]
 dataset_class = "MELDDataset"
 path = "datasets/MELD"

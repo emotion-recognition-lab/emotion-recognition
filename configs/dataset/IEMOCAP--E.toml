@@ -1,3 +1,5 @@
+batch_size = 4
+
 [dataset]
 dataset_class = "IEMOCAPDataset"
 path = "datasets/IEMOCAP"
