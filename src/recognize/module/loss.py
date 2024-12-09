@@ -331,7 +331,6 @@ class SelfContrastiveLoss(nn.Module):
         self.hidden_dim = hidden_dim
         self.main_modal = main_modal
         self.feature_loss_fn = FeatureLoss()
-        # sum_dim = sum(self.dims.values())
         self.named_projectors = nn.ModuleDict(
             {
                 f"{name1}->{name2}": nn.Linear(dim1, dim2)
@@ -347,13 +346,6 @@ class SelfContrastiveLoss(nn.Module):
         for modal in modals - {self.main_modal}:
             total_loss += self.feature_loss_fn(embs_dict[modal], embs_dict[self.main_modal])
 
-        # for name1, name2 in itertools.product(modals, repeat=2):
-        #     projector = self.named_projectors[f"{name1}->{name2}"]
-        #     embs1 = embs_dict[name1]
-        #     embs2 = embs_dict[name2]
-        #     proj_embs1 = projector(embs1)
-        #     loss = F.smooth_l1_loss(proj_embs1, embs2)
-        #     total_loss += loss
         return total_loss
 
 
@@ -386,6 +378,8 @@ class ReconstructionLoss(nn.Module):
     def forward(self, input: MultimodalInput, output: ClassifierOutput) -> torch.Tensor:
         embs_dict = output.embs_dict
         assert embs_dict is not None
+        if len(embs_dict) != len(self.dims):
+            return torch.tensor(0.0, device=output.logits.device)
         concatenated_inputs = torch.cat([embs_dict[name] for name in self.dims.keys()], dim=1).detach()
         loss = self.loss_fn(
             output.features,

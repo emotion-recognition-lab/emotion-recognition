@@ -60,6 +60,22 @@ def support_modal_missing(
         return decorator(cls)
 
 
+class ModalFillLayer(nn.Module):
+    def __init__(self, dims: Mapping[str, int]):
+        super().__init__()
+        self.dims = dims
+        self.placeholders = nn.ParameterDict({name: nn.Parameter(torch.randn(1, dim)) for name, dim in dims.items()})
+
+    @torch.compile(dynamic=True)
+    def forward(self, inputs: Mapping[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        batch_size = next(iter(inputs.values())).size(0)
+        wrapped_inputs = {
+            name: torch.broadcast_to(self.placeholders[name], (batch_size, dim)) if name not in inputs else inputs[name]
+            for name, dim in self.dims.items()
+        }
+        return wrapped_inputs
+
+
 class FusionLayer(nn.Module):
     __call__: Callable[[Mapping[str, torch.Tensor]], torch.Tensor]
 

@@ -44,4 +44,4 @@ args = [
 ]
 deps = ["unimodal"]
 [tasks.model.matrix]
-fusion = ["shared", "private"]
+fusion = ["vallina", "shared", "private"]

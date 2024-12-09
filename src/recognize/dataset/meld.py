@@ -54,17 +54,17 @@ class MELDDataset(MultimodalDataset):
 
         if label_type == "emotion":
             self.label2int = self.emotion2int
-            self.num_classes = 7
+            num_classes = 7
         elif label_type == "sentiment":
             self.label2int = self.sentiment2int
-            self.num_classes = 3
+            num_classes = 3
         else:
             raise ValueError(f"Unsupported label type {label_type}")
 
         super().__init__(
             dataset_path,
             pd.read_csv(f"{dataset_path}/{self.split}_sent_emo.csv", sep=",", index_col=0, header=0),
-            num_classes=self.num_classes,
+            num_classes=num_classes,
             split=split,
         )
 
