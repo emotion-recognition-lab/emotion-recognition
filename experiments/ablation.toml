@@ -2,7 +2,7 @@ name = "proposal"
 resources = "gpus"
 
 [matrix]
-dataset = ["MELD--E"]
+dataset = ["MELD--E", "IEMOCAP--E"]
 seed = ["114"]
 
 [tasks.unimodal]
@@ -45,3 +45,21 @@ args = [
 deps = ["unimodal"]
 [tasks.model.matrix]
 fusion = ["vallina", "shared", "private"]
+
+[tasks.modality]
+command = "uv run emotion-recognize train"
+args = [
+    "configs/dataset/{dataset}.toml",
+    "configs/encoders/{encoder}.toml",
+    "configs/fusion/disentanglement.toml",
+    "configs/losses/classification/focal.toml",
+    "configs/losses/frl.toml",
+    "--teacher-checkpoint checkpoints/training/{dataset}/trainable--2--focal/1xE--T/ce200638--{seed}",
+    "--seed {seed}",
+]
+deps = ["unimodal"]
+[tasks.modality.matrix]
+encoder = [
+    "T+A",
+    "T+V",
+]

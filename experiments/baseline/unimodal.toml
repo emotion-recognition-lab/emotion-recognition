@@ -2,8 +2,8 @@ name = "basic"
 resources = "gpus"
 
 [matrix]
-dataset = ["MELD--E"]
-seed = ["0", "42", "114"]
+dataset = ["MELD--E", "IEMOCAP--E"]
+seed = ["114"]
 classification = ["weight", "focal"]
 
 [tasks.unimodal]

@@ -215,7 +215,6 @@ def train(
     if teacher_checkpoint is not None:
         assert config_model_fusion is not None
         assert (teacher_checkpoint / "preprocessor").exists()
-        assert (teacher_checkpoint / "backbone").exists()
 
     if checkpoint is not None:
         checkpoint_dir = checkpoint
@@ -268,7 +267,10 @@ def train(
     )
 
     if teacher_checkpoint is not None:
-        teacher_backbone = MultimodalBackbone.from_checkpoint(teacher_checkpoint / "backbone")
+        teacher_checkpoint_best = find_best_model(teacher_checkpoint)
+        teacher_backbone = MultimodalBackbone.from_checkpoint(
+            teacher_checkpoint / str(teacher_checkpoint_best) / "backbone"
+        )
         teacher_preprocessor = Preprocessor.from_pretrained(teacher_checkpoint / "preprocessor")
         # TODO: maybe those will be covered by load_best_model
         backbone.named_encoders.load_state_dict(teacher_backbone.named_encoders.state_dict(), strict=False)
