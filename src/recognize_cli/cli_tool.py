@@ -95,6 +95,7 @@ def info(
     filter: str = "",
     max_show: int = 5,
 ):
+    """show checkpoint information"""
     from rich import print
 
     from recognize.config import load_training_config
@@ -150,7 +151,8 @@ def info(
 def clean(
     checkpoint_dir: Path = typer.Argument(Path("checkpoints"), help="The checkpoint directory to clean"),
 ):
-    # clean encoder files with no symlinks
+    """clean encoder files without symlinks"""
+
     init_logger("INFO")
     cleaned_size = 0
     cleaned_count = 0
@@ -167,10 +169,37 @@ def clean(
 
 
 @app.command()
+def analysis_dataset(
+    dataset_dir: Path = typer.Argument(Path("datasets"), help="The dataset directory to analysis"),
+):
+    from recognize.dataset import IEMOCAPDataset, MELDDataset
+
+    init_logger("INFO")
+
+    name_to_dataset: dict[str, type[MELDDataset | IEMOCAPDataset]] = {
+        "MELD": MELDDataset,
+        "IEMOCAP": IEMOCAPDataset,
+    }
+
+    logger.info(f"Supported dataset: [blue]{name_to_dataset.keys()}[/]")
+    logger.info(f"Searching for dataset in [blue]{dataset_dir}[/]")
+
+    for name, dataset_cls in name_to_dataset.items():
+        dataset_path = dataset_dir / name
+        if not dataset_path.exists():
+            continue
+
+        dataset = dataset_cls(dataset_path.as_posix())
+        logger.info(f"Found dataset [blue]{name}[/]")
+        # TODO: not implemented yet
+
+
+@app.command()
 def prune(
     checkpoint: Path,
     pruned_checkpoint: Path,
 ):
+    """not implemented yet"""
     from recognize.config import load_training_config
 
     config = load_training_config(checkpoint / "config.toml")
