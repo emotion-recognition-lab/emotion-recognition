@@ -5,6 +5,7 @@ from recognize.module.fusion import (
     ConcatFusionMoE,
     CrossAttentionFusionLayer,
     DisentanglementFusion,
+    FusionLayer,
     LowRankFusionLayer,
     MultiHeadFusionMoE,
     PrivateFeatureFusion,
@@ -13,14 +14,14 @@ from recognize.module.fusion import (
     TensorFusionLayer,
     VallinaFusionLayer,
 )
-from recognize.typing import FusionLayerLike, ModalType
+from recognize.typing import ModalType
 
 
 def get_feature_sizes_dict(config_model_encoder: dict[ModalType, ModelEncoderConfig]) -> dict[str, int]:
     return {modal: config.feature_size for modal, config in config_model_encoder.items()}
 
 
-def gen_fusion_layer(fusion: str, feature_sizes_dict: dict[str, int]) -> FusionLayerLike:
+def gen_fusion_layer(fusion: str, feature_sizes_dict: dict[str, int]) -> FusionLayer:
     # TODO: split fusion to fusion_cls and fusion_args
     fusion = eval(
         fusion,
@@ -38,5 +39,5 @@ def gen_fusion_layer(fusion: str, feature_sizes_dict: dict[str, int]) -> FusionL
             "feature_sizes_dict": feature_sizes_dict,
         },
     )
-    assert isinstance(fusion, FusionLayerLike), f"{fusion} is not a FusionLayerLike, but {type(fusion)}"
+    assert isinstance(fusion, FusionLayer), f"{fusion} is not a FusionLayerLike, but {type(fusion)}"
     return fusion

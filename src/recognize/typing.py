@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias, runtime_checkable
+from typing import TYPE_CHECKING, Literal, TypeAlias
 
 from typing_extensions import TypeVar
 
@@ -25,15 +24,3 @@ LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 DatasetClass = Literal["MELDDataset", "PilotDataset", "SIMSDataset", "IEMOCAPDataset"]
 DatasetSplit = Literal["train", "valid", "test", "dev"]
 DatasetLabelType = Literal["emotion", "sentiment"]
-
-
-# TODO: deprecated
-@runtime_checkable
-class FusionLayerLike(Protocol):
-    output_size: int
-
-    def __call__(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor: ...
-
-    def forward_with_loss(
-        self, inputs: Mapping[str, torch.Tensor], label: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]: ...

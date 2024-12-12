@@ -12,8 +12,7 @@ from torch import nn
 from recognize.config import load_inference_config
 
 # from recognize.module import MultiLoss
-from recognize.module import FocalLoss, MoE, SparseMoE
-from recognize.typing import FusionLayerLike
+from recognize.module import FocalLoss, FusionLayer, MoE, SparseMoE
 
 from .backbone import Backbone, MultimodalBackbone
 from .inputs import ModelInput, MultimodalInput
@@ -100,7 +99,7 @@ class MultimodalModel(ClassifierModel[MultimodalInput]):
     def __init__(
         self,
         backbone: Backbone[MultimodalInput],
-        fusion_layer: FusionLayerLike,
+        fusion_layer: FusionLayer,
         *,
         num_classes: int = 2,
         num_experts: int = 1,
@@ -138,7 +137,7 @@ class MultimodalModel(ClassifierModel[MultimodalInput]):
         cls,
         checkpoint_path: str | Path,
         backbone: MultimodalBackbone,
-        fusion_layer: FusionLayerLike,
+        fusion_layer: FusionLayer,
         *,
         class_weights: torch.Tensor | None = None,
     ):
