@@ -321,7 +321,7 @@ def train(
         if config_loss is not None and (config_loss_contrastive := config_loss.sample_contrastive) is not None:
             model.add_extra_loss_fn(
                 config_loss_contrastive.to_loss_object(
-                    train_dataset.num_classes, feature_sizes_dict, backbone.hidden_dim
+                    train_dataset.num_classes, feature_sizes_dict, model.feature_size
                 )
             )
     else:

@@ -411,6 +411,8 @@ class DisentanglementFusion(FusionLayer):
 
 @support_modal_missing()
 class PrivateFeatureFusion(FusionLayer):
+    """A part of DisentanglementFusion"""
+
     def __init__(
         self,
         dims: Mapping[str, int],
@@ -441,6 +443,8 @@ class PrivateFeatureFusion(FusionLayer):
 
 @support_modal_missing()
 class SharedFeatureFusion(FusionLayer):
+    """A part of DisentanglementFusion"""
+
     def __init__(
         self,
         dims: Mapping[str, int],

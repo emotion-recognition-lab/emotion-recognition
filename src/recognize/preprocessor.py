@@ -19,6 +19,12 @@ class Preprocessor:
         self.image_processor = image_processor
         self.whisper_model: WhisperModel | None = None
 
+        # if tokenizer is not None:
+        #     if tokenizer.mask_token_id is None:
+        #         tokenizer.add_special_tokens({"mask_token": "<mask>"})
+        #     if tokenizer.pad_token_id is None:
+        #         tokenizer.add_special_tokens({"pad_token": "<pad>"})
+
     @property
     def tokenizer(self):
         return self._tokenizer

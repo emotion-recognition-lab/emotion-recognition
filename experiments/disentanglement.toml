@@ -12,6 +12,7 @@ args = [
     "configs/losses/classification/focal.toml",
     "--seed {seed}",
 ]
+[tasks.unimodal.matrix]
 dataset = ["MELD--E", "IEMOCAP--E"]
 
 [tasks.meld]
