@@ -258,6 +258,6 @@ def train_and_eval(
             stopper.save(checkpoint_dir / "stopper.yaml")
             progress.update(task, advance=1)
 
-    load_model(checkpoint_dir / str(last_better_epoch), model)
+    load_model(checkpoint_dir / str(stopper.last_better_epoch), model)
     result = trainer.eval("test")
     return result

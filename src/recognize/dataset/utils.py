@@ -33,7 +33,9 @@ def read_videos(video_path: str, *, target_length: int = 16):
     length = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     frames: list[MatLike] = []
     count = 0
-    indices = sample_frame_indices(target_length=target_length, length=length)
+    if length <= 0:
+        raise ValueError(f"Video {video_path} has no frames")
+    indices = sample_frame_indices(length=length, target_length=target_length)
     indices = list(indices)
     indices_counter = Counter(indices)
 

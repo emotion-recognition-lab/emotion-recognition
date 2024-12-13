@@ -23,8 +23,11 @@ class EarlyStopper(BaseModel):
     history: list[tuple[int, dict[str, float]]] = Field(default_factory=list)
     best_scores: dict[str, float] = Field(default_factory=dict)
     best_epoch: dict[str, int] = Field(default_factory=dict)
-    last_better_epoch: int = -1
     finished: bool = False
+
+    @property
+    def last_better_epoch(self) -> int:
+        return max(self.best_epoch.values())
 
     @classmethod
     def from_file(cls, path: Path, create: bool = False):
@@ -54,7 +57,6 @@ class EarlyStopper(BaseModel):
             if value > self.best_scores[key]:
                 self.best_scores[key] = value
                 self.best_epoch[key] = epoch
-                self.last_better_epoch = epoch
                 better_metrics.append(key)
             else:
                 if epoch - self.last_better_epoch >= self.patience:
