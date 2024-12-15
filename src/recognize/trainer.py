@@ -26,7 +26,9 @@ class EarlyStopper(BaseModel):
     finished: bool = False
 
     @property
-    def last_better_epoch(self) -> int:
+    def last_better_epoch(self) -> int | None:
+        if not self.best_epoch:
+            return None
         return max(self.best_epoch.values())
 
     @classmethod
@@ -58,7 +60,7 @@ class EarlyStopper(BaseModel):
                 self.best_scores[key] = value
                 self.best_epoch[key] = epoch
                 better_metrics.append(key)
-            else:
+            elif self.last_better_epoch is not None:
                 if epoch - self.last_better_epoch >= self.patience:
                     logger.info(f"Early stopping! Last better epoch: {self.last_better_epoch}")
                     self.finished = True
