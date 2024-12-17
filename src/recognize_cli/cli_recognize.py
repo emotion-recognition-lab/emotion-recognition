@@ -213,8 +213,8 @@ def train(
 
     assert config_training_mode != "lora", "Lora is not supported in training"
     if teacher_checkpoint is not None:
-        assert config_model_fusion is not None
-        assert (teacher_checkpoint / "preprocessor").exists()
+        assert config_model_fusion is not None, "Fusion layer is required for distillation"
+        assert (teacher_checkpoint / "preprocessor").exists(), f"Preprocessor not found in {teacher_checkpoint}"
 
     if checkpoint is not None:
         checkpoint_dir = checkpoint
