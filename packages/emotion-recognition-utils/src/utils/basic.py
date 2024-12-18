@@ -269,12 +269,13 @@ def count_symlinks(target_path: Path, search_root: Path):
     target_inode = os.stat(target_path).st_ino
 
     for root, dirs, files in os.walk(search_root):
+        root = Path(root)
         for name in dirs + files:
-            path = os.path.join(root, name)
+            path = root / name
             try:
-                if os.path.islink(path):
-                    real_path = os.path.realpath(path)
-                    if os.path.exists(real_path) and os.stat(real_path).st_ino == target_inode:
+                if path.is_symlink():
+                    real_path = path.resolve()
+                    if real_path.exists() and os.stat(real_path).st_ino == target_inode:
                         symlink_count += 1
                         logger.debug(f"Found symlink: {path} -> {real_path}")
             except (PermissionError, OSError) as e:
@@ -282,13 +283,3 @@ def count_symlinks(target_path: Path, search_root: Path):
                 continue
 
     return symlink_count
-
-
-def format_bytes(size):
-    power = 2**10
-    n = 0
-    power_labels = {0: "", 1: "K", 2: "M", 3: "G", 4: "T"}
-    while size > power:
-        size /= power
-        n += 1
-    return f"{size:.2f} {power_labels[n]}B"

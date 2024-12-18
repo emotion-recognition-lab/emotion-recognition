@@ -1,2 +1,2 @@
-from .basic import OrderedSet, count_symlinks, format_bytes
+from .basic import OrderedSet, count_symlinks
 from .logger import init_logger

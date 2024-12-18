@@ -7,11 +7,12 @@ args = [
     "configs/dataset/{dataset}.toml",
     "configs/encoders/T.toml",
     "configs/losses/classification/focal.toml",
-    "--seed 114",
+    "--seed {seed}",
 ]
 
 [tasks.unimodal.matrix]
 dataset = ["MELD--E", "IEMOCAP--E"]
+seed = ["0", "114"]
 
 [tasks.meld-losses]
 command = "uv run emotion-recognize train"
@@ -68,7 +69,7 @@ args = [
     "configs/fusion/disentanglement.toml",
     "configs/losses/classification/focal.toml",
     "{extra}",
-    "--seed 114",
+    "--seed 0",
 ]
 deps = ["unimodal"]
 [tasks.iemocap-losses.matrix]
@@ -86,7 +87,7 @@ args = [
     "configs/losses/classification/focal.toml",
     "configs/losses/frl.toml",
     "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--focal/1xE--T/ce200638--114",
-    "--seed 114",
+    "--seed 0",
 ]
 deps = ["unimodal"]
 [tasks.iemocap-model.matrix]
@@ -101,7 +102,7 @@ args = [
     "configs/losses/classification/focal.toml",
     "configs/losses/frl.toml",
     "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--focal/1xE--T/ce200638--114",
-    "--seed 114",
+    "--seed 0",
 ]
 deps = ["unimodal"]
 [tasks.iemocap-modality.matrix]

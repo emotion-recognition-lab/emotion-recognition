@@ -4,10 +4,11 @@ import os
 import shutil
 from pathlib import Path
 
+import humanize
 import typer
 from loguru import logger
 from rich.table import Table
-from utils import OrderedSet, count_symlinks, format_bytes, init_logger
+from utils import OrderedSet, count_symlinks, init_logger
 
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
@@ -164,7 +165,7 @@ def clean(
             cleaned_size += os.path.getsize(encoder_dir / subpath)
             os.remove(encoder_dir / subpath)
             cleaned_count += 1
-    readable_size = format_bytes(cleaned_size)
+    readable_size = humanize.naturalsize(cleaned_size)
     logger.info(f"Cleaned {readable_size} of {cleaned_count} files")
 
 

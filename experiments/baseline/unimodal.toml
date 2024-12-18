@@ -3,8 +3,8 @@ resources = "gpus"
 
 [matrix]
 dataset = ["MELD--E", "IEMOCAP--E"]
-seed = ["114"]
-classification = ["weight", "focal"]
+seed = ["0", "114"]
+classification = ["focal"]
 
 [tasks.unimodal]
 command = "uv run emotion-recognize train"
