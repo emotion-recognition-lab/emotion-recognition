@@ -41,6 +41,8 @@ def save_checkpoint(
     epoch_encoder_dir = epoch_checkpoint_dir / "backbone"
     epoch_encoder_dir.mkdir(parents=True, exist_ok=True)
     for name, path in model.backbone.save(epoch_encoder_dir).items():
+        if (epoch_encoder_dir / f"{name}.safetensors").exists():
+            continue
         (epoch_encoder_dir / f"{name}.safetensors").symlink_to(path)
 
     (epoch_checkpoint_dir / "preprocessor").symlink_to(
@@ -257,6 +259,7 @@ def train_and_eval(
 
             stopper.save(checkpoint_dir / "stopper.yaml")
             progress.update(task, advance=1)
+        stopper.save(checkpoint_dir / "stopper.yaml")
 
     assert stopper.last_better_epoch is not None
     load_model(checkpoint_dir / str(stopper.last_better_epoch), model)
