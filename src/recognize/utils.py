@@ -52,7 +52,7 @@ def save_checkpoint(
         "../inference.toml",
     )
 
-    # TODO: improve optimizer size
+    # TODO: improve optimizer size by using safetensors
     torch.save(optimizer.state_dict(), checkpoint_dir / "optimizer.pt")
 
 
@@ -122,7 +122,7 @@ def get_trainer(
         num_training_steps=num_training_steps,
     )
     if use_amp:
-        # NOTE: GradScaler will introduce randomness in the training process
+        # NOTE: GradScaler will introduce more randomness in the training process
         scaler = amp.GradScaler("cuda")
     else:
         scaler = None
@@ -177,27 +177,29 @@ def train_and_eval(
         len(train_data_loader) * num_epochs,
     )
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    if stopper is None:
-        stopper = EarlyStopper.from_file(checkpoint_dir / "stopper.yaml", create=True)
-        if stopper.finished:
-            result = trainer.eval("test")
-            return result
     if test_data_loader is None:
         test_data_loader = valid_data_loader
     if model_label is None:
         # TODO: improve default model label
         model_label = f"{model.__class__.__name__}-{id(model)}"
-    logger.info(f"Train model [blue]{model_label}[/]. Save to [blue]{checkpoint_dir}[/]")
+    if stopper is None:
+        stopper = EarlyStopper.from_file(checkpoint_dir / "stopper.yaml", create=True)
+        if stopper.finished:
+            result = trainer.eval("test")
+            return result
 
     epoch_start = load_last_checkpoint(
         checkpoint_dir,
         model,
         trainer.optimizer,
     )
+    stopper.history = [(epoch, history) for epoch, history in stopper.history if epoch <= epoch_start]
 
     last_better_epoch = stopper.last_better_epoch
     batch_num = len(train_data_loader)
     result: TrainingResult | None = None
+
+    logger.info(f"Train model [blue]{model_label}[/]. Save to [blue]{checkpoint_dir}[/]")
     with Progress(
         "[red](Loss: {task.fields[loss]:.6f}, "
         "Accuracy: {task.fields[accuracy]:.2f}%, F1 Score: {task.fields[f1_score]:.2f}%)",
