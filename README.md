@@ -99,11 +99,11 @@ uv sync --all-extras --dev
 # 如果你在中国大陆，可以使用清华源加速下载
 # uv sync --all-extras --dev --index-url https://pypi.tuna.tsinghua.edu.cn/simple --extra-index-url https://download.pytorch.org/whl/cu121
 ```
-5. 接下来按照下列文档的内容进行实验，注意部分内容需要根据文档中给出的 `git commit SHA` 切换到指定 `commit` 进行实验。
+5. 接下来可以使用[nanoflow](https://github.com/zrr-lab/nanoflow)进行实验。
 
-- [basic.md](experiments/basic.md)
-- [dependency-finetuning.md](experiments/dependency-finetuning.md)
-
+```sh
+uvx nanoflow run experiments/disentanglement.toml
+```
 
 ## 实验结果
 
@@ -130,6 +130,10 @@ uv sync --all-extras --dev
 
 
 ## 相关技术与参考文献
+### 编码器网络
+- [BERT](https://arxiv.org/pdf/1810.04805)
+- [RoBERTa](https://arxiv.org/pdf/1907.11692)
+- [ModernBERT](https://github.com/AnswerDotAI/ModernBERT)
 
 ### 模型压缩
 - [LoRA](https://huggingface.co/docs/peft/task_guides/lora_based_methods)
