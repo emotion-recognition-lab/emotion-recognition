@@ -165,6 +165,17 @@ class CrossAttentionFusionLayer(FusionLayer):
         return torch.cat(new_embeddings, dim=1)
 
 
+class ConcatFusionLayer(FusionLayer):
+    def __init__(self, dims: Mapping[str, int], *, depth: int = 2):
+        sum_dim = sum(dims.values())
+        super().__init__(dims, sum_dim)
+        self.fc = Projector(sum_dim, sum_dim, depth=depth)
+
+    def forward(self, inputs: Mapping[str, torch.Tensor]):
+        embeddings = torch.cat(list(inputs.values()), dim=1)
+        return self.fc(embeddings)
+
+
 class TensorFusionLayer(FusionLayer):
     def __init__(self, text_size: int, audio_size: int, video_size: int):
         super().__init__(
@@ -302,10 +313,13 @@ class DisentanglementFusion(FusionLayer):
         dims: Mapping[str, int],
         private_feature_size: int,
         shared_feature_size: int,
+        *,
+        use_cross_attn: bool = True,
     ):
         num_modal = len(dims)
         super().__init__(dims, shared_feature_size * (num_modal - 1) + private_feature_size)
         self.dim_names = sorted(dims.keys())
+        self.use_cross_attn = use_cross_attn
         # TODO: dims should be the same, or use Pooler
         self.shared_projector = SelfAttentionProjector(
             next(iter(dims.values())),
@@ -332,8 +346,14 @@ class DisentanglementFusion(FusionLayer):
         )
         self.shared_router = NoiseRouter(sum(dims.values()), num_modal)
         self.private_router = NoiseRouter(sum(dims.values()), num_modal)
-        self.cross_attn = CrossAttentionFusionLayer(
-            {"shared": shared_feature_size * (num_modal - 1), "private": private_feature_size}
+        self.fusion_layer = (
+            CrossAttentionFusionLayer(
+                {"shared": shared_feature_size * (num_modal - 1), "private": private_feature_size}
+            )
+            if use_cross_attn
+            else ConcatFusionLayer(
+                {"shared": shared_feature_size * (num_modal - 1), "private": private_feature_size}, depth=4
+            )
         )
 
     def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
@@ -352,7 +372,7 @@ class DisentanglementFusion(FusionLayer):
             shared_routing_weights,
             torch.stack([shared_features_dict[modal] for modal in self.dim_names], 1),
         )
-        fusion_features = self.cross_attn(
+        fusion_features = self.fusion_layer(
             {
                 "shared": shared_features,
                 "private": private_features,
@@ -378,7 +398,7 @@ class DisentanglementFusion(FusionLayer):
             shared_routing_weights,
             torch.stack([shared_features_dict[modal] for modal in self.dim_names], 1),
         )
-        fusion_features = self.cross_attn(
+        fusion_features = self.fusion_layer(
             {
                 "shared": shared_features,
                 "private": private_features,

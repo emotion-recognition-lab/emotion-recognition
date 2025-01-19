@@ -1,10 +1,10 @@
 [project]
 name = "emotion-recognition"
-version = "0.1.0"
+version = "0.2.0"
 description = ""
 authors = [{ name = "Zhan Rongrui", email = "2742392377@qq.com" }]
 dependencies = [
-    "transformers>=4.47.1",
+    "transformers>=4.48.0",
     "sentencepiece>=0.2.0",
     "numpy>=2.1.2",
     "torch==2.4.1; platform_system!='Windows'",
@@ -29,7 +29,12 @@ readme = "README.md"
 license = { text = "MIT" }
 
 [project.optional-dependencies]
-train = ["opencv-python>=4.0.0", "pandas>=2.0.0", "torch-pruning>=1.4.2"]
+train = [
+    "opencv-python>=4.0.0",
+    "pandas>=2.0.0",
+    "pandas-stubs>=2.2.3.241126",
+    "torch-pruning>=1.4.2",
+]
 
 [project.urls]
 Homepage = "https://github.com/zrr1999/emotion-recognition.git"
