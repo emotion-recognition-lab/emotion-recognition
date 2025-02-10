@@ -31,7 +31,8 @@ def create_standalone(
 
     best_epoch = find_best_model(checkpoint)
     logger.info(f"Best epoch found: [blue]{best_epoch}")
-    shutil.copytree(checkpoint / "preprocessor", target_checkpoint / "preprocessor")
+    # shutil.copytree(checkpoint / "preprocessor", target_checkpoint / "preprocessor")
+    shutil.copy2(checkpoint / "training.toml", target_checkpoint / "training.toml")
     for subpath in (checkpoint / f"{best_epoch}").glob("*"):
         if subpath.is_file():
             shutil.copy2(subpath, target_checkpoint / subpath.name)

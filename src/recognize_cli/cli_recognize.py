@@ -419,8 +419,10 @@ def evaluate(
             fusion_layer,
             num_classes=test_dataset.num_classes,
         ).cuda()
-
-    load_best_model(checkpoint, model)
+    if (checkpoint / "stopper.yaml").exists():
+        load_best_model(checkpoint, model)
+    else:
+        load_model(checkpoint, model)
     result = TrainingResult.auto_compute(model, test_data_loader)
     result.print()
 
