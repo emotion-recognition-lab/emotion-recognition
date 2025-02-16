@@ -20,7 +20,7 @@ command = "uv run emotion-recognize train"
 args = [
     "configs/dataset/MELD--E.toml",
     "configs/encoders/T+A+V.toml",
-    "configs/fusion/disentanglement.toml",
+    "configs/fusion/disentanglement-noattn.toml",
     "configs/losses/frl.toml",
     # "configs/losses/cmcl.toml",
     "configs/losses/classification/focal.toml",
@@ -34,7 +34,7 @@ command = "uv run emotion-recognize train"
 args = [
     "configs/dataset/IEMOCAP--E.toml",
     "configs/encoders/T+A+V.toml",
-    "configs/fusion/disentanglement.toml",
+    "configs/fusion/disentanglement-noattn.toml",
     "configs/losses/frl.toml",
     "configs/losses/classification/focal.toml",
     "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--focal/1xE--T/ce200638--{seed}",
