@@ -271,17 +271,90 @@ class AdaptivePrototypeContrastiveLoss(PrototypeContrastiveLoss):
 
         self.beta = alpha * (1 - gamma)
         self.gamma = gamma
-        self.centers = generate_orthogonal_vectors(num_classes, hidden_dim)
-        self.momentums = torch.zeros_like(self.centers)
+        self.prototypes = generate_orthogonal_vectors(num_classes, hidden_dim)
+        self.momentums = torch.zeros_like(self.prototypes)
 
-    def update_centers(self, embeddings: torch.Tensor, labels: torch.Tensor):
+    def update_prototypes(self, embeddings: torch.Tensor, labels: torch.Tensor):
         with torch.no_grad():
             for idx, label in enumerate(labels):
                 label = label.item()
                 assert isinstance(label, int), "label must be an integer"
-                delta = embeddings[idx] - self.momentums[label]
+                delta = embeddings[idx] - self.prototypes[label]
                 self.momentums[label] = self.gamma * self.momentums[label] + self.beta * delta
-            for center, momentum in zip(self.centers, self.momentums, strict=True):
+
+            target = self.prototypes + self.momentums
+
+            q_matrix, _ = torch.linalg.qr(target.T)
+            self.prototypes = q_matrix.t()[: self.prototypes.shape[0]]
+
+    def compute_scores_and_masks(
+        self, concated_embeddings: torch.Tensor, concated_labels: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        batch_size = concated_embeddings.size(0)
+        mask1 = concated_labels.unsqueeze(0).expand(batch_size, batch_size)
+        mask2 = concated_labels.unsqueeze(1).expand(batch_size, batch_size)
+        mask = 1 - torch.eye(batch_size, device=concated_embeddings.device)
+        pos_mask = (mask1 == mask2).long()
+        rep1 = concated_embeddings.unsqueeze(0).expand(batch_size, batch_size, -1)
+        rep2 = concated_embeddings.unsqueeze(1).expand(batch_size, batch_size, -1)
+        scores = self.score_fn(rep1, rep2)
+        scores *= mask
+        scores /= self.temp
+        scores -= torch.max(scores).item()
+        return scores, pos_mask * mask, 1 - pos_mask
+
+    def calculate_loss(self, scores: torch.Tensor, pos_mask: torch.Tensor, neg_mask: torch.Tensor) -> torch.Tensor:
+        pos_scores = scores * pos_mask
+        pos_scores = pos_scores.sum(-1)
+        pos_scores /= pos_mask.sum(-1) + self.eps
+        neg_scores = torch.exp(scores) * neg_mask
+        loss = -pos_scores + torch.log(neg_scores.sum(-1) + self.eps)
+        masked_loss = loss[loss > 0]
+        return masked_loss.mean() if len(masked_loss) > 0 else torch.tensor(0.0, device=scores.device)
+
+    def forward(self, input: MultimodalInput, output: ClassifierOutput) -> torch.Tensor:
+        features = output.features
+        labels = input.labels
+        assert labels is not None
+
+        self.update_prototypes(features, labels)
+
+        pad_labels = torch.arange(self.num_classes, device=features.device)
+
+        concated_features = torch.cat((features, self.prototypes), 0)
+        concated_labels = torch.cat((labels, pad_labels), 0)
+
+        scores, pos_mask, neg_mask = self.compute_scores_and_masks(concated_features, concated_labels)
+        return self.calculate_loss(scores, pos_mask, neg_mask)
+
+
+class MultiParticleAdaptivePrototypeContrastiveLoss(PrototypeContrastiveLoss):
+    def __init__(
+        self,
+        num_classes: int,
+        hidden_dim: int,
+        *,
+        temp: float = 0.08,
+        eps: float = 1e-8,
+        particle_num: int = 5,
+    ):
+        super().__init__(num_classes, hidden_dim, temp=temp, eps=eps)
+
+        self.particle_num = particle_num
+        self.prototypes = generate_orthogonal_vectors(particle_num * num_classes, hidden_dim).reshape(
+            num_classes, particle_num, hidden_dim
+        )
+        self.momentums = torch.zeros_like(self.prototypes)
+
+    def update_prototypes(self, embeddings: torch.Tensor, labels: torch.Tensor):
+        embeddings = embeddings.view(-1, 1, self.hidden_dim)
+        with torch.no_grad():
+            for idx, label in enumerate(labels):
+                label = label.item()
+                assert isinstance(label, int), "label must be an integer"
+                delta = embeddings[idx] - self.prototypes[label]
+                self.momentums[label] = self.gamma * self.momentums[label] + self.beta * delta
+            for center, momentum in zip(self.prototypes, self.momentums, strict=True):
                 center += momentum
 
     def compute_scores_and_masks(
@@ -314,9 +387,9 @@ class AdaptivePrototypeContrastiveLoss(PrototypeContrastiveLoss):
         labels = input.labels
         assert labels is not None
 
-        self.update_centers(features, labels)
+        self.update_prototypes(features, labels)
 
-        concated_features = torch.cat((features, self.centers), 0)
+        concated_features = torch.cat((features, self.prototypes), 0)
         pad_labels = torch.arange(self.num_classes, device=features.device)
         concated_labels = torch.cat((labels, pad_labels), 0)
 
