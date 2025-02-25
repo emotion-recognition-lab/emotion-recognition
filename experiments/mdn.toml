@@ -5,15 +5,6 @@ resources = "gpus"
 seed = ["0", "42", "114"]
 dataset = ["MELD--E", "IEMOCAP--E"]
 
-[tasks.unimodal]
-command = "uv run emotion-recognize train"
-args = [
-    "configs/dataset/{dataset}.toml",
-    "configs/encoders/T.toml",
-    "configs/losses/classification/focal.toml",
-    "--seed {seed}",
-]
-
 [tasks.multimodal]
 command = "uv run emotion-recognize train"
 args = [

@@ -1,0 +1,54 @@
+name = "ablation"
+resources = "gpus"
+
+[tasks.meld-model]
+command = "uv run emotion-recognize train"
+args = [
+    "configs/dataset/MELD--E.toml",
+    "configs/encoders/T+A+V.toml",
+    "configs/fusion/{fusion}.toml",
+    "configs/losses/classification/focal.toml",
+    "--seed 114",
+]
+deps = ["unimodal"]
+[tasks.meld-model.matrix]
+fusion = ["vallina", "shared", "private", "disentanglement-noattn"]
+
+[tasks.meld-modality]
+command = "uv run emotion-recognize train"
+args = [
+    "configs/dataset/MELD--E.toml",
+    "configs/encoders/{encoder}.toml",
+    "configs/fusion/disentanglement.toml",
+    "configs/losses/classification/focal.toml",
+    "--seed 114",
+]
+deps = ["unimodal"]
+[tasks.meld-modality.matrix]
+encoder = ["T+A", "T+V"]
+
+[tasks.iemocap-model]
+command = "uv run emotion-recognize train"
+args = [
+    "configs/dataset/IEMOCAP--E.toml",
+    "configs/encoders/T+A+V.toml",
+    "configs/fusion/{fusion}.toml",
+    "configs/losses/classification/focal.toml",
+    "--seed 0",
+]
+deps = ["unimodal"]
+[tasks.iemocap-model.matrix]
+fusion = ["vallina", "shared", "private", "disentanglement-noattn"]
+
+[tasks.iemocap-modality]
+command = "uv run emotion-recognize train"
+args = [
+    "configs/dataset/IEMOCAP--E.toml",
+    "configs/encoders/{encoder}.toml",
+    "configs/fusion/disentanglement.toml",
+    "configs/losses/classification/focal.toml",
+    "--seed 0",
+]
+deps = ["unimodal"]
+[tasks.iemocap-modality.matrix]
+encoder = ["T+A", "T+V"]
