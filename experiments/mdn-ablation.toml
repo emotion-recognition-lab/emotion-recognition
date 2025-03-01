@@ -10,7 +10,7 @@ args = [
     "configs/losses/classification/focal.toml",
     "--seed 114",
 ]
-deps = ["unimodal"]
+
 [tasks.meld-model.matrix]
 fusion = ["vallina", "shared", "private", "disentanglement-noattn"]
 
@@ -23,7 +23,7 @@ args = [
     "configs/losses/classification/focal.toml",
     "--seed 114",
 ]
-deps = ["unimodal"]
+
 [tasks.meld-modality.matrix]
 encoder = ["T+A", "T+V"]
 
@@ -36,7 +36,7 @@ args = [
     "configs/losses/classification/focal.toml",
     "--seed 0",
 ]
-deps = ["unimodal"]
+
 [tasks.iemocap-model.matrix]
 fusion = ["vallina", "shared", "private", "disentanglement-noattn"]
 
@@ -49,6 +49,6 @@ args = [
     "configs/losses/classification/focal.toml",
     "--seed 0",
 ]
-deps = ["unimodal"]
+
 [tasks.iemocap-modality.matrix]
 encoder = ["T+A", "T+V"]
