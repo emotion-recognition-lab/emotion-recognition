@@ -14,4 +14,3 @@ args = [
     "configs/losses/classification/focal.toml",
     "--seed {seed}",
 ]
-deps = ["unimodal"]
