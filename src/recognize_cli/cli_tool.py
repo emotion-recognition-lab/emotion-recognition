@@ -173,7 +173,10 @@ def clean(
 @app.command()
 def analysis_dataset(
     dataset_dir: Path = typer.Argument(Path("datasets"), help="The dataset directory to analysis"),
+    output_dir: Path = typer.Option(None, help="The output directory for plots"),
 ):
+    from utils.visualization import collect_emotion_distribution_data, plot_emotion_distribution
+
     from recognize.dataset import IEMOCAPDataset, MELDDataset
 
     init_logger("INFO")
@@ -182,18 +185,20 @@ def analysis_dataset(
         "MELD": MELDDataset,
         "IEMOCAP": IEMOCAPDataset,
     }
+    available_split = {"train", "valid", "test"}
 
-    logger.info(f"Supported dataset: [blue]{name_to_dataset.keys()}[/]")
-    logger.info(f"Searching for dataset in [blue]{dataset_dir}[/]")
+    emotion_mapping = {
+        "IEMOCAP": ["中性", "愤怒", "兴奋", "沮丧", "高兴", "悲伤"],
+        "MELD": ["中性", "高兴", "悲伤", "愤怒", "恐惧", "厌恶", "惊讶"],
+    }
 
-    for name, dataset_cls in name_to_dataset.items():
-        dataset_path = dataset_dir / name
-        if not dataset_path.exists():
-            continue
-
-        dataset = dataset_cls(dataset_path.as_posix())
-        logger.info(f"Found dataset [blue]{name}[/]")
-        # TODO: not implemented yet
+    df = collect_emotion_distribution_data(
+        dataset_dir=dataset_dir,
+        name_to_dataset=name_to_dataset,
+        available_split=available_split,
+        emotion_mapping=emotion_mapping,
+    )
+    plot_emotion_distribution(df, output_dir)
 
 
 @app.command()
