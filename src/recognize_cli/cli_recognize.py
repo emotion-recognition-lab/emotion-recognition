@@ -369,8 +369,9 @@ def evaluate(
     seed: int | None = None,
     use_cache: bool = True,
 ) -> None:
-    init_torch()
     from torch.utils.data import DataLoader
+
+    init_torch()
 
     config = load_training_config(checkpoint / "training.toml", seed=seed)
     init_logger(config.log_level, Path(f"./logs/{config.label}"))
@@ -443,6 +444,85 @@ def inference(
 
     print("Predicted logits:", estimator.compute_logits(text=text, audio_path=audio, video_path=video).tolist())
     print("Predicted cls:", estimator.classify(text=text, audio_path=audio, video_path=video))
+
+
+@app.command()
+def benchmark(
+    checkpoint: Path,
+    seed: int | None = None,
+) -> None:
+    from torch.utils.data import DataLoader
+    from utils.benchmark import timer_context_manager
+
+    init_torch()
+
+    config = load_training_config(checkpoint / "training.toml", seed=seed)
+    init_logger(config.log_level, Path(f"./logs/{config.label}"))
+    seed_everything(config.seed)
+    config_model_encoder = config.model.encoder
+    config_dataset = config.dataset
+
+    config_batch_size = config.batch_size
+
+    assert (checkpoint / "preprocessor").exists(), "Preprocessor not found, the checkpoint is not valid"
+
+    _, _, test_dataset = provide_datasets(
+        config_dataset.path,
+        label_type=config_dataset.label_type,
+        dataset_class_str=config_dataset.dataset_class,
+    )
+
+    test_data_loader = DataLoader(
+        test_dataset,
+        batch_size=config_batch_size * 2,
+        shuffle=True,
+        collate_fn=LazyMultimodalInput.collate_fn,
+        pin_memory=True,
+    )
+
+    def generate_model(use_cache: bool):
+        _, backbone = generate_preprocessor_and_backbone(
+            config_model_encoder,
+            datasets=[test_dataset],
+            checkpoints=[checkpoint],
+            frozen_encoders=True,
+            use_cache=use_cache,
+        )
+        if config.model.fusion is None:
+            assert len(config_model_encoder) == 1, "Multimodal model must give a fusion layer"
+            feature_size = next(iter(config_model_encoder.values())).feature_size
+            model = UnimodalModel(
+                backbone,
+                feature_size=feature_size,
+                num_classes=test_dataset.num_classes,
+            ).cuda()
+        else:
+            feature_sizes_dict = get_feature_sizes_dict(config_model_encoder)
+            fusion_layer = gen_fusion_layer(config.model.fusion, feature_sizes_dict)
+            model = MultimodalModel(
+                backbone,
+                fusion_layer,
+                num_classes=test_dataset.num_classes,
+            ).cuda()
+        if (checkpoint / "stopper.yaml").exists():
+            load_best_model(checkpoint, model)
+        else:
+            load_model(checkpoint, model)
+        return model
+
+    model = generate_model(True)
+    TrainingResult.auto_compute(model, test_data_loader)
+
+    with timer_context_manager("使用缓存耗时：{}秒"):
+        for _ in range(10):
+            TrainingResult.auto_compute(model, test_data_loader)
+
+    model = generate_model(False)
+    TrainingResult.auto_compute(model, test_data_loader)
+
+    with timer_context_manager("不使用缓存耗时：{}秒"):
+        for _ in range(10):
+            TrainingResult.auto_compute(model, test_data_loader)
 
 
 if __name__ == "__main__":
