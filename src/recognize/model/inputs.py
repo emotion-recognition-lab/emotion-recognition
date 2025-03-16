@@ -70,31 +70,33 @@ class MultimodalInput(ModelInput):
     video_head_mask: torch.Tensor | None = None
 
     def __getitem__(self, index: int | list[int] | slice) -> MultimodalInput:
-        text_input_ids = self.text_input_ids[index] if self.text_input_ids is not None else None
-        text_attention_mask = self.text_attention_mask[index] if self.text_attention_mask is not None else None
-        audio_input_values = self.audio_input_values[index] if self.audio_input_values is not None else None
-        audio_attention_mask = self.audio_attention_mask[index] if self.audio_attention_mask is not None else None
-        video_pixel_values = self.video_pixel_values[index] if self.video_pixel_values is not None else None
-        video_head_mask = self.video_head_mask[index] if self.video_head_mask is not None else None
-
         labels = self.labels[index] if self.labels is not None else None
-
         if isinstance(self, LazyMultimodalInput):
+            assert not isinstance(index, list), "LazyMultimodalInput does not support list index"
+            if isinstance(index, int):
+                texts = [self.texts[index]] if self.texts is not None else None
+                audio_paths = [self.audio_paths[index]] if self.audio_paths is not None else None
+                video_paths = [self.video_paths[index]] if self.video_paths is not None else None
+            else:
+                texts = self.texts[index] if self.texts is not None else None
+                audio_paths = self.audio_paths[index] if self.audio_paths is not None else None
+                video_paths = self.video_paths[index] if self.video_paths is not None else None
             return LazyMultimodalInput(
-                texts=self.texts,
-                audio_paths=self.audio_paths,
-                video_paths=self.video_paths,
+                texts=texts,
+                audio_paths=audio_paths,
+                video_paths=video_paths,
                 preprocessor=self.preprocessor,
-                text_input_ids=text_input_ids,
-                text_attention_mask=text_attention_mask,
-                audio_input_values=audio_input_values,
-                audio_attention_mask=audio_attention_mask,
-                video_pixel_values=video_pixel_values,
-                video_head_mask=video_head_mask,
                 labels=labels,
             )
 
         else:
+            text_input_ids = self.text_input_ids[index] if self.text_input_ids is not None else None
+            text_attention_mask = self.text_attention_mask[index] if self.text_attention_mask is not None else None
+            audio_input_values = self.audio_input_values[index] if self.audio_input_values is not None else None
+            audio_attention_mask = self.audio_attention_mask[index] if self.audio_attention_mask is not None else None
+            video_pixel_values = self.video_pixel_values[index] if self.video_pixel_values is not None else None
+            video_head_mask = self.video_head_mask[index] if self.video_head_mask is not None else None
+
             return MultimodalInput(
                 text_input_ids=text_input_ids,
                 text_attention_mask=text_attention_mask,
@@ -147,7 +149,28 @@ class LazyMultimodalInput(MultimodalInput):
     audio_paths: list[str] | None = None
     video_paths: list[str] | None = None
 
+    _cuda: bool = False
+    _pin_memory: bool = False
     # TODO: add model_validator
+
+    # TODO: support cuda and pin_memory
+    # 如果不处理logit就变成了不是cuda
+    def cuda(self) -> Self:
+        self._cuda = True
+        if self.labels is not None:
+            self.labels = self.labels.cuda()
+        return self
+
+    def pin_memory(self) -> Self:
+        self._pin_memory = True
+        self._cuda = True
+        if self.labels is not None:
+            self.labels = self.labels.pin_memory().cuda()
+        return self
+
+    @property
+    def device(self) -> torch.device:
+        return torch.device("cuda" if self._cuda else "cpu")
 
     def __getattribute__(self, __name: str):
         match __name:
@@ -156,13 +179,17 @@ class LazyMultimodalInput(MultimodalInput):
                     logger.debug("Texts is not provided, but audio_paths is provided, so use audio_paths")
                     self.texts = [self.preprocessor.recoginize_audio(audio_path) for audio_path in self.audio_paths]
                 if super().__getattribute__("text_input_ids") is None and self.texts is not None:
-                    self.text_input_ids, self.text_attention_mask = self.preprocessor.load_texts(self.texts)
+                    self.text_input_ids, self.text_attention_mask = self.preprocessor.load_texts(
+                        self.texts, device=self.device
+                    )
             case "audio_input_values" | "audio_attention_mask":
                 if super().__getattribute__("audio_input_values") is None and self.audio_paths is not None:
-                    self.audio_input_values, self.audio_attention_mask = self.preprocessor.load_audios(self.audio_paths)
+                    self.audio_input_values, self.audio_attention_mask = self.preprocessor.load_audios(
+                        self.audio_paths, device=self.device
+                    )
             case "video_pixel_values":
                 if super().__getattribute__("video_pixel_values") is None and self.video_paths is not None:
-                    self.video_pixel_values = self.preprocessor.load_videos(self.video_paths)
+                    self.video_pixel_values = self.preprocessor.load_videos(self.video_paths, device=self.device)
         return super().__getattribute__(__name)
 
     def get_unique_keys(self) -> dict[str, list[str]]:
