@@ -36,6 +36,7 @@ class ClassifierModel[T: ModelInput](nn.Module):
         class_weights: torch.Tensor | None = None,
         classification_loss: Literal["weight", "focal"] | None = None,
         extra_loss_fns: Sequence[Callable[[T, ClassifierOutput], torch.Tensor]] | None = None,
+        extra_loss_weights: Sequence[float] | None = None,
     ):
         super().__init__()
         self.backbone = backbone
@@ -44,7 +45,12 @@ class ClassifierModel[T: ModelInput](nn.Module):
         self.sample_weights = 1 / self.class_weights if self.class_weights is not None else None
         self.feature_size = feature_size
         self.extra_loss_fns = list(extra_loss_fns) if extra_loss_fns is not None else []
-        # self.multi_loss_fn = MultiLoss(len(self.extra_loss_fns) + 1)
+        self.extra_loss_weights = (
+            list(extra_loss_weights) if extra_loss_weights is not None else [1.0] * len(self.extra_loss_fns)
+        )
+        if len(self.extra_loss_weights) != len(self.extra_loss_fns):
+            raise ValueError("Length of extra_loss_weights must match length of extra_loss_fns")
+
         self.loss_fn = {
             None: nn.CrossEntropyLoss(),
             "weight": nn.CrossEntropyLoss(self.sample_weights),
@@ -65,13 +71,14 @@ class ClassifierModel[T: ModelInput](nn.Module):
                 act_expert_num=act_expert_num,
             )
 
-    def add_extra_loss_fn(self, loss_fn: Callable[[T, ClassifierOutput], torch.Tensor]) -> None:
+    def add_extra_loss_fn(self, loss_fn: Callable[[T, ClassifierOutput], torch.Tensor], weight: float = 1.0) -> None:
+        # TODO: unify the extra loss fns and weights instead of module parameters
         self.extra_loss_fns.append(loss_fn)
-        # self.multi_loss_fn = MultiLoss(len(self.extra_loss_fns) + 1)
+        self.extra_loss_weights.append(weight)
 
     def clear_extra_loss_fns(self) -> None:
         self.extra_loss_fns.clear()
-        # self.multi_loss_fn = MultiLoss(1)
+        self.extra_loss_weights.clear()
 
     def compute_loss(self, inputs: T, output: ClassifierOutput) -> torch.Tensor:
         logits = output.logits
@@ -79,8 +86,8 @@ class ClassifierModel[T: ModelInput](nn.Module):
         assert labels is not None
         loss = self.loss_fn(logits, labels)
         if self.extra_loss_fns:
-            for loss_fn in self.extra_loss_fns:
-                loss += loss_fn(inputs, output)
+            for loss_fn, weight in zip(self.extra_loss_fns, self.extra_loss_weights, strict=True):
+                loss += weight * loss_fn(inputs, output)
         output.loss = loss
         return loss
 

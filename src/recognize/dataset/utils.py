@@ -21,9 +21,6 @@ def sample_frame_indices(length: int, target_length: int):
 
 
 def read_videos(video_path: str, *, target_length: int = 16):
-    # if os.path.exists(f"{video_path}.cache.pkl"):
-    #     with open(f"{video_path}.cache.pkl", "rb") as f:
-    #         return pickle.load(f)
     from collections import Counter
 
     import cv2
@@ -50,8 +47,4 @@ def read_videos(video_path: str, *, target_length: int = 16):
         count += 1
 
     video.release()
-    # too large to cache
-    # with open(f"{video_path}.cache.pkl", "wb") as f:
-    #     import pickle
-    #     pickle.dump(frames, f)
     return frames

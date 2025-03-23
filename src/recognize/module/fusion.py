@@ -314,11 +314,13 @@ class DisentanglementFusion(FusionLayer):
         private_feature_size: int,
         shared_feature_size: int,
         *,
+        alpha: float = 1,
         use_cross_attn: bool = True,
     ):
         num_modal = len(dims)
         super().__init__(dims, shared_feature_size * (num_modal - 1) + private_feature_size)
         self.dim_names = sorted(dims.keys())
+        self.alpha = alpha
         self.use_cross_attn = use_cross_attn
         # TODO: dims should be the same, or use Pooler
         self.shared_projector = SelfAttentionProjector(
@@ -426,7 +428,7 @@ class DisentanglementFusion(FusionLayer):
                 self.cross_reconstruction_predictor[modal](cross_features_dict[modal]),
                 inputs[modal].detach(),
             )
-        return fusion_features, (feature_loss + reconstruction_loss) / 2
+        return fusion_features, self.alpha * (feature_loss + reconstruction_loss) / 2
 
 
 @support_modal_missing()
