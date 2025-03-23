@@ -10,6 +10,8 @@ from loguru import logger
 from rich.table import Table
 from utils import OrderedSet, count_symlinks, init_logger
 
+from recognize.trainer import EarlyStopper
+
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
@@ -152,6 +154,7 @@ def info(
 @app.command()
 def clean(
     checkpoint_dir: Path = typer.Argument(Path("checkpoints"), help="The checkpoint directory to clean"),
+    only_encoders: bool = typer.Option(True, help="Only clean encoder files without symlinks"),
 ):
     """clean encoder files without symlinks"""
 
@@ -167,7 +170,22 @@ def clean(
             os.remove(encoder_dir / subpath)
             cleaned_count += 1
     readable_size = humanize.naturalsize(cleaned_size)
-    logger.info(f"Cleaned {readable_size} of {cleaned_count} files")
+    logger.info(f"Cleaned {cleaned_count} encoder files, {readable_size} of {cleaned_count} files")
+    if only_encoders:
+        return
+
+    for stopper_path in checkpoint_dir.glob("**/stopper.yaml"):
+        if not stopper_path.is_file():
+            continue
+        stopper = EarlyStopper.from_file(stopper_path)
+        if stopper.finished:
+            checkpoint_subdir = stopper_path.parent
+            optimizer_path = checkpoint_subdir / "optimizer.pt"
+            if optimizer_path.exists():
+                optimizer_size = optimizer_path.stat().st_size
+                optimizer_path.unlink()
+                readable_size = humanize.naturalsize(optimizer_size)
+                logger.info(f"Removed optimizer.pt from {checkpoint_subdir}, freed {readable_size}")
 
 
 @app.command()
