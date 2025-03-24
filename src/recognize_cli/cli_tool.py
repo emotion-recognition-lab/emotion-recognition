@@ -154,38 +154,64 @@ def info(
 @app.command()
 def clean(
     checkpoint_dir: Path = typer.Argument(Path("checkpoints"), help="The checkpoint directory to clean"),
-    only_encoders: bool = typer.Option(True, help="Only clean encoder files without symlinks"),
+    keep_best_only: bool = typer.Option(
+        True, help="Only keep the best checkpoints (based on test_f1 and test_accuracy)"
+    ),
 ):
-    """clean encoder files without symlinks"""
+    """Clean checkpoints directory by removing unused files and optionally keeping only the best checkpoints"""
 
     init_logger("INFO")
     cleaned_size = 0
     cleaned_count = 0
-    encoder_dir = checkpoint_dir / "encoders"
-    for subpath in os.listdir(encoder_dir):
-        symlink_count = count_symlinks(encoder_dir / subpath, checkpoint_dir)
-        if subpath.endswith("safetensors") and symlink_count == 0:
-            logger.info(f"Removing {subpath} for no symlinks")
-            cleaned_size += os.path.getsize(encoder_dir / subpath)
-            os.remove(encoder_dir / subpath)
-            cleaned_count += 1
-    readable_size = humanize.naturalsize(cleaned_size)
-    logger.info(f"Cleaned {cleaned_count} encoder files, {readable_size} of {cleaned_count} files")
-    if only_encoders:
-        return
 
-    for stopper_path in checkpoint_dir.glob("**/stopper.yaml"):
-        if not stopper_path.is_file():
-            continue
-        stopper = EarlyStopper.from_file(stopper_path)
-        if stopper.finished:
+    if keep_best_only:
+        # clean checkpoints, only keep the best
+        for stopper_path in checkpoint_dir.glob("**/stopper.yaml"):
+            if not stopper_path.is_file():
+                continue
             checkpoint_subdir = stopper_path.parent
+            stopper = EarlyStopper.from_file(stopper_path)
+            if not stopper.finished:
+                continue
+
+            # get the best epoch
+            best_epochs = set()
+            for metric, epoch in stopper.best_epoch.items():
+                if metric in ["test_f1", "test_accuracy"]:
+                    best_epochs.add(epoch)
+                    logger.info(f"Found best epoch {epoch} for metric {metric} in {checkpoint_subdir}")
+
+            # delete non-best checkpoints
+            for subpath in checkpoint_subdir.glob("[0-9]*"):
+                if subpath.is_dir() and int(subpath.name) not in best_epochs:
+                    size = sum(f.stat().st_size for f in subpath.rglob("*") if f.is_file())
+                    shutil.rmtree(subpath)
+                    cleaned_size += size
+                    cleaned_count += 1
+                    logger.info(f"Removed non-best checkpoint: {subpath}")
+
+            # delete optimizer.pt file
             optimizer_path = checkpoint_subdir / "optimizer.pt"
             if optimizer_path.exists():
                 optimizer_size = optimizer_path.stat().st_size
                 optimizer_path.unlink()
+                cleaned_size += optimizer_size
                 readable_size = humanize.naturalsize(optimizer_size)
                 logger.info(f"Removed optimizer.pt from {checkpoint_subdir}, freed {readable_size}")
+
+    # clean encoder files without symlinks
+    encoder_dir = checkpoint_dir / "encoders"
+    if encoder_dir.exists():
+        for subpath in os.listdir(encoder_dir):
+            symlink_count = count_symlinks(encoder_dir / subpath, checkpoint_dir)
+            if subpath.endswith("safetensors") and symlink_count == 0:
+                logger.info(f"Removing unused encoder: {subpath}")
+                cleaned_size += os.path.getsize(encoder_dir / subpath)
+                os.remove(encoder_dir / subpath)
+                cleaned_count += 1
+        if cleaned_count > 0:
+            readable_size = humanize.naturalsize(cleaned_size)
+            logger.info(f"Cleaned {cleaned_count} unused encoder files, freed {readable_size}")
 
 
 @app.command()
