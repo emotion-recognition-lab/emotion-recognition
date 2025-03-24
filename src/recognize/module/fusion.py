@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from abc import abstractmethod
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Literal, overload
 
@@ -13,15 +12,17 @@ from .router import NoiseRouter
 
 
 @overload
-def support_modal_missing(cls: type[FusionLayer]) -> type[FusionLayer]: ...
+def support_modal_missing[FusionLayerT: FusionLayer](cls: type[FusionLayerT]) -> type[FusionLayerT]: ...
 @overload
-def support_modal_missing(cls: None = None) -> Callable[[type[FusionLayer]], type[FusionLayer]]: ...
+def support_modal_missing[FusionLayerT: FusionLayer](
+    cls: None = None,
+) -> Callable[[type[FusionLayerT]], type[FusionLayerT]]: ...
 
 
-def support_modal_missing(
-    cls: type[FusionLayer] | None = None,
-) -> type[FusionLayer] | Callable[[type[FusionLayer]], type[FusionLayer]]:
-    def decorator(cls: type[FusionLayer]) -> type[FusionLayer]:
+def support_modal_missing[FusionLayerT: FusionLayer](
+    cls: type[FusionLayerT] | None = None,
+) -> type[FusionLayerT] | Callable[[type[FusionLayerT]], type[FusionLayerT]]:
+    def decorator(cls):
         class WrappedFusionLayer(cls):
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
@@ -38,7 +39,7 @@ def support_modal_missing(
                     else inputs[name]
                     for name, dim in self.dims.items()
                 }
-                return cls.forward(self, wrapped_inputs)
+                return super().forward(wrapped_inputs)
 
             def forward_with_loss(
                 self, inputs: Mapping[str, torch.Tensor], label: torch.Tensor
@@ -50,7 +51,7 @@ def support_modal_missing(
                     else inputs[name]
                     for name, dim in self.dims.items()
                 }
-                return cls.forward_with_loss(self, wrapped_inputs, label)
+                return super().forward_with_loss(wrapped_inputs, label)
 
         return WrappedFusionLayer
 
@@ -84,8 +85,8 @@ class FusionLayer(nn.Module):
         self.dims = dict(dims)
         self.output_size = output_size
 
-    @abstractmethod
-    def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor: ...
+    def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
+        raise NotImplementedError
 
     def forward_with_loss(
         self, inputs: Mapping[str, torch.Tensor], label: torch.Tensor
@@ -319,35 +320,10 @@ class DisentanglementFusion(FusionLayer):
     ):
         num_modal = len(dims)
         super().__init__(dims, shared_feature_size * (num_modal - 1) + private_feature_size)
-        self.dim_names = sorted(dims.keys())
-        self.alpha = alpha
-        self.use_cross_attn = use_cross_attn
-        # TODO: dims should be the same, or use Pooler
-        self.shared_projector = SelfAttentionProjector(
-            next(iter(dims.values())),
-            shared_feature_size * (num_modal - 1),
-            head_num=4 * num_modal,
-            depth=2 * num_modal,
-        )
-        self.named_cross_projectors = nn.ModuleDict(
-            {
-                name: SelfAttentionProjector(
-                    dims[name], shared_feature_size, head_num=4 * (num_modal - 1), depth=2 ** (num_modal - 1)
-                )
-                for name in dims.keys()
-            }
-        )
-        self.named_private_projectors = nn.ModuleDict(
-            {
-                name: SelfAttentionProjector(dims[name], private_feature_size, head_num=4, depth=2)
-                for name in dims.keys()
-            }
-        )
-        self.cross_reconstruction_predictor = nn.ModuleDict(
-            {name: Projector(shared_feature_size * (num_modal - 1), dims[name], depth=4) for name in dims.keys()}
-        )
-        self.shared_router = NoiseRouter(sum(dims.values()), num_modal)
-        self.private_router = NoiseRouter(sum(dims.values()), num_modal)
+
+        self.private_fusion = PrivateFeatureFusion(dims, private_feature_size)
+        self.shared_fusion = SharedFeatureFusion(dims, shared_feature_size, alpha=alpha)
+
         self.fusion_layer = (
             CrossAttentionFusionLayer(
                 {"shared": shared_feature_size * (num_modal - 1), "private": private_feature_size}
@@ -359,21 +335,9 @@ class DisentanglementFusion(FusionLayer):
         )
 
     def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
-        concatenated_inputs = torch.cat([inputs[modal] for modal in self.dim_names if modal in inputs], dim=1).detach()
-        private_routing_weights = self.private_router(concatenated_inputs)
-        private_features_dict = {modal: self.named_private_projectors[modal](inputs[modal]) for modal in self.dim_names}
-        private_features = torch.einsum(
-            "bn,bnk->bk",
-            private_routing_weights,
-            torch.stack([private_features_dict[modal] for modal in self.dim_names], 1),
-        )
-        shared_routing_weights = self.shared_router(concatenated_inputs)
-        shared_features_dict = {modal: self.shared_projector(inputs[modal]) for modal in self.dim_names}
-        shared_features = torch.einsum(
-            "bn,bnk->bk",
-            shared_routing_weights,
-            torch.stack([shared_features_dict[modal] for modal in self.dim_names], 1),
-        )
+        private_features = self.private_fusion(inputs)
+        shared_features = self.shared_fusion(inputs)
+
         fusion_features = self.fusion_layer(
             {
                 "shared": shared_features,
@@ -385,50 +349,16 @@ class DisentanglementFusion(FusionLayer):
     def forward_with_loss(
         self, inputs: Mapping[str, torch.Tensor], label: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        concatenated_inputs = torch.cat([inputs[modal] for modal in self.dim_names if modal in inputs], dim=1).detach()
-        private_routing_weights = self.private_router(concatenated_inputs)
-        private_features_dict = {modal: self.named_private_projectors[modal](inputs[modal]) for modal in self.dim_names}
-        private_features = torch.einsum(
-            "bn,bnk->bk",
-            private_routing_weights,
-            torch.stack([private_features_dict[modal] for modal in self.dim_names], 1),
-        )
-        shared_routing_weights = self.shared_router(concatenated_inputs)
-        shared_features_dict = {modal: self.shared_projector(inputs[modal]) for modal in self.dim_names}
-        shared_features = torch.einsum(
-            "bn,bnk->bk",
-            shared_routing_weights,
-            torch.stack([shared_features_dict[modal] for modal in self.dim_names], 1),
-        )
+        private_features = self.private_fusion(inputs)
+        shared_features, shared_loss = self.shared_fusion.forward_with_loss(inputs, label)
+
         fusion_features = self.fusion_layer(
             {
                 "shared": shared_features,
                 "private": private_features,
             }
         )
-        cross_features_dict = {
-            modal1: torch.cat(
-                [self.named_cross_projectors[modal1](inputs[modal2]) for modal2 in self.dim_names if modal1 != modal2],
-                dim=1,
-            )
-            for modal1 in self.dim_names
-        }
-        feature_loss = torch.sum(
-            torch.stack(
-                [
-                    F.smooth_l1_loss(shared_features_dict[modal], cross_features_dict[modal].detach())
-                    for modal in self.dim_names
-                ]
-            ),
-            dim=0,
-        )
-        reconstruction_loss = 0.0
-        for modal in self.dim_names:
-            reconstruction_loss += F.smooth_l1_loss(
-                self.cross_reconstruction_predictor[modal](cross_features_dict[modal]),
-                inputs[modal].detach(),
-            )
-        return fusion_features, self.alpha * (feature_loss + reconstruction_loss) / 2
+        return fusion_features, shared_loss
 
 
 @support_modal_missing()
@@ -471,9 +401,12 @@ class SharedFeatureFusion(FusionLayer):
         self,
         dims: Mapping[str, int],
         shared_feature_size: int,
+        *,
+        alpha: float = 1,
     ):
         num_modal = len(dims)
         super().__init__(dims, shared_feature_size * (num_modal - 1))
+        self.alpha = alpha
         self.dim_names = sorted(dims.keys())
         # TODO: dims should be the same, or use Pooler
         self.shared_projector = SelfAttentionProjector(
@@ -539,4 +472,4 @@ class SharedFeatureFusion(FusionLayer):
                 self.cross_reconstruction_predictor[modal](cross_features_dict[modal]),
                 inputs[modal].detach(),
             )
-        return shared_features, (feature_loss + reconstruction_loss) / 2
+        return shared_features, self.alpha * (feature_loss + reconstruction_loss) / 2
