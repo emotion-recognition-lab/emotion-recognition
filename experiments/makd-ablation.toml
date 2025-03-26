@@ -27,7 +27,7 @@ args = [
 deps = ["unimodal"]
 [tasks.meld-losses.matrix]
 extra = [
-    "configs/losses/frl.toml",
+    "configs/losses/frl-meld.toml",
     "--teacher-checkpoint checkpoints/training/MELD--E/trainable--2--focal/1xE--T/ce200638--114",
 ]
 
@@ -38,7 +38,7 @@ args = [
     "configs/encoders/T+A+V.toml",
     "configs/fusion/{fusion}.toml",
     "configs/losses/classification/focal.toml",
-    "configs/losses/frl.toml",
+    "configs/losses/frl-meld.toml",
     "--teacher-checkpoint checkpoints/training/MELD--E/trainable--2--focal/1xE--T/ce200638--114",
     "--seed 114",
 ]
@@ -53,7 +53,7 @@ args = [
     "configs/encoders/{encoder}.toml",
     "configs/fusion/disentanglement.toml",
     "configs/losses/classification/focal.toml",
-    "configs/losses/frl.toml",
+    "configs/losses/frl-meld.toml",
     "--teacher-checkpoint checkpoints/training/MELD--E/trainable--2--focal/1xE--T/ce200638--114",
     "--seed 114",
 ]
@@ -74,7 +74,7 @@ args = [
 deps = ["unimodal"]
 [tasks.iemocap-losses.matrix]
 extra = [
-    "configs/losses/frl.toml",
+    "configs/losses/frl-iemocap.toml",
     "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--focal/1xE--T/ce200638--114",
 ]
 
@@ -85,7 +85,7 @@ args = [
     "configs/encoders/T+A+V.toml",
     "configs/fusion/{fusion}.toml",
     "configs/losses/classification/focal.toml",
-    "configs/losses/frl.toml",
+    "configs/losses/frl-iemocap.toml",
     "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--focal/1xE--T/ce200638--114",
     "--seed 0",
 ]
@@ -100,7 +100,7 @@ args = [
     "configs/encoders/{encoder}.toml",
     "configs/fusion/disentanglement.toml",
     "configs/losses/classification/focal.toml",
-    "configs/losses/frl.toml",
+    "configs/losses/frl-iemocap.toml",
     "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--focal/1xE--T/ce200638--114",
     "--seed 0",
 ]
