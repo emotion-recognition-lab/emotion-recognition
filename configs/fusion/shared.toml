@@ -1,2 +1,0 @@
-[model]
-fusion = "SharedFeatureFusion(feature_sizes_dict, 128)"

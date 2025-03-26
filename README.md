@@ -106,7 +106,8 @@ uv sync --all-extras --dev
 5. 接下来可以使用[nanoflow](https://github.com/zrr-lab/nanoflow)进行实验。
 
 ```sh
-uvx nanoflow run experiments/disentanglement.toml
+uvx nanoflow run experiments/mdn.toml
+uvx nanoflow run experiments/makd.toml
 ```
 
 ## 实验结果

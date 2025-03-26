@@ -12,14 +12,14 @@ args = [
 ]
 
 [tasks.meld-model.matrix]
-fusion = ["vallina", "shared", "private", "disentanglement-noattn"]
+fusion = ["vallina", "shared-meld", "private", "DF-meld"]
 
 [tasks.meld-modality]
 command = "uv run emotion-recognize train"
 args = [
     "configs/dataset/MELD--E.toml",
     "configs/encoders/{encoder}.toml",
-    "configs/fusion/disentanglement.toml",
+    "configs/fusion/DFA-meld.toml",
     "configs/losses/classification/focal.toml",
     "--seed 114",
 ]
@@ -38,14 +38,14 @@ args = [
 ]
 
 [tasks.iemocap-model.matrix]
-fusion = ["vallina", "shared", "private", "disentanglement-noattn"]
+fusion = ["vallina", "shared-iemocap", "private", "DF-iemocap"]
 
 [tasks.iemocap-modality]
 command = "uv run emotion-recognize train"
 args = [
     "configs/dataset/IEMOCAP--E.toml",
     "configs/encoders/{encoder}.toml",
-    "configs/fusion/disentanglement.toml",
+    "configs/fusion/DFA-iemocap.toml",
     "configs/losses/classification/focal.toml",
     "--seed 0",
 ]

@@ -1,0 +1,2 @@
+[model]
+fusion = "DisentanglementFusion(feature_sizes_dict, 256, 128, use_cross_attn=False, alpha=4)"

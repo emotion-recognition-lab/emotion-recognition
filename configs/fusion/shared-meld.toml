@@ -1,0 +1,2 @@
+[model]
+fusion = "SharedFeatureFusion(feature_sizes_dict, 128, alpha=0.1)"

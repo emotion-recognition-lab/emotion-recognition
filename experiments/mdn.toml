@@ -3,14 +3,23 @@ resources = "gpus"
 
 [matrix]
 seed = ["0", "42", "114"]
-dataset = ["MELD--E", "IEMOCAP--E"]
 
-[tasks.multimodal]
+[tasks.meld]
 command = "uv run emotion-recognize train"
 args = [
-    "configs/dataset/{dataset}.toml",
+    "configs/dataset/MELD--E.toml",
     "configs/encoders/T+A+V.toml",
-    "configs/fusion/disentanglement.toml",
+    "configs/fusion/DFA-meld.toml",
+    "configs/losses/classification/focal.toml",
+    "--seed {seed}",
+]
+
+[tasks.iemocap]
+command = "uv run emotion-recognize train"
+args = [
+    "configs/dataset/IEMOCAP--E.toml",
+    "configs/encoders/T+A+V.toml",
+    "configs/fusion/DFA-iemocap.toml",
     "configs/losses/classification/focal.toml",
     "--seed {seed}",
 ]
