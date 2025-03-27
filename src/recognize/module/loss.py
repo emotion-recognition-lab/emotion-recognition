@@ -103,10 +103,11 @@ class FocalLoss(nn.Module):
 
 
 class DistillationLoss(nn.Module):
-    def __init__(self, teacher_model: UnimodalModel):
+    def __init__(self, teacher_model: UnimodalModel, *, alpha: float = 2.0):
         super().__init__()
         self.teacher_model = teacher_model
         self.logit_loss_fn = LogitLoss()
+        self.alpha = alpha
 
     def forward(self, input: MultimodalInput, output: ClassifierOutput):
         with torch.no_grad():
@@ -114,7 +115,7 @@ class DistillationLoss(nn.Module):
         # if all(input.labels != torch.argmax(output.logits, dim=1)):
         #     return torch.tensor(0.0, device=output.logits.device)
         loss = self.logit_loss_fn(output.logits, teacher_output.logits)
-        return loss
+        return self.alpha * loss
 
 
 class MultiLoss(nn.Module):

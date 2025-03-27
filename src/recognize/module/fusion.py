@@ -148,10 +148,10 @@ class SelfAttentionFusionLayer(FusionLayer):
 
 
 class CrossAttentionFusionLayer(FusionLayer):
-    def __init__(self, dims: Mapping[str, int], *, head_num: int = 8):
+    def __init__(self, dims: Mapping[str, int], *, residual: bool = False, head_num: int = 8):
         sum_dim = sum(dims.values())
         super().__init__(dims, sum_dim)
-
+        self.residual = residual
         self.named_attns = nn.ModuleDict(
             {name: CrossAttention(dim, sum_dim - dim, head_num=head_num) for name, dim in dims.items()}
         )
@@ -162,6 +162,8 @@ class CrossAttentionFusionLayer(FusionLayer):
             attn = self.named_attns[name]
             embeddings = torch.cat([emb for emb_name, emb in inputs.items() if emb_name != name], dim=1)
             embeddings = attn(inputs[name], embeddings)
+            if self.residual:
+                embeddings += inputs[name]
             new_embeddings.append(embeddings)
         return torch.cat(new_embeddings, dim=1)
 
