@@ -24,6 +24,6 @@ encoder = [
 ]
 fusion = [
     "configs/fusion/vallina.toml",
-    "configs/fusion/self-attention.toml",
-    "configs/fusion/cross-attention.toml",
+    "configs/fusion/legacy/self-attention.toml",
+    "configs/fusion/legacy/cross-attention.toml",
 ]
