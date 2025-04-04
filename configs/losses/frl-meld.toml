@@ -1,2 +1,2 @@
 [loss.reconstruction]
-alpha = 0.5
+alpha = 1

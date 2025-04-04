@@ -19,7 +19,7 @@ command = "uv run emotion-recognize train"
 args = [
     "configs/dataset/MELD--E.toml",
     "configs/encoders/T+A+V.toml",
-    "configs/fusion/DFA-meld.toml",
+    "configs/fusion/DFA-0.1.toml",
     "configs/losses/classification/focal.toml",
     "{extra}",
     "--seed 114",
@@ -44,14 +44,14 @@ args = [
 ]
 deps = ["unimodal"]
 [tasks.meld-model.matrix]
-fusion = ["vallina", "shared-meld", "private", "DF-meld"]
+fusion = ["vallina", "shared-meld", "private", "DF-0.1"]
 
 [tasks.meld-modality]
 command = "uv run emotion-recognize train"
 args = [
     "configs/dataset/MELD--E.toml",
     "configs/encoders/{encoder}.toml",
-    "configs/fusion/DFA-meld.toml",
+    "configs/fusion/DFA-0.1.toml",
     "configs/losses/classification/focal.toml",
     "configs/losses/frl-meld.toml",
     "--teacher-checkpoint checkpoints/training/MELD--E/trainable--2--focal/1xE--T/ce200638--114",
@@ -66,7 +66,7 @@ command = "uv run emotion-recognize train"
 args = [
     "configs/dataset/IEMOCAP--E.toml",
     "configs/encoders/T+A+V.toml",
-    "configs/fusion/DFA-iemocap.toml",
+    "configs/fusion/DFA-2.0.toml",
     "configs/losses/classification/focal.toml",
     "{extra}",
     "--seed 0",
@@ -91,14 +91,14 @@ args = [
 ]
 deps = ["unimodal"]
 [tasks.iemocap-model.matrix]
-fusion = ["vallina", "shared-iemocap", "private", "DF-iemocap"]
+fusion = ["vallina", "shared-iemocap", "private", "DF-2.0"]
 
 [tasks.iemocap-modality]
 command = "uv run emotion-recognize train"
 args = [
     "configs/dataset/IEMOCAP--E.toml",
     "configs/encoders/{encoder}.toml",
-    "configs/fusion/DFA-iemocap.toml",
+    "configs/fusion/DFA-2.0.toml",
     "configs/losses/classification/focal.toml",
     "configs/losses/frl-iemocap.toml",
     "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--focal/1xE--T/ce200638--114",

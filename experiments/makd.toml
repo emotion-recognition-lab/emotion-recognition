@@ -20,7 +20,7 @@ command = "uv run emotion-recognize train"
 args = [
     "configs/dataset/MELD--E.toml",
     "configs/encoders/T+A+V.toml",
-    "configs/fusion/DFA-meld.toml",
+    "configs/fusion/DFA-0.1.toml",
     "configs/losses/frl-meld.toml",
     "configs/losses/classification/focal.toml",
     "--teacher-checkpoint checkpoints/training/MELD--E/trainable--2--focal/1xE--T/ce200638--{seed}",
@@ -33,7 +33,7 @@ command = "uv run emotion-recognize train"
 args = [
     "configs/dataset/IEMOCAP--E.toml",
     "configs/encoders/T+A+V.toml",
-    "configs/fusion/DFA-iemocap.toml",
+    "configs/fusion/DFA-2.0.toml",
     "configs/losses/frl-iemocap.toml",
     "configs/losses/classification/focal.toml",
     "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--focal/1xE--T/ce200638--{seed}",
