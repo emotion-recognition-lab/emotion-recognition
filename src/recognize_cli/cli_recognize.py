@@ -426,6 +426,8 @@ def evaluate(
         load_model(checkpoint, model)
     result = TrainingResult.auto_compute(model, test_data_loader)
     result.print()
+    logger.info("Typst code:")
+    print(result.gen_typst_code(gen_accuracy=False))
 
 
 @app.command()

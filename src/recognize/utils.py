@@ -233,15 +233,15 @@ def train_and_eval(
             if (epoch + 1) % eval_interval == 0 or epoch == num_epochs - 1:
                 if use_valid:
                     result = trainer.eval("valid")
-                    valid_f1_score = result.f1_score
-                    valid_accuracy = result.accuracy
+                    valid_f1_score = result.weighted_f1_score
+                    valid_accuracy = result.overall_accuracy
                     better_metrics = stopper.update(epoch=epoch, valid_accuracy=valid_accuracy, valid_f1=valid_f1_score)
                     if stopper.finished:
                         save_checkpoint(checkpoint_dir, epoch, model, trainer.optimizer)
                         break
                 result = trainer.eval("test")
-                test_f1_score = result.f1_score
-                test_accuracy = result.accuracy
+                test_f1_score = result.weighted_f1_score
+                test_accuracy = result.overall_accuracy
                 progress.update(task, f1_score=test_f1_score, accuracy=test_accuracy)
                 better_metrics = stopper.update(epoch=epoch, test_accuracy=test_accuracy, test_f1=test_f1_score)
                 if stopper.finished:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import numpy as np
 import torch
 from loguru import logger
 from pydantic import BaseModel
@@ -25,60 +24,61 @@ def confusion_matrix(model: ClassifierModel, data_loader: DataLoader) -> list[li
     return matrix
 
 
-def calculate_accuracy(predicted_list: list[int], labels_list: list[int]) -> float:
-    correct: int = 0
-    total: int = len(predicted_list)
-    for predicted, labels in zip(predicted_list, labels_list, strict=True):
-        if predicted == labels:
-            correct += 1
-
-    accuracy = 100 * correct / total
-    return accuracy
+def calculate_overall_accuracy(conf_matrix: list[list[int]]) -> float:
+    num_classes = len(conf_matrix)
+    total = sum(sum(row) for row in conf_matrix)
+    correct = sum(conf_matrix[i][i] for i in range(num_classes))
+    return 100 * correct / total
 
 
-def calculate_f1_score(predicted_list: list[int], labels_list: list[int], class_weights: list[float]) -> float:
-    num_classes = len(class_weights)
-    predicted = np.array(predicted_list)
-    labels = np.array(labels_list)
-
-    class_f1_scores = [0] * num_classes
-    class_counts = [0] * num_classes
+def calculate_weighted_f1_score(conf_matrix: list[list[int]], class_weights: list[float]) -> float:
+    num_classes = len(conf_matrix)
+    class_f1_scores = []
 
     for i in range(num_classes):
-        true_positives = ((predicted == i) & (labels == i)).sum()
-        false_positives = ((predicted == i) & (labels != i)).sum()
-        false_negatives = ((predicted != i) & (labels == i)).sum()
+        true_positives = conf_matrix[i][i]
+        false_positives = sum(conf_matrix[j][i] for j in range(num_classes) if j != i)
+        false_negatives = sum(conf_matrix[i][j] for j in range(num_classes) if j != i)
 
         precision = true_positives / (true_positives + false_positives + 1e-10)
         recall = true_positives / (true_positives + false_negatives + 1e-10)
 
-        f1_score = 2 * (precision * recall) / (precision + recall + 1e-10)
+        f1 = 2 * (precision * recall) / (precision + recall + 1e-10)
+        class_f1_scores.append(f1)
 
-        class_f1_scores[i] += f1_score
-        class_counts[i] += 1
-
-    weighted_f1_score = 0.0
-
-    for i in range(num_classes):
-        class_weight = class_weights[i]
-        class_f1 = class_f1_scores[i] / class_counts[i]
-        weighted_f1_score += class_weight * class_f1
+    weighted_f1_score = sum(score * weight for score, weight in zip(class_f1_scores, class_weights, strict=True))
     return 100 * weighted_f1_score
 
 
-def calculate_accuracy_and_f1_score(model: ClassifierModel, data_loader: DataLoader) -> tuple[float, float]:
-    dataset = data_loader.dataset
-    assert isinstance(dataset, MultimodalDataset)
-    class_weights = dataset.class_weights
-    predicted_list, labels_list = get_outputs(model, data_loader)
+def calculate_class_accuracies(conf_matrix: list[list[int]]) -> list[float]:
+    num_classes = len(conf_matrix)
+    class_accuracies = []
 
-    # accuracy
-    accuracy = calculate_accuracy(predicted_list, labels_list)
+    for i in range(num_classes):
+        true_positives = conf_matrix[i][i]
+        total = sum(conf_matrix[i][j] for j in range(num_classes))
+        accuracy = 100 * true_positives / (total + 1e-10)
+        class_accuracies.append(accuracy)
 
-    # f1 score
-    weighted_f1_score = calculate_f1_score(predicted_list, labels_list, class_weights)
+    return class_accuracies
 
-    return accuracy, weighted_f1_score
+
+def calculate_class_f1_scores(conf_matrix: list[list[int]]) -> list[float]:
+    num_classes = len(conf_matrix)
+    class_f1_scores = []
+
+    for i in range(num_classes):
+        true_positives = conf_matrix[i][i]
+        false_positives = sum(conf_matrix[j][i] for j in range(num_classes) if j != i)
+        false_negatives = sum(conf_matrix[i][j] for j in range(num_classes) if j != i)
+
+        precision = true_positives / (true_positives + false_positives + 1e-10)
+        recall = true_positives / (true_positives + false_negatives + 1e-10)
+
+        f1 = 100 * 2 * (precision * recall) / (precision + recall + 1e-10)
+        class_f1_scores.append(f1)
+
+    return class_f1_scores
 
 
 def get_outputs(model: ClassifierModel, data_loader: DataLoader) -> tuple[list[int], list[int]]:
@@ -100,13 +100,18 @@ def get_outputs(model: ClassifierModel, data_loader: DataLoader) -> tuple[list[i
 
 
 class TrainingResult(BaseModel):
-    accuracy: float = 0
-    f1_score: float = 0
+    overall_accuracy: float = 0
+    weighted_f1_score: float = 0
+    class_accuracies: list[float] = []
+    class_f1_scores: list[float] = []
 
     confusion_matrix: list[list[int]] | None = None
 
     def print(self, *, print_table: bool = False):
-        logger.info(f"Accuracy: {self.accuracy:.2f}%, F1 Score: {self.f1_score:.2f}%")
+        logger.info(f"Overall Accuracy: {self.overall_accuracy:.2f}%, Weighted F1 Score: {self.weighted_f1_score:.2f}%")
+        if len(self.class_accuracies) > 0:
+            for i, (acc, f1) in enumerate(zip(self.class_accuracies, self.class_f1_scores, strict=True)):
+                logger.info(f"Class {i} - Accuracy: {acc:.2f}%, F1 Score: {f1:.2f}%")
         if not print_table or self.confusion_matrix is None:
             return
 
@@ -119,11 +124,31 @@ class TrainingResult(BaseModel):
             table.add_row(*str_row)
         print(table)
 
+    def gen_typst_code(self, gen_accuracy: bool = True, gen_f1: bool = True) -> str:
+        items = []
+        for acc, f1 in zip(self.class_accuracies, self.class_f1_scores, strict=True):
+            if gen_accuracy:
+                items.append(f"[{acc:.2f}]")
+            if gen_f1:
+                items.append(f"[{f1:.2f}]")
+        return ", ".join(items)
+
     @classmethod
     def auto_compute(cls, model: ClassifierModel, data_loader: DataLoader):
-        accuracy, f1_score = calculate_accuracy_and_f1_score(model, data_loader)
+        dataset = data_loader.dataset
+        assert isinstance(dataset, MultimodalDataset)
+        class_weights = dataset.class_weights
+
+        conf_matrix = confusion_matrix(model, data_loader)
+        overall_accuracy = calculate_overall_accuracy(conf_matrix)
+        weighted_f1_score = calculate_weighted_f1_score(conf_matrix, class_weights)
+        class_accuracies = calculate_class_accuracies(conf_matrix)
+        class_f1_scores = calculate_class_f1_scores(conf_matrix)
+
         return cls(
-            accuracy=accuracy,
-            f1_score=f1_score,
-            # confusion_matrix=confusion_matrix(model, data_loader),
+            overall_accuracy=overall_accuracy,
+            weighted_f1_score=weighted_f1_score,
+            class_accuracies=class_accuracies,
+            class_f1_scores=class_f1_scores,
+            confusion_matrix=conf_matrix,
         )
