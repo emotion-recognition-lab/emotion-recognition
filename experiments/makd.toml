@@ -3,13 +3,14 @@ resources = "gpus"
 
 [matrix]
 seed = ["0", "42", "114"]
+loss = ["focal", "weight"]
 
 [tasks.unimodal]
 command = "uv run emotion-recognize train"
 args = [
     "configs/dataset/{dataset}.toml",
     "configs/encoders/T.toml",
-    "configs/losses/classification/focal.toml",
+    "configs/losses/classification/{loss}.toml",
     "--seed {seed}",
 ]
 [tasks.unimodal.matrix]
@@ -23,8 +24,8 @@ args = [
     "configs/fusion/DF-0.1.toml",
     "configs/fusion/kwargs/attn.toml",
     "configs/losses/frl-meld.toml",
-    "configs/losses/classification/focal.toml",
-    "--teacher-checkpoint checkpoints/training/MELD--E/trainable--2--focal/1xE--T/ce200638--{seed}",
+    "configs/losses/classification/{loss}.toml",
+    "--teacher-checkpoint checkpoints/training/MELD--E/trainable--2--{loss}/1xE--T/ce200638--{seed}",
     "--seed {seed}",
 ]
 deps = ["unimodal"]
@@ -37,8 +38,8 @@ args = [
     "configs/fusion/DF-2.0.toml",
     "configs/fusion/kwargs/attn.toml",
     "configs/losses/frl-iemocap.toml",
-    "configs/losses/classification/focal.toml",
-    "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--focal/1xE--T/ce200638--{seed}",
+    "configs/losses/classification/{loss}.toml",
+    "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--{loss}/1xE--T/ce200638--{seed}",
     "--seed {seed}",
 ]
 deps = ["unimodal"]

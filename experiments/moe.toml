@@ -10,7 +10,7 @@ command = "uv run emotion-recognize train"
 args = [
     "configs/dataset/{dataset}.toml",
     "configs/encoders/{modalities}.toml",
-    "configs/losses/classification/focal.toml",
+    "configs/losses/classification/{loss}.toml",
     "{classifier}",
     "--seed {seed}",
 ]
@@ -24,7 +24,7 @@ args = [
     "configs/dataset/{dataset}.toml",
     "configs/encoders/{modalities}.toml",
     "configs/fusion/vallina.toml",
-    "configs/losses/classification/focal.toml",
+    "configs/losses/classification/{loss}.toml",
     "{classifier}",
     "--seed {seed}",
 ]

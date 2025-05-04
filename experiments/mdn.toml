@@ -3,6 +3,7 @@ resources = "gpus"
 
 [matrix]
 seed = ["0", "42", "114"]
+loss = ["focal", "weight"]
 
 [tasks.meld--E]
 command = "uv run emotion-recognize train"
@@ -11,7 +12,7 @@ args = [
     "configs/encoders/T+A+V.toml",
     "configs/fusion/DF-0.1.toml",
     "configs/fusion/kwargs/attn.toml",
-    "configs/losses/classification/focal.toml",
+    "configs/losses/classification/{loss}.toml",
     "--seed {seed}",
 ]
 
@@ -22,7 +23,7 @@ args = [
     "configs/encoders/T+A+V.toml",
     "configs/fusion/DF-0.1.toml",
     "configs/fusion/kwargs/attn.toml",
-    "configs/losses/classification/focal.toml",
+    "configs/losses/classification/{loss}.toml",
     "--seed {seed}",
 ]
 
@@ -33,6 +34,6 @@ args = [
     "configs/encoders/T+A+V.toml",
     "configs/fusion/DF-1.0.toml",
     "configs/fusion/kwargs/attn.toml",
-    "configs/losses/classification/focal.toml",
+    "configs/losses/classification/{loss}.toml",
     "--seed {seed}",
 ]
