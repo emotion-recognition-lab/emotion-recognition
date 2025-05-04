@@ -1,0 +1,2 @@
+[model.fusion.kwargs]
+use_cross_attn = "True"

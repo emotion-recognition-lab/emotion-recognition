@@ -37,7 +37,7 @@ class EmotionEstimator:
             )
         else:
             feature_sizes_dict = get_feature_sizes_dict(config.model.encoder)
-            fusion_layer = gen_fusion_layer(config.model.fusion, feature_sizes_dict)
+            fusion_layer = gen_fusion_layer(str(config.model.fusion), feature_sizes_dict)
             model = (
                 MultimodalModel.from_checkpoint(
                     checkpoint,

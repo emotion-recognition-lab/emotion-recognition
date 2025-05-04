@@ -48,9 +48,20 @@ class ModelEncoderConfig(BaseModel):
         return hash_string(f"{self.model}-{self.feature_size}-{self.checkpoint}")
 
 
+class ModelFusionConfig(BaseModel):
+    base: str
+    args: list[str]
+    kwargs: dict[str, str]
+
+    def __str__(self) -> str:
+        args = ", ".join(self.args)
+        kwargs = ", ".join(f"{k}={v}" for k, v in self.kwargs.items())
+        return f"{self.base}({args}, {kwargs})"
+
+
 class ModelConfig(BaseModel):
     encoder: dict[ModalType, ModelEncoderConfig]
-    fusion: str | None = None
+    fusion: ModelFusionConfig | None = None
     num_experts: int = 1
 
     @cached_property
@@ -65,6 +76,7 @@ class ModelConfig(BaseModel):
 
     @cached_property
     def hash(self) -> str:
+        # TODO: to sort encoder hash
         encoder_hash = "".join(encoder.hash for encoder in self.encoder.values())
         return hash_string(f"{encoder_hash}-{self.fusion}")
 

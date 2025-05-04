@@ -317,14 +317,15 @@ class DisentanglementFusion(FusionLayer):
         private_feature_size: int,
         shared_feature_size: int,
         *,
+        dropout_prob: float = 0.1,
         alpha: float = 1,
         use_cross_attn: bool = True,
     ):
         num_modal = len(dims)
         super().__init__(dims, shared_feature_size * (num_modal - 1) + private_feature_size)
 
-        self.private_fusion = PrivateFeatureFusion(dims, private_feature_size)
-        self.shared_fusion = SharedFeatureFusion(dims, shared_feature_size, alpha=alpha)
+        self.private_fusion = PrivateFeatureFusion(dims, private_feature_size, dropout_prob=dropout_prob)
+        self.shared_fusion = SharedFeatureFusion(dims, shared_feature_size, alpha=alpha, dropout_prob=dropout_prob)
 
         self.fusion_layer = (
             CrossAttentionFusionLayer(
@@ -371,13 +372,21 @@ class PrivateFeatureFusion(FusionLayer):
         self,
         dims: Mapping[str, int],
         private_feature_size: int,
+        *,
+        dropout_prob: float = 0.1,
     ):
         num_modal = len(dims)
         super().__init__(dims, private_feature_size)
         self.dim_names = sorted(dims.keys())
         self.named_private_projectors = nn.ModuleDict(
             {
-                name: SelfAttentionProjector(dims[name], private_feature_size, head_num=4, depth=2)
+                name: SelfAttentionProjector(
+                    dims[name],
+                    private_feature_size,
+                    head_num=4,
+                    depth=2,
+                    dropout_prob=dropout_prob,
+                )
                 for name in dims.keys()
             }
         )
@@ -405,6 +414,7 @@ class SharedFeatureFusion(FusionLayer):
         shared_feature_size: int,
         *,
         alpha: float = 1,
+        dropout_prob: float = 0.1,
     ):
         num_modal = len(dims)
         super().__init__(dims, shared_feature_size * (num_modal - 1))
@@ -416,17 +426,30 @@ class SharedFeatureFusion(FusionLayer):
             shared_feature_size * (num_modal - 1),
             head_num=4 * num_modal,
             depth=2 * num_modal,
+            dropout_prob=dropout_prob,
         )
         self.named_cross_projectors = nn.ModuleDict(
             {
                 name: SelfAttentionProjector(
-                    dims[name], shared_feature_size, head_num=4 * (num_modal - 1), depth=2 ** (num_modal - 1)
+                    dims[name],
+                    shared_feature_size,
+                    head_num=4 * (num_modal - 1),
+                    depth=2 ** (num_modal - 1),
+                    dropout_prob=dropout_prob,
                 )
                 for name in dims.keys()
             }
         )
         self.cross_reconstruction_predictor = nn.ModuleDict(
-            {name: Projector(shared_feature_size * (num_modal - 1), dims[name], depth=4) for name in dims.keys()}
+            {
+                name: Projector(
+                    shared_feature_size * (num_modal - 1),
+                    dims[name],
+                    depth=4,
+                    dropout_prob=dropout_prob,
+                )
+                for name in dims.keys()
+            }
         )
         self.shared_router = NoiseRouter(sum(dims.values()), num_modal)
 

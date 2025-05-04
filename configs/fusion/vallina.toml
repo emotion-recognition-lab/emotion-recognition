@@ -1,2 +1,3 @@
-[model]
-fusion = "VallinaFusionLayer(feature_sizes_dict, 128)"
+[model.fusion]
+base = "VallinaFusionLayer"
+args = ["feature_sizes_dict", "128"]

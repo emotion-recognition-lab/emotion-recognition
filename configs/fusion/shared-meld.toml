@@ -1,2 +1,5 @@
-[model]
-fusion = "SharedFeatureFusion(feature_sizes_dict, 128, alpha=0.1)"
+[model.fusion]
+base = "SharedFeatureFusion"
+args = ["feature_sizes_dict", "128"]
+[model.fusion.kwargs]
+alpha = "0.1"

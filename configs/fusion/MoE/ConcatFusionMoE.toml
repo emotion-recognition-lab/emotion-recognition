@@ -1,2 +1,0 @@
-[model]
-fusion = "ConcatFusionMoE(feature_sizes_dict, 512)"

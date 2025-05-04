@@ -325,7 +325,7 @@ def train(
                 )
             )
     else:
-        fusion_layer = gen_fusion_layer(config_model_fusion, feature_sizes_dict)
+        fusion_layer = gen_fusion_layer(str(config_model_fusion), feature_sizes_dict)
         feature_size = fusion_layer.output_size
         model = MultimodalModel(
             backbone,
@@ -414,7 +414,7 @@ def evaluate(
         ).cuda()
     else:
         feature_sizes_dict = get_feature_sizes_dict(config_model_encoder)
-        fusion_layer = gen_fusion_layer(config.model.fusion, feature_sizes_dict)
+        fusion_layer = gen_fusion_layer(str(config.model.fusion), feature_sizes_dict)
         model = MultimodalModel(
             backbone,
             fusion_layer,
@@ -500,7 +500,7 @@ def benchmark(
             ).cuda()
         else:
             feature_sizes_dict = get_feature_sizes_dict(config_model_encoder)
-            fusion_layer = gen_fusion_layer(config.model.fusion, feature_sizes_dict)
+            fusion_layer = gen_fusion_layer(str(config.model.fusion), feature_sizes_dict)
             model = MultimodalModel(
                 backbone,
                 fusion_layer,

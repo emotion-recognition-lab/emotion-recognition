@@ -1,2 +1,0 @@
-[model]
-fusion = "LowRankFusionLayer(feature_sizes_dict, 32, 512)"

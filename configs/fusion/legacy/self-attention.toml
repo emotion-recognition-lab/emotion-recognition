@@ -1,2 +1,0 @@
-[model]
-fusion = "SelfAttentionFusionLayer(feature_sizes_dict, 128)"

@@ -1,2 +1,3 @@
-[model]
-fusion = "PrivateFeatureFusion(feature_sizes_dict, 256)"
+[model.fusion]
+base = "PrivateFeatureFusion"
+args = ["feature_sizes_dict", "256"]
