@@ -179,7 +179,7 @@ def clean(
             for metric, epoch in stopper.best_epoch.items():
                 if metric in ["test_f1", "test_accuracy"]:
                     best_epochs.add(epoch)
-                    logger.info(f"Found best epoch {epoch} for metric {metric} in {checkpoint_subdir}")
+                    logger.debug(f"Found best epoch {epoch} for metric {metric} in {checkpoint_subdir}")
 
             # delete non-best checkpoints
             for subpath in checkpoint_subdir.glob("[0-9]*"):

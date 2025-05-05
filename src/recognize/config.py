@@ -58,6 +58,11 @@ class ModelFusionConfig(BaseModel):
         kwargs = ", ".join(f"{k}={v}" for k, v in self.kwargs.items())
         return f"{self.base}({args}, {kwargs})"
 
+    @property
+    def hash(self) -> str:
+        kwargs = sorted(self.kwargs.items())
+        return hash_string(f"{self.base}-{self.args}-{kwargs}")
+
 
 class ModelConfig(BaseModel):
     encoder: dict[ModalType, ModelEncoderConfig]
@@ -78,7 +83,8 @@ class ModelConfig(BaseModel):
     def hash(self) -> str:
         # TODO: to sort encoder hash
         encoder_hash = "".join(encoder.hash for encoder in self.encoder.values())
-        return hash_string(f"{encoder_hash}-{self.fusion}")
+        fusion_hash = self.fusion.hash if self.fusion is not None else ""
+        return hash_string(f"{encoder_hash}-{fusion_hash}")
 
 
 class DatasetConfig(BaseModel):
