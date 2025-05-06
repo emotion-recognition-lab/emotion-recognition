@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
 from loguru import logger
@@ -126,3 +127,41 @@ def plot_emotion_distribution(df: pd.DataFrame, output_dir: Path | None = None) 
         plt.savefig(output_path, bbox_inches="tight", dpi=300)
         plt.close()
         logger.info(f"已保存图表到: [blue]{output_path}[/]")
+
+
+def plot_confusion_matrix(
+    confusion_matrix: list[list[int]] | np.ndarray,
+    class_names: list[str],
+    output_path: Path | str = "confusion_matrix.png",
+    normalize: bool = True,
+    figsize: tuple[int, int] = (6, 4),
+    cmap: str = "Blues",
+    annot: bool = True,
+    fmt: str = ".2f",
+    xlabel: str = "预测标签",
+    ylabel: str = "真实标签",
+    dpi: int = 300,
+) -> None:
+    plt.rcParams["font.family"] = ["Source Han Sans CN"]
+    plt.rcParams["axes.unicode_minus"] = False
+
+    cm = np.array(confusion_matrix)
+    if normalize:
+        cm = cm / (cm.sum(axis=1, keepdims=True) + 1e-10)
+
+    plt.figure(figsize=figsize)
+    ax = sns.heatmap(
+        cm,
+        annot=annot,
+        fmt=fmt,
+        cmap=cmap,
+        xticklabels=class_names,
+        yticklabels=class_names,
+    )
+    ax.set_xlabel(xlabel, fontsize=15, rotation=0, labelpad=10)
+    ax.set_ylabel("\n".join(list(ylabel)), fontsize=15, rotation=0, labelpad=10)
+    ax.yaxis.set_label_coords(-0.25, 0.25)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=dpi)
+    plt.close()
+    logger.info(f"Saved confusion matrix to: [blue]{output_path}[/]")

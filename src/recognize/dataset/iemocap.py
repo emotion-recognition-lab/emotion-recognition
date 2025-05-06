@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import cached_property
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import torch
 from loguru import logger
@@ -16,18 +16,29 @@ if TYPE_CHECKING:
 
 
 class IEMOCAPDataset(MultimodalDataset):
+    emotion_class_names_mapping: ClassVar[dict[str, int]] = {
+        "neu": 0,
+        "ang": 1,
+        "exc": 2,
+        "fru": 3,
+        "hap": 4,
+        "sad": 5,
+    }
+    sentiment_class_names_mapping: ClassVar[dict[str, int]] = {
+        "neu": 0,
+        "pos": 1,
+        "neg": 2,
+    }
+
     @staticmethod
-    def label2int(item):
+    def emotion2int(item):
         emotion = item["Emotion"]
-        str2int = {
-            "neu": 0,
-            "ang": 1,
-            "exc": 2,
-            "fru": 3,
-            "hap": 4,
-            "sad": 5,
-        }
-        return str2int[emotion]
+        return IEMOCAPDataset.emotion_class_names_mapping[emotion]
+
+    @staticmethod
+    def sentiment2int(item):
+        sentiment = item["Sentiment"]
+        return IEMOCAPDataset.sentiment_class_names_mapping[sentiment]
 
     def __init__(
         self,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from functools import cached_property
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from torch.utils.data import Dataset
 
@@ -20,6 +20,9 @@ class MultimodalDataset(Dataset):
     num_classes: int
     split: DatasetSplit
     preprocessor: Preprocessor | None
+
+    emotion_class_names_mapping: ClassVar[dict[str, int]]
+    sentiment_class_names_mapping: ClassVar[dict[str, int]]
 
     def __init__(
         self,

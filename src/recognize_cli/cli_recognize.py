@@ -18,7 +18,7 @@ from recognize.config import (
     load_training_config,
     save_config,
 )
-from recognize.dataset import IEMOCAPDataset, MELDDataset, MultimodalDataset, PilotDataset, SIMSDataset
+from recognize.dataset import IEMOCAPDataset, MELDDataset, MultimodalDataset, SIMSDataset
 from recognize.evaluate import TrainingResult
 from recognize.model import (
     LazyMultimodalInput,
@@ -61,9 +61,8 @@ def provide_datasets(
     label_type: DatasetLabelType = "emotion",
     dataset_class_str: DatasetClass = "MELDDataset",
 ) -> tuple[MultimodalDataset, MultimodalDataset, MultimodalDataset]:
-    dataset_class: type[MELDDataset | PilotDataset | SIMSDataset | IEMOCAPDataset] = {
+    dataset_class: type[MELDDataset | SIMSDataset | IEMOCAPDataset] = {
         "MELDDataset": MELDDataset,
-        "PilotDataset": PilotDataset,
         "SIMSDataset": SIMSDataset,
         "IEMOCAPDataset": IEMOCAPDataset,
     }[dataset_class_str]
@@ -428,6 +427,16 @@ def evaluate(
     result.print()
     logger.info("Typst code:")
     print(result.gen_typst_code(gen_accuracy=False))
+
+    from utils.visualization import plot_confusion_matrix
+
+    if result.confusion_matrix is not None:
+        plot_confusion_matrix(
+            confusion_matrix=result.confusion_matrix,
+            class_names=list(test_dataset.emotion_class_names_mapping.keys()),
+            output_path="confusion_matrix.png",
+            normalize=True,
+        )
 
 
 @app.command()
