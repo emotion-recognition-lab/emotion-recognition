@@ -16,17 +16,6 @@ args = [
     "--seed {seed}",
 ]
 
-[tasks.meld--S]
-command = "uv run emotion-recognize train"
-args = [
-    "configs/dataset/MELD--S.toml",
-    "configs/encoders/T+A+V.toml",
-    "configs/fusion/DF-1.0.toml",
-    "configs/fusion/kwargs/attn.toml",
-    "configs/losses/classification/{loss}.toml",
-    "--seed {seed}",
-]
-
 [tasks.iemocap]
 command = "uv run emotion-recognize train"
 args = [
