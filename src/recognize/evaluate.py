@@ -134,7 +134,7 @@ class TrainingResult(BaseModel):
         return ", ".join(items)
 
     @classmethod
-    def auto_compute(cls, model: ClassifierModel, data_loader: DataLoader):
+    def auto_compute(cls, model: ClassifierModel, data_loader: DataLoader, *, output_path: str | None = None):
         dataset = data_loader.dataset
         assert isinstance(dataset, MultimodalDataset)
         class_weights = dataset.class_weights
@@ -145,6 +145,15 @@ class TrainingResult(BaseModel):
         class_accuracies = calculate_class_accuracies(conf_matrix)
         class_f1_scores = calculate_class_f1_scores(conf_matrix)
 
+        from utils.visualization import plot_confusion_matrix
+
+        if output_path is not None:
+            plot_confusion_matrix(
+                confusion_matrix=conf_matrix,
+                class_names=list(dataset.emotion_class_names_mapping.keys()),
+                output_path=output_path,
+                normalize=True,
+            )
         return cls(
             overall_accuracy=overall_accuracy,
             weighted_f1_score=weighted_f1_score,

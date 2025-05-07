@@ -135,8 +135,6 @@ def plot_confusion_matrix(
     output_path: Path | str = "confusion_matrix.png",
     normalize: bool = True,
     figsize: tuple[int, int] = (6, 4),
-    cmap: str = "Blues",
-    annot: bool = True,
     fmt: str = ".2f",
     xlabel: str = "预测标签",
     ylabel: str = "真实标签",
@@ -152,9 +150,9 @@ def plot_confusion_matrix(
     plt.figure(figsize=figsize)
     ax = sns.heatmap(
         cm,
-        annot=annot,
+        annot=True,
         fmt=fmt,
-        cmap=cmap,
+        cmap="Blues",
         xticklabels=class_names,
         yticklabels=class_names,
     )

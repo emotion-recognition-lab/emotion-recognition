@@ -24,21 +24,11 @@ class IEMOCAPDataset(MultimodalDataset):
         "hap": 4,
         "sad": 5,
     }
-    sentiment_class_names_mapping: ClassVar[dict[str, int]] = {
-        "neu": 0,
-        "pos": 1,
-        "neg": 2,
-    }
 
     @staticmethod
-    def emotion2int(item):
+    def label2int(item):
         emotion = item["Emotion"]
         return IEMOCAPDataset.emotion_class_names_mapping[emotion]
-
-    @staticmethod
-    def sentiment2int(item):
-        sentiment = item["Sentiment"]
-        return IEMOCAPDataset.sentiment_class_names_mapping[sentiment]
 
     def __init__(
         self,

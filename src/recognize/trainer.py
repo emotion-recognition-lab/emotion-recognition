@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 class EarlyStopper(BaseModel):
     patience: int = 20
     history: list[tuple[int, dict[str, float]]] = Field(default_factory=list)
+    conf_matrix_history: dict[int, list[list[int]] | None] = Field(default_factory=dict)
     best_scores: dict[str, float] = Field(default_factory=dict)
     best_epoch: dict[str, int] = Field(default_factory=dict)
     finished: bool = False
@@ -50,8 +51,10 @@ class EarlyStopper(BaseModel):
     def save(self, path: Path):
         save_dict_to_file(self.model_dump(mode="json"), path)
 
-    def update(self, epoch: int, **kwargs: float) -> list[str]:
+    def update(self, epoch: int, conf_matrix: list[list[int]] | None = None, **kwargs: float) -> list[str]:
         self.history.append((epoch, kwargs))
+        self.conf_matrix_history[epoch] = conf_matrix
+
         better_metrics = []
         for key, value in kwargs.items():
             if key not in self.best_scores:
@@ -130,7 +133,11 @@ class Trainer:
         logger.warning("Trainer.fit is not implemented!")
         return self.eval("train")
 
-    def eval(self, key: Literal["train", "valid", "test"]) -> TrainingResult:
+    def eval(self, key: Literal["train", "valid", "test"], *, output_path: str | None = None) -> TrainingResult:
         from .evaluate import TrainingResult
 
-        return TrainingResult.auto_compute(self.model, self.data_loaders[key])
+        return TrainingResult.auto_compute(
+            self.model,
+            self.data_loaders[key],
+            output_path=output_path,
+        )

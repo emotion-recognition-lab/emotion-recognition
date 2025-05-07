@@ -171,17 +171,6 @@ def generate_preprocessor_and_backbone(
 app = typer.Typer(pretty_exceptions_show_locals=False)
 
 
-@app.command(deprecated=True)
-def distill(
-    config_path: list[Path],
-    teacher_checkpoint: Path = typer.Option(..., help="The checkpoint of the teacher model"),
-    checkpoint: Path | None = None,
-    batch_size: int | None = None,
-    seed: int | None = None,
-) -> None:
-    logger.warning("Distill command is deprecated, please use train instead")
-
-
 @app.command()
 def train(
     config_path: list[Path],
@@ -370,15 +359,14 @@ def evaluate(
 ) -> None:
     from torch.utils.data import DataLoader
 
-    init_torch()
-
     config = load_training_config(checkpoint / "training.toml", seed=seed)
-    init_logger(config.log_level, Path(f"./logs/{config.label}"))
-    seed_everything(config.seed)
     config_model_encoder = config.model.encoder
     config_dataset = config.dataset
-
     config_batch_size = config.batch_size
+
+    init_torch()
+    init_logger(config.log_level, Path(f"./logs/{config.label}"))
+    seed_everything(config.seed)
 
     assert (checkpoint / "preprocessor").exists(), "Preprocessor not found, the checkpoint is not valid"
 
@@ -423,20 +411,10 @@ def evaluate(
         load_best_model(checkpoint, model)
     else:
         load_model(checkpoint, model)
-    result = TrainingResult.auto_compute(model, test_data_loader)
+    result = TrainingResult.auto_compute(model, test_data_loader, output_path="confusion_matrix.png")
     result.print()
     logger.info("Typst code:")
     print(result.gen_typst_code(gen_accuracy=False))
-
-    from utils.visualization import plot_confusion_matrix
-
-    if result.confusion_matrix is not None:
-        plot_confusion_matrix(
-            confusion_matrix=result.confusion_matrix,
-            class_names=list(test_dataset.emotion_class_names_mapping.keys()),
-            output_path="confusion_matrix.png",
-            normalize=True,
-        )
 
 
 @app.command()
