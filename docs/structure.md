@@ -52,7 +52,7 @@ emotion-recognition/
 
 ### 编码器配置 (`configs/encoders/`)
 - `T.toml` - 文本编码器
-- `A.toml` - 音频编码器  
+- `A.toml` - 音频编码器
 - `V.toml` - 视频编码器
 - `T+A.toml` - 文本+音频组合
 - `T+V.toml` - 文本+视频组合

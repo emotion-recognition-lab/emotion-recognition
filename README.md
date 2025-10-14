@@ -65,7 +65,7 @@ ln -s /path/to/MELD datasets/MELD
 # 情绪识别工具
 emotion-recognize --help
 
-# 数据处理工具  
+# 数据处理工具
 emotion-tool --help
 ```
 
@@ -133,7 +133,7 @@ uvx nanoflow run experiments/makd-ablation.toml
 
 #### 模态简称
 - **T** (Text): 文本模态
-- **A** (Audio): 音频模态  
+- **A** (Audio): 音频模态
 - **V** (Video): 视频模态
 
 #### 训练方式简称
@@ -167,7 +167,7 @@ uvx nanoflow run experiments/makd-ablation.toml
 
 #### 编码器支持
 - **文本(T)**：BERT、RoBERTa、ModernBERT等
-- **音频(A)**：Whisper、Distil-Whisper等  
+- **音频(A)**：Whisper、Distil-Whisper等
 - **视频(V)**：OpenCV特征提取
 
 #### 融合策略
