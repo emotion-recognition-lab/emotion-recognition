@@ -50,25 +50,18 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = [
-    # Pyflakes
-    "F",
-    # Pycodestyle
-    "E",
-    "W",
-    # Isort
-    "I",
-    # Pyupgrade
-    "UP",
-    # Flake8
-    "B",
-    "C4",
-    "YTT",
-    "TID",
-    # "PTH",
-    # Pygrep-hooks
-    "PGH",
-    # Ruff-specific rules
-    "RUF",
+    "F",   # Pyflakes
+    "E",   # Pycodestyle
+    "W",   # Pycodestyle
+    "I",   # Isort
+    "UP",  # Pyupgrade
+    "B",   # Flake8-bugbear
+    "C4",  # Flake8-comprehensions
+    "YTT", # Flake8-2020
+    "TID", # Flake8-tidy-imports
+    "PGH", # Pygrep-hooks
+    "RUF", # Ruff-specific rules
+    # "PTH"
 ]
 ignore = ["F841", "PGH003", "UP038", "B008", "RUF001"]
 
