@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal, TypeAlias
+from typing import TYPE_CHECKING, Literal
 
 from typing_extensions import TypeVar
 
@@ -11,8 +11,8 @@ if TYPE_CHECKING:
     from .model import Backbone, ClassifierModel, ModelInput
 
 
-StateDict: TypeAlias = dict[str, "torch.Tensor"]
-StateDicts: TypeAlias = dict[str, StateDict]
+type StateDict = dict[str, "torch.Tensor"]
+type StateDicts = dict[str, StateDict]
 ModelInputT = TypeVar("ModelInputT", bound="ModelInput")
 BackboneT = TypeVar("BackboneT", bound="Backbone", covariant=True)
 ClassifierModelT = TypeVar("ClassifierModelT", bound="ClassifierModel")

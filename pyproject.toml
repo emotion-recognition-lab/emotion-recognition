@@ -29,6 +29,7 @@ readme = "README.md"
 license = { text = "MIT" }
 
 [project.optional-dependencies]
+dev = ["viztracer>=0.16.3", "pyright>=1.1.384"]
 train = [
     "opencv-python>=4.0.0",
     "pandas>=2.0.0",
@@ -46,7 +47,7 @@ emotion-tool = "recognize_cli.cli_tool:app"
 
 [tool.ruff]
 line-length = 120
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -63,7 +64,7 @@ select = [
     "RUF", # Ruff-specific rules
     # "PTH"
 ]
-ignore = ["F841", "PGH003", "UP038", "B008", "RUF001"]
+ignore = ["F841", "PGH003", "B008", "RUF001"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "I002"]
@@ -88,7 +89,6 @@ typeCheckingMode = "standard"
 reportPrivateImportUsage = false
 
 [tool.uv]
-dev-dependencies = ["viztracer>=0.16.3", "pyright>=1.1.384", "ruff>=0.6.8"]
 index-strategy = "unsafe-best-match"
 extra-index-url = [
     "https://pypi.tuna.tsinghua.edu.cn/simple",
