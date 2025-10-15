@@ -8,7 +8,7 @@ dependencies = [
     "sentencepiece>=0.2.0",
     "numpy>=2.1.2",
     "torch==2.4.1; platform_system!='Windows'",
-    "torch==2.4.1+cu121; platform_system=='Windows'",
+    "torch==2.8.0; platform_system=='Windows'",
     "peft>=0.8.2",
     "safetensors>=0.4.2",
     "soundfile>=0.12.1",
