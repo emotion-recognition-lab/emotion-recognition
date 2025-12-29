@@ -1,4 +1,5 @@
 # 多模态情绪识别 (Multimodal Emotion Recognition)
+中文 | [English](README.en-US.md)
 
 > 基于深度学习的多模态情绪识别方法研究套件，支持文本、音频、视频三种模态的情绪分类与情感分析任务。
 
