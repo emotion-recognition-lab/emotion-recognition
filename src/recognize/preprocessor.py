@@ -71,7 +71,7 @@ class Preprocessor:
                     ],
                     dim=0,
                 )
-            # TODO: better way to reduce langth
+            # TODO: better way to reduce length
             audio_input_values = audio_input_values[:200000]
             audio_attention_mask = audio_attention_mask[:200000]
         else:

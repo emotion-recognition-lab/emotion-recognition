@@ -8,38 +8,39 @@ loss = ["focal", "weight"]
 [tasks.unimodal]
 command = "uv run emotion-recognize train"
 args = [
-    "configs/dataset/{dataset}.toml",
-    "configs/encoders/T.toml",
-    "configs/losses/classification/{loss}.toml",
-    "--seed {seed}",
+  "configs/dataset/{dataset}.toml",
+  "configs/encoders/T.toml",
+  "configs/losses/classification/{loss}.toml",
+  "--seed {seed}",
 ]
+
 [tasks.unimodal.matrix]
 dataset = ["MELD--E", "IEMOCAP--E"]
 
 [tasks.meld]
 command = "uv run emotion-recognize train"
 args = [
-    "configs/dataset/MELD--E.toml",
-    "configs/encoders/T+A+V.toml",
-    "configs/fusion/DF-1.0.toml",
-    "configs/fusion/kwargs/attn.toml",
-    "configs/losses/frl-meld.toml",
-    "configs/losses/classification/{loss}.toml",
-    "--teacher-checkpoint checkpoints/training/MELD--E/trainable--2--{loss}/1xE--T/ce200638--{seed}",
-    "--seed {seed}",
+  "configs/dataset/MELD--E.toml",
+  "configs/encoders/T+A+V.toml",
+  "configs/fusion/DF-1.0.toml",
+  "configs/fusion/kwargs/attn.toml",
+  "configs/losses/frl-meld.toml",
+  "configs/losses/classification/{loss}.toml",
+  "--teacher-checkpoint checkpoints/training/MELD--E/trainable--2--{loss}/1xE--T/ce200638--{seed}",
+  "--seed {seed}",
 ]
 deps = ["unimodal"]
 
 [tasks.iemocap]
 command = "uv run emotion-recognize train"
 args = [
-    "configs/dataset/IEMOCAP--E.toml",
-    "configs/encoders/T+A+V.toml",
-    "configs/fusion/DF-2.0.toml",
-    "configs/fusion/kwargs/attn.toml",
-    "configs/losses/frl-iemocap.toml",
-    "configs/losses/classification/{loss}.toml",
-    "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--{loss}/1xE--T/ce200638--{seed}",
-    "--seed {seed}",
+  "configs/dataset/IEMOCAP--E.toml",
+  "configs/encoders/T+A+V.toml",
+  "configs/fusion/DF-2.0.toml",
+  "configs/fusion/kwargs/attn.toml",
+  "configs/losses/frl-iemocap.toml",
+  "configs/losses/classification/{loss}.toml",
+  "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--{loss}/1xE--T/ce200638--{seed}",
+  "--seed {seed}",
 ]
 deps = ["unimodal"]

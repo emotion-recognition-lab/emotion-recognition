@@ -1,40 +1,29 @@
 [project]
 name = "emotion-recognition"
-version = "0.2.0"
+version = "0.3.0"
 description = ""
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
 authors = [{ name = "Zhan Rongrui", email = "2742392377@qq.com" }]
 dependencies = [
-    "transformers>=4.48.0",
-    "sentencepiece>=0.2.0",
-    "numpy>=2.1.2",
-    "torch==2.4.1; platform_system!='Windows'",
-    "torch==2.4.1+cu121; platform_system=='Windows'",
-    "peft>=0.8.2",
-    "safetensors>=0.4.2",
-    "soundfile>=0.12.1",
-    "faster-whisper>=1.0.3",
-    "pydantic>=2.0.0",
-    "loguru>=0.7.0",
-    "rich>=13.7.1",
-    "pillow>=10.2.0",
-    "typer>=0.12.4",
-    "rtoml>=0.11.0",
-    "pyyaml>=6.0.2",
-    "bitsandbytes>=0.44.1",
-    "emotion-recognition-utils",
-    "humanize>=4.11.0",
-]
-requires-python = ">=3.12"
-readme = "README.md"
-license = { text = "MIT" }
-
-[project.optional-dependencies]
-dev = ["viztracer>=0.16.3", "pyright>=1.1.384"]
-train = [
-    "opencv-python>=4.0.0",
-    "pandas>=2.0.0",
-    "pandas-stubs>=2.2.3.241126",
-    "torch-pruning>=1.4.2",
+  "emotion-recognition-utils",
+  "faster-whisper>=1.0.3",
+  "humanize>=4.11.0",
+  "loguru>=0.7.0",
+  "numpy>=2.1.2",
+  "peft>=0.8.2",
+  "pillow>=10.2.0",
+  "pydantic>=2.0.0",
+  "pyyaml>=6.0.2",
+  "rich>=13.7.1",
+  "rtoml>=0.11.0",
+  "safetensors>=0.4.2",
+  "sentencepiece>=0.2.0",
+  "soundfile>=0.12.1",
+  "torch>=2.9.1",
+  "transformers>=4.48.0",
+  "typer>=0.12.4",
 ]
 
 [project.urls]
@@ -45,24 +34,47 @@ Repository = "https://github.com/zrr1999/emotion-recognition.git"
 emotion-recognize = "recognize_cli.cli_recognize:app"
 emotion-tool = "recognize_cli.cli_tool:app"
 
+[project.optional-dependencies]
+train = [
+  "bitsandbytes>=0.44.1",
+  "opencv-python>=4.0.0",
+  "pandas>=2.0.0",
+  "pandas-stubs>=2.2.3.241126",
+]
+
+[dependency-groups]
+dev = ["pyright>=1.1.384", "viztracer>=0.16.3"]
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm.build]
+package-dir = "src"
+source-includes = ["tests", "README.md"]
+
+[tool.pyright]
+typeCheckingMode = "standard"
+reportPrivateImportUsage = false
+
 [tool.ruff]
 line-length = 120
 target-version = "py312"
 
 [tool.ruff.lint]
 select = [
-    "F",   # Pyflakes
-    "E",   # Pycodestyle
-    "W",   # Pycodestyle
-    "I",   # Isort
-    "UP",  # Pyupgrade
-    "B",   # Flake8-bugbear
-    "C4",  # Flake8-comprehensions
-    "YTT", # Flake8-2020
-    "TID", # Flake8-tidy-imports
-    "PGH", # Pygrep-hooks
-    "RUF", # Ruff-specific rules
-    # "PTH"
+  "F",  # Pyflakes
+  "E",  # Pycodestyle
+  "W",  # Pycodestyle
+  "I",  # Isort
+  "UP",  # Pyupgrade
+  "B",  # Flake8-bugbear
+  "C4",  # Flake8-comprehensions
+  "YTT",  # Flake8-2020
+  "TID",  # Flake8-tidy-imports
+  "PGH",  # Pygrep-hooks
+  "RUF",  # Ruff-specific rules
+  # "PTH"
 ]
 ignore = ["F841", "PGH003", "B008", "RUF001"]
 
@@ -83,28 +95,16 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
-[tool.pyright]
-includes = ["src", "tests"]
-typeCheckingMode = "standard"
-reportPrivateImportUsage = false
-
-[tool.uv]
-index-strategy = "unsafe-best-match"
-extra-index-url = [
-    "https://pypi.tuna.tsinghua.edu.cn/simple",
-    "https://download.pytorch.org/whl/cu121",
-]
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
 
 [tool.uv.sources]
 emotion-recognition-utils = { workspace = true }
+torch = [
+  { index = "pytorch-cu126", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
 
 [tool.uv.workspace]
 members = ["packages/*"]
-
-[tool.pdm.build]
-package-dir = "src"
-source-includes = ["tests", "README.md"]
-
-[build-system]
-requires = ["pdm-backend"]
-build-backend = "pdm.backend"
