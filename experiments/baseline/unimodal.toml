@@ -9,14 +9,15 @@ classification = ["focal"]
 [tasks.unimodal]
 command = "uv run emotion-recognize train"
 args = [
-    "configs/dataset/{dataset}.toml",
-    "configs/encoders/{encoder}.toml",
-    "configs/losses/classification/{classification}.toml",
-    "--seed {seed}",
+  "configs/dataset/{dataset}.toml",
+  "configs/encoders/{encoder}.toml",
+  "configs/losses/classification/{classification}.toml",
+  "--seed {seed}",
 ]
+
 [tasks.unimodal.matrix]
 encoder = [
-    "T",
-    "A",
-    "V",
+  "T",
+  "A",
+  "V",
 ]

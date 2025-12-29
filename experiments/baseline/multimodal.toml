@@ -8,17 +8,18 @@ seed = ["114"]
 [tasks.multimodal]
 command = "uv run emotion-recognize train"
 args = [
-    "configs/dataset/{dataset}.toml",
-    "configs/encoders/{encoder}.toml",
-    "configs/fusion/{fusion}.toml",
-    "configs/losses/classification/weight.toml",
-    "--seed {seed}",
+  "configs/dataset/{dataset}.toml",
+  "configs/encoders/{encoder}.toml",
+  "configs/fusion/{fusion}.toml",
+  "configs/losses/classification/weight.toml",
+  "--seed {seed}",
 ]
+
 [tasks.multimodal.matrix]
 encoder = [
-    "T+A",
-    "T+V",
-    "A+V",
-    "T+A+V",
+  "T+A",
+  "T+V",
+  "A+V",
+  "T+A+V",
 ]
 fusion = ["configs/fusion/vallina.toml"]

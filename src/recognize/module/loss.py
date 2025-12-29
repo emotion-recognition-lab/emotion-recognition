@@ -122,12 +122,12 @@ class MultiLoss(nn.Module):
     def __init__(self, loss_num: int):
         super().__init__()
         self.loss_num = loss_num
-        self.sigmas_dota = nn.Parameter(torch.randn(self.loss_num))
+        self.sigmas_data = nn.Parameter(torch.randn(self.loss_num))
 
     def forward(self, losses: torch.Tensor) -> torch.Tensor:
-        factor = 0.5 / self.sigmas_dota
+        factor = 0.5 / self.sigmas_data
         loss_part = factor @ losses
-        regular_part = torch.sum(torch.log(self.sigmas_dota))
+        regular_part = torch.sum(torch.log(self.sigmas_data))
         loss = loss_part + regular_part
         return loss
 

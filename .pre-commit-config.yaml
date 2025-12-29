@@ -1,19 +1,32 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v6.0.0
     hooks:
       - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-executables-have-shebangs
       - id: check-yaml
       - id: check-json
-      - id: check-toml
       - id: check-merge-conflict
-      - id: debug-statements
+      - id: destroyed-symlinks
       - id: end-of-file-fixer
       - id: mixed-line-ending
       - id: trailing-whitespace
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.7.2
+
+  - repo: https://github.com/tombi-toml/tombi-pre-commit
+    rev: v0.7.0
     hooks:
+      - id: tombi-format
+      - id: tombi-lint
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.6
+    hooks:
+      - id: ruff-check
+        args: [--fix]
       - id: ruff-format
-      - id: ruff
-        args: [--fix, --unsafe-fixes, --exit-non-zero-on-fix]
+
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.33.1
+    hooks:
+      - id: typos

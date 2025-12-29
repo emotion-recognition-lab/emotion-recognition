@@ -7,10 +7,10 @@ loss = ["focal", "weight"]
 [tasks.unimodal]
 command = "uv run emotion-recognize train"
 args = [
-    "configs/dataset/{dataset}.toml",
-    "configs/encoders/T.toml",
-    "configs/losses/classification/{loss}.toml",
-    "--seed {seed}",
+  "configs/dataset/{dataset}.toml",
+  "configs/encoders/T.toml",
+  "configs/losses/classification/{loss}.toml",
+  "--seed {seed}",
 ]
 
 [tasks.unimodal.matrix]
@@ -20,97 +20,103 @@ seed = ["0", "114"]
 [tasks.meld-losses]
 command = "uv run emotion-recognize train"
 args = [
-    "configs/dataset/MELD--E.toml",
-    "configs/encoders/T+A+V.toml",
-    "configs/fusion/DF-1.0.toml",
-    "configs/fusion/kwargs/attn.toml",
-    "configs/losses/classification/{loss}.toml",
-    "{extra}",
-    "--seed 114",
+  "configs/dataset/MELD--E.toml",
+  "configs/encoders/T+A+V.toml",
+  "configs/fusion/DF-1.0.toml",
+  "configs/fusion/kwargs/attn.toml",
+  "configs/losses/classification/{loss}.toml",
+  "{extra}",
+  "--seed 114",
 ]
 deps = ["unimodal"]
+
 [tasks.meld-losses.matrix]
 extra = [
-    "configs/losses/frl-meld.toml",
-    "--teacher-checkpoint checkpoints/training/MELD--E/trainable--2--{loss}/1xE--T/ce200638--114",
+  "configs/losses/frl-meld.toml",
+  "--teacher-checkpoint checkpoints/training/MELD--E/trainable--2--{loss}/1xE--T/ce200638--114",
 ]
 
 [tasks.meld-model]
 command = "uv run emotion-recognize train"
 args = [
-    "configs/dataset/MELD--E.toml",
-    "configs/encoders/T+A+V.toml",
-    "configs/fusion/{fusion}.toml",
-    "configs/losses/classification/{loss}.toml",
-    "configs/losses/frl-meld.toml",
-    "--teacher-checkpoint checkpoints/training/MELD--E/trainable--2--{loss}/1xE--T/ce200638--114",
-    "--seed 114",
+  "configs/dataset/MELD--E.toml",
+  "configs/encoders/T+A+V.toml",
+  "configs/fusion/{fusion}.toml",
+  "configs/losses/classification/{loss}.toml",
+  "configs/losses/frl-meld.toml",
+  "--teacher-checkpoint checkpoints/training/MELD--E/trainable--2--{loss}/1xE--T/ce200638--114",
+  "--seed 114",
 ]
 deps = ["unimodal"]
+
 [tasks.meld-model.matrix]
 fusion = ["vallina", "shared-meld", "private", "DF-1.0"]
 
 [tasks.meld-modality]
 command = "uv run emotion-recognize train"
 args = [
-    "configs/dataset/MELD--E.toml",
-    "configs/encoders/{encoder}.toml",
-    "configs/fusion/DF-1.0.toml",
-    "configs/fusion/kwargs/attn.toml",
-    "configs/losses/classification/{loss}.toml",
-    "configs/losses/frl-meld.toml",
-    "--teacher-checkpoint checkpoints/training/MELD--E/trainable--2--{loss}/1xE--T/ce200638--114",
-    "--seed 114",
+  "configs/dataset/MELD--E.toml",
+  "configs/encoders/{encoder}.toml",
+  "configs/fusion/DF-1.0.toml",
+  "configs/fusion/kwargs/attn.toml",
+  "configs/losses/classification/{loss}.toml",
+  "configs/losses/frl-meld.toml",
+  "--teacher-checkpoint checkpoints/training/MELD--E/trainable--2--{loss}/1xE--T/ce200638--114",
+  "--seed 114",
 ]
 deps = ["unimodal"]
+
 [tasks.meld-modality.matrix]
 encoder = ["T+A", "T+V"]
 
 [tasks.iemocap-losses]
 command = "uv run emotion-recognize train"
 args = [
-    "configs/dataset/IEMOCAP--E.toml",
-    "configs/encoders/T+A+V.toml",
-    "configs/fusion/DF-2.0.toml",
-    "configs/fusion/kwargs/attn.toml",
-    "configs/losses/classification/{loss}.toml",
-    "{extra}",
-    "--seed 0",
+  "configs/dataset/IEMOCAP--E.toml",
+  "configs/encoders/T+A+V.toml",
+  "configs/fusion/DF-2.0.toml",
+  "configs/fusion/kwargs/attn.toml",
+  "configs/losses/classification/{loss}.toml",
+  "{extra}",
+  "--seed 0",
 ]
 deps = ["unimodal"]
+
 [tasks.iemocap-losses.matrix]
 extra = [
-    "configs/losses/frl-iemocap.toml",
-    "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--{loss}/1xE--T/ce200638--114",
+  "configs/losses/frl-iemocap.toml",
+  "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--{loss}/1xE--T/ce200638--114",
 ]
 
 [tasks.iemocap-model]
 command = "uv run emotion-recognize train"
 args = [
-    "configs/dataset/IEMOCAP--E.toml",
-    "configs/encoders/T+A+V.toml",
-    "configs/fusion/{fusion}.toml",
-    "configs/losses/classification/{loss}.toml",
-    "configs/losses/frl-iemocap.toml",
-    "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--{loss}/1xE--T/ce200638--114",
-    "--seed 0",
+  "configs/dataset/IEMOCAP--E.toml",
+  "configs/encoders/T+A+V.toml",
+  "configs/fusion/{fusion}.toml",
+  "configs/losses/classification/{loss}.toml",
+  "configs/losses/frl-iemocap.toml",
+  "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--{loss}/1xE--T/ce200638--114",
+  "--seed 0",
 ]
 deps = ["unimodal"]
+
 [tasks.iemocap-model.matrix]
 fusion = ["vallina", "shared-iemocap", "private", "DF-2.0"]
 
 [tasks.iemocap-modality]
 command = "uv run emotion-recognize train"
 args = [
-    "configs/dataset/IEMOCAP--E.toml",
-    "configs/encoders/{encoder}.toml",
-    "configs/fusion/DF-2.0.toml",
-    "configs/fusion/kwargs/attn.toml",
-    "configs/losses/classification/{loss}.toml",
-    "configs/losses/frl-iemocap.toml",
-    "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--{loss}/1xE--T/ce200638--114",
-    "--seed 0",
+  "configs/dataset/IEMOCAP--E.toml",
+  "configs/encoders/{encoder}.toml",
+  "configs/fusion/DF-2.0.toml",
+  "configs/fusion/kwargs/attn.toml",
+  "configs/losses/classification/{loss}.toml",
+  "configs/losses/frl-iemocap.toml",
+  "--teacher-checkpoint checkpoints/training/IEMOCAP--E/trainable--4--{loss}/1xE--T/ce200638--114",
+  "--seed 0",
 ]
 deps = ["unimodal"]
+
 [tasks.iemocap-modality.matrix]
 encoder = ["T+A", "T+V"]
