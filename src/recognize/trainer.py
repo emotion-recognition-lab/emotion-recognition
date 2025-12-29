@@ -129,9 +129,70 @@ class Trainer:
         self.losses.append(loss.detach())
         self.optimizer.zero_grad()
 
-    def fit(self) -> TrainingResult:
-        logger.warning("Trainer.fit is not implemented!")
-        return self.eval("train")
+    def _save_checkpoint(self, checkpoint_dir: Path, epoch: int):
+        checkpoint_dir = Path(checkpoint_dir)
+        epoch_dir = checkpoint_dir / str(epoch)
+        epoch_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            self.model.save_checkpoint(epoch_dir)
+            if hasattr(self.model, "backbone") and hasattr(self.model.backbone, "save"):
+                backbone_dir = epoch_dir / "backbone"
+                backbone_dir.mkdir(parents=True, exist_ok=True)
+                for name, path in self.model.backbone.save(backbone_dir).items():  # type: ignore[attr-defined]
+                    target = backbone_dir / f"{name}.safetensors"
+                    if not target.exists():
+                        target.symlink_to(path)
+            torch.save(self.optimizer.state_dict(), checkpoint_dir / "optimizer.pt")
+        except Exception as e:  # pragma: no cover
+            logger.warning(f"Failed to save checkpoint to {checkpoint_dir}: {e}")
+
+    def fit(
+        self,
+        *,
+        num_epochs: int,
+        eval_interval: int = 1,
+        checkpoint_dir: Path | None = None,
+        stopper: EarlyStopper | None = None,
+        use_valid: bool = True,
+    ) -> TrainingResult:
+        if "train" not in self.data_loaders:
+            raise ValueError("train dataloader is required")
+
+        stopper = stopper or EarlyStopper()
+        best_result: TrainingResult | None = None
+        best_epoch: int | None = None
+
+        train_loader = self.data_loaders["train"]
+        for epoch in range(num_epochs):
+            self.model.train()
+            self.clear_losses()
+            for batch in train_loader:
+                self.train_batch(batch)
+
+            do_eval = (epoch + 1) % eval_interval == 0 or epoch == num_epochs - 1
+            if not do_eval:
+                continue
+
+            eval_split = "valid" if use_valid and "valid" in self.data_loaders else "test"
+            result = self.eval(eval_split)
+            metrics = {
+                f"{eval_split}_accuracy": result.overall_accuracy,
+                f"{eval_split}_f1": result.weighted_f1_score,
+            }
+            better = stopper.update(epoch=epoch, **metrics)
+            if better:
+                best_result = result
+                best_epoch = epoch
+                if checkpoint_dir is not None:
+                    self._save_checkpoint(checkpoint_dir, epoch)
+            if stopper.finished:
+                break
+
+        if best_result is None:
+            best_result = self.eval("train")
+        if checkpoint_dir is not None and best_epoch is not None:
+            stopper.save(Path(checkpoint_dir) / "stopper.yaml")
+        return best_result
 
     def eval(self, key: Literal["train", "valid", "test"], *, output_path: str | None = None) -> TrainingResult:
         from .evaluate import TrainingResult

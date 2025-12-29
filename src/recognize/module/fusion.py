@@ -29,9 +29,15 @@ def support_modal_missing[FusionLayerT: FusionLayer](
                 self.placeholders = nn.ParameterDict(
                     {name: nn.Parameter(torch.randn(1, dim)) for name, dim in self.dims.items()}
                 )
+                self._use_compile = torch.cuda.is_available()
+                if self._use_compile:
+                    self._compiled_forward = torch.compile(self._forward_impl, dynamic=True)
+                    self._compiled_forward_with_loss = torch.compile(self._forward_with_loss_impl, dynamic=True)
+                else:
+                    self._compiled_forward = None
+                    self._compiled_forward_with_loss = None
 
-            @torch.compile(dynamic=True)
-            def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
+            def _forward_impl(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
                 batch_size = next(iter(inputs.values())).size(0)
                 wrapped_inputs = {
                     name: torch.broadcast_to(self.placeholders[name], (batch_size, dim))
@@ -41,8 +47,15 @@ def support_modal_missing[FusionLayerT: FusionLayer](
                 }
                 return super().forward(wrapped_inputs)
 
-            def forward_with_loss(
-                self, inputs: Mapping[str, torch.Tensor], label: torch.Tensor
+            def forward(self, inputs: Mapping[str, torch.Tensor]) -> torch.Tensor:
+                if self._use_compile and self._compiled_forward is not None:
+                    return self._compiled_forward(inputs)
+                return self._forward_impl(inputs)
+
+            def _forward_with_loss_impl(
+                self,
+                inputs: Mapping[str, torch.Tensor],
+                label: torch.Tensor,
             ) -> tuple[torch.Tensor, torch.Tensor]:
                 batch_size = next(iter(inputs.values())).size(0)
                 wrapped_inputs = {
@@ -52,6 +65,15 @@ def support_modal_missing[FusionLayerT: FusionLayer](
                     for name, dim in self.dims.items()
                 }
                 return super().forward_with_loss(wrapped_inputs, label)
+
+            def forward_with_loss(
+                self,
+                inputs: Mapping[str, torch.Tensor],
+                label: torch.Tensor,
+            ) -> tuple[torch.Tensor, torch.Tensor]:
+                if self._use_compile and self._compiled_forward_with_loss is not None:
+                    return self._compiled_forward_with_loss(inputs, label)
+                return self._forward_with_loss_impl(inputs, label)
 
         return WrappedFusionLayer
 

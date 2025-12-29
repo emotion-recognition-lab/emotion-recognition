@@ -55,7 +55,13 @@ class MultimodalDataset(Dataset):
         labels = self.meta.apply(self.label2int, axis=1)
         class_counts = [(labels == i).sum() for i in range(self.num_classes)]
         total_samples = sum(class_counts)
-        class_weights = [class_count / total_samples for class_count in class_counts]
+        class_weights = [
+            (total_samples / (self.num_classes * class_count)) if class_count > 0 else 0.0
+            for class_count in class_counts
+        ]
+        weight_sum = sum(class_weights)
+        if weight_sum > 0:
+            class_weights = [weight * self.num_classes / weight_sum for weight in class_weights]
         return class_weights
 
     @abstractmethod

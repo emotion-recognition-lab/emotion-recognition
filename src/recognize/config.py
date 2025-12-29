@@ -71,7 +71,7 @@ class ModelConfig(BaseModel):
 
     @cached_property
     def label(self) -> str:
-        modalities = "+".join(self.encoder.keys())
+        modalities = "+".join(sorted(self.encoder.keys()))
         # TODO: fusion need more explicit label
         model_labels = [
             f"{self.num_experts}xE",
@@ -81,8 +81,8 @@ class ModelConfig(BaseModel):
 
     @cached_property
     def hash(self) -> str:
-        # TODO: to sort encoder hash
-        encoder_hash = "".join(encoder.hash for encoder in self.encoder.values())
+        encoder_items = sorted(self.encoder.items())
+        encoder_hash = "".join(f"{modal}:{encoder.hash}" for modal, encoder in encoder_items)
         fusion_hash = self.fusion.hash if self.fusion is not None else ""
         return hash_string(f"{encoder_hash}-{fusion_hash}")
 

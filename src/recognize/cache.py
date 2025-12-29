@@ -43,23 +43,23 @@ class Cache(BaseModel):
 
 class CacheManager:
     cache: Cache
-    deivce_cache: Cache | None
+    device_cache: Cache | None
     maxsize: tuple[int, int]
 
     def __init__(
         self,
         maxsize: int | tuple[int, int],
-        device: torch.device = torch.device("cuda"),
+        device: torch.device | str | None = None,
         *,
         cache_dir: Path = Path("./cache"),
     ):
         self.maxsize = maxsize if isinstance(maxsize, tuple) else (maxsize, maxsize)
         self.cache = Cache(maxsize=self.maxsize[0])
-        self.device = device
-        if device.type == "cpu":
-            self.deivce_cache = None
+        self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
+        if self.device.type == "cpu":
+            self.device_cache = None
         else:
-            self.deivce_cache = Cache(maxsize=self.maxsize[1])
+            self.device_cache = Cache(maxsize=self.maxsize[1])
         self.cache_dir = cache_dir
 
     @property
@@ -85,32 +85,33 @@ class CacheManager:
         save_file(value, cache_file)
 
     def get(self, key: str) -> StateDict | None:
-        if self.deivce_cache is None:
+        if self.device_cache is None:
             if value := self.cache.get(key):
                 return value
             if value := self.load_disk_cache(key):
                 self.cache.set(key, value)
                 return value
         else:
-            if value := self.deivce_cache.get(key):
+            if value := self.device_cache.get(key):
                 return value
             if value := self.cache.get(key):
                 value = {k: v.to(self.device) for k, v in value.items()}
-                self.deivce_cache.set(key, value)
+                self.device_cache.set(key, value)
                 return value
             if value := self.load_disk_cache(key):
                 self.cache.set(key, value)
                 value = {k: v.to(self.device) for k, v in value.items()}
-                self.deivce_cache.set(key, value)
+                self.device_cache.set(key, value)
                 return value
         return None
 
     def set(self, key: str, value: StateDict):
-        self.cache.set(key, {k: v.to("cpu") for k, v in value.items()})
-        if self.deivce_cache is not None:
-            value = {k: v.to(self.device, copy=True) for k, v in value.items()}
-            self.deivce_cache.set(key, value)
-        self.save_disk_cache(key, value)
+        cpu_value = {k: v.to("cpu") for k, v in value.items()}
+        self.cache.set(key, cpu_value)
+        if self.device_cache is not None:
+            device_value = {k: v.to(self.device, copy=True) for k, v in value.items()}
+            self.device_cache.set(key, device_value)
+        self.save_disk_cache(key, cpu_value)
 
 
 def load_cached_tensors(

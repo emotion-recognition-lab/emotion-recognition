@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
-from typing_extensions import deprecated
 
 from recognize.config import load_inference_config
 from recognize.model import (
@@ -17,7 +16,8 @@ from recognize.preprocessor import Preprocessor
 
 
 class EmotionEstimator:
-    def __init__(self, checkpoint: Path) -> None:
+    def __init__(self, checkpoint: Path, device: str | torch.device | None = None) -> None:
+        self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
         config = load_inference_config(checkpoint / "inference.toml")
 
         backbone = MultimodalBackbone.from_checkpoint(
@@ -27,29 +27,21 @@ class EmotionEstimator:
         preprocessor = Preprocessor.from_pretrained(checkpoint / "preprocessor")
 
         if config.model.fusion is None:
-            model = (
-                UnimodalModel.from_checkpoint(
-                    checkpoint,
-                    backbone,
-                )
-                .cuda()
-                .eval()
-            )
+            model = UnimodalModel.from_checkpoint(
+                checkpoint,
+                backbone,
+            ).to(self.device)
         else:
             feature_sizes_dict = get_feature_sizes_dict(config.model.encoder)
             fusion_layer = gen_fusion_layer(str(config.model.fusion), feature_sizes_dict)
-            model = (
-                MultimodalModel.from_checkpoint(
-                    checkpoint,
-                    backbone,
-                    fusion_layer,
-                )
-                .cuda()
-                .eval()
-            )
+            model = MultimodalModel.from_checkpoint(
+                checkpoint,
+                backbone,
+                fusion_layer,
+            ).to(self.device)
 
         self.preprocessor = preprocessor
-        self.emotion_model = model
+        self.emotion_model = model.eval()
 
     def compute_logits(
         self,
@@ -62,8 +54,11 @@ class EmotionEstimator:
             texts=[text] if text is not None else None,
             audio_paths=[audio_path.as_posix()] if audio_path is not None and audio_path.exists() else None,
             video_paths=[video_path.as_posix()] if video_path is not None and video_path.exists() else None,
-        ).cuda()
-        return self.emotion_model(inputs).logits[0]
+        )
+        if self.device.type == "cuda":
+            inputs = inputs.cuda()
+        with torch.no_grad():
+            return self.emotion_model(inputs).logits[0]
 
     def classify(
         self,
@@ -91,12 +86,3 @@ class EmotionEstimator:
 
         score = (1 - expected_value / 3) * 100
         return score.item()
-
-    @deprecated("use `estimate` instead")
-    def emotion_estimate(
-        self,
-        text: str | None = None,
-        video_path: Path | None = None,
-        audio_path: Path | None = None,
-    ) -> float:
-        return self.estimate(text, video_path, audio_path)

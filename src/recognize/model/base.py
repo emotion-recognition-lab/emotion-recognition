@@ -41,8 +41,12 @@ class ClassifierModel[T: ModelInput](nn.Module):
         super().__init__()
         self.backbone = backbone
         self.num_classes = num_classes
-        self.class_weights = class_weights
-        self.sample_weights = 1 / self.class_weights if self.class_weights is not None else None
+        weight_tensor = torch.as_tensor(class_weights, dtype=torch.float32) if class_weights is not None else None
+        self.class_weights = weight_tensor
+        if weight_tensor is not None:
+            self.register_buffer("sample_weights", weight_tensor)
+        else:
+            self.sample_weights = None  # type: ignore[assignment]
         self.feature_size = feature_size
         self.extra_loss_fns = list(extra_loss_fns) if extra_loss_fns is not None else []
         self.extra_loss_weights = (
@@ -53,7 +57,7 @@ class ClassifierModel[T: ModelInput](nn.Module):
 
         self.loss_fn = {
             None: nn.CrossEntropyLoss(),
-            "weight": nn.CrossEntropyLoss(self.sample_weights),
+            "weight": nn.CrossEntropyLoss(weight=self.sample_weights),
             "focal": FocalLoss(gamma=2),
         }[classification_loss]
         if num_experts == 1:

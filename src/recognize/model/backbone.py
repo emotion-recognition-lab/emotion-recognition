@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import itertools
-import pickle
 from abc import abstractmethod
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -38,10 +36,12 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
         frozen_encoders: bool = True,
         use_peft: bool = False,
         encoder_dir: Path = Path("./checkpoints/encoders"),
+        checkpoint_path: Path | None = None,
         init_hook: Callable[[Self], None] | None = None,
     ):
         super().__init__()
         self.encoder_dir = encoder_dir
+        self.checkpoint_path = checkpoint_path
         self.feature_sizes = {name: feature_size for name, (_, feature_size) in encoders.items()}
         self.use_cache = use_cache
         self.use_peft = use_peft
@@ -188,12 +188,30 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
 
     @property
     def encoder_hash(self):
-        bytes_dict: dict[str, bytes] = {}
-        state_dicts, peft_state_dicts = self.get_state_dicts()
-        for name, state_dict in itertools.chain(state_dicts.items(), peft_state_dicts.items()):
-            bytes_dict[name] = save(state_dict)
-        serialized_dict = pickle.dumps(bytes_dict)
-        return hash_bytes(serialized_dict)
+        if hasattr(self, "_encoder_hash"):
+            return self._encoder_hash  # type: ignore[attr-defined]
+
+        parts: list[str] = [str(sorted(self.feature_sizes.items()))]
+        if self.checkpoint_path is not None:
+            signatures = []
+            state_files = [self.checkpoint_path / "poolers.safetensors"]
+            for name in sorted(self.feature_sizes):
+                state_files.append(self.checkpoint_path / f"{name}.safetensors")
+                state_files.append(self.checkpoint_path / f"peft_{name}.safetensors")
+            for path in state_files:
+                if path.exists():
+                    stat = path.stat()
+                    signatures.append(f"{path.resolve()}-{stat.st_size}-{stat.st_mtime_ns}")
+            if signatures:
+                parts.extend(sorted(signatures))
+        if len(parts) == 1:
+            meta = []
+            for name, module in sorted(self.named_encoders.items()):
+                for param_name, param in module.state_dict().items():
+                    meta.append((name, param_name, tuple(param.shape), str(param.dtype)))
+            parts.append(str(meta))
+        self._encoder_hash = hash_bytes("||".join(parts).encode())
+        return self._encoder_hash
 
     def save(self, original_encoder_dir: Path) -> dict[str, Path]:
         state_path_dict: dict[str, Path] = {}
@@ -254,6 +272,7 @@ class MultimodalBackbone(Backbone[MultimodalInput]):
             frozen_encoders=frozen_encoders,
             use_peft=use_peft,
             encoder_dir=encoder_dir,
+            checkpoint_path=checkpoint_path,
         )
         self.named_poolers.load_state_dict(load_file(checkpoint_path / "poolers.safetensors"))
         self.cache_manager.cache_dir = Path(f"./cache/{self.encoder_hash}")
