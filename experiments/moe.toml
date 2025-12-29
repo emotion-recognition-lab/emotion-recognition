@@ -8,26 +8,38 @@ seed = ["0", "42", "114"]
 [tasks.MoE-unimodal]
 command = "uv run emotion-recognize train"
 args = [
-    "configs/dataset/{dataset}.toml",
-    "configs/encoders/{modalities}.toml",
-    "configs/losses/classification/{loss}.toml",
-    "{classifier}",
-    "--seed {seed}",
+  "configs/dataset/{dataset}.toml",
+  "configs/encoders/{modalities}.toml",
+  "configs/losses/classification/{loss}.toml",
+  "{classifier}",
+  "--seed {seed}",
 ]
+
 [tasks.MoE-unimodal.matrix]
 modalities = ["T", "A", "V"]
-classifier = ["", "configs/classifier/4xE.toml", "configs/classifier/8xE.toml", "configs/classifier/64xE.toml"]
+classifier = [
+  "",
+  "configs/classifier/4xE.toml",
+  "configs/classifier/8xE.toml",
+  "configs/classifier/64xE.toml"
+]
 
 [tasks.MoE-multimodal]
 command = "uv run emotion-recognize train"
 args = [
-    "configs/dataset/{dataset}.toml",
-    "configs/encoders/{modalities}.toml",
-    "configs/fusion/vallina.toml",
-    "configs/losses/classification/{loss}.toml",
-    "{classifier}",
-    "--seed {seed}",
+  "configs/dataset/{dataset}.toml",
+  "configs/encoders/{modalities}.toml",
+  "configs/fusion/vallina.toml",
+  "configs/losses/classification/{loss}.toml",
+  "{classifier}",
+  "--seed {seed}",
 ]
+
 [tasks.MoE-multimodal.matrix]
 modalities = ["T+A", "T+V", "T+A+V"]
-classifier = ["", "configs/classifier/4xE.toml", "configs/classifier/8xE.toml", "configs/classifier/64xE.toml"]
+classifier = [
+  "",
+  "configs/classifier/4xE.toml",
+  "configs/classifier/8xE.toml",
+  "configs/classifier/64xE.toml"
+]

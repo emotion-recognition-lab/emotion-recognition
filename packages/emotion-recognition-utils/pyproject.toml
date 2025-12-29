@@ -5,11 +5,11 @@ description = "Utils for Emotion Recognition"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "loguru>=0.7.0",
-    "rich>=13.7.1",
-    "pandas>=2.1.0",
-    "pandas-stubs>=2.2.3.241126",
-    "seaborn>=0.13.0",
+  "loguru>=0.7.0",
+  "pandas>=2.1.0",
+  "pandas-stubs>=2.2.3.241126",
+  "rich>=13.7.1",
+  "seaborn>=0.13.0",
 ]
 
 [build-system]

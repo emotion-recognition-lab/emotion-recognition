@@ -1,5 +1,6 @@
 [model.fusion]
 base = "DisentanglementFusion"
 args = ["feature_sizes_dict", "256", "128"]
+
 [model.fusion.kwargs]
 alpha = "0.1"
